@@ -9,7 +9,8 @@ class TimetableGenerator {
   final List<Subject> subjects;
   final List<Classroom> classrooms;
   final AppSettings settings;
-  final List<Lesson> existingLessons; // Kept for any pre-assigned lessons if needed
+  final List<Lesson>
+      existingLessons; // Kept for any pre-assigned lessons if needed
 
   TimetableGenerator({
     required this.teachers,
@@ -27,7 +28,8 @@ class TimetableGenerator {
     for (var classroom in classrooms) {
       for (var subject in subjects) {
         // Find a teacher that teaches this subject
-        final availableTeachers = teachers.where((t) => t.specialization == subject.name).toList();
+        final availableTeachers =
+            teachers.where((t) => t.specialization == subject.name).toList();
         Teacher? assignedTeacher;
         if (availableTeachers.isNotEmpty) {
           // For simplicity, just pick the first one, or do round-robin.
@@ -56,24 +58,36 @@ class TimetableGenerator {
       List<int> periodOrder = List.generate(maxPeriods, (index) => index);
       if (lesson.subject.value?.preferEarlyPeriods ?? false) {
         // Prefer periods 0, 1
-        periodOrder = [0, 1, 2, 3, 4, 5, 6, 7].where((p) => p < maxPeriods).toList();
+        periodOrder =
+            [0, 1, 2, 3, 4, 5, 6, 7].where((p) => p < maxPeriods).toList();
+      }
+
+      // Filter periodOrder by allowedPeriods if constraints exist
+      if (lesson.subject.value != null &&
+          lesson.subject.value!.allowedPeriods.isNotEmpty) {
+        periodOrder = periodOrder
+            .where((p) => lesson.subject.value!.allowedPeriods.contains(p))
+            .toList();
       }
 
       for (int day = 0; day < maxDays; day++) {
         if (placed) break;
 
         // Check teacher unavailability
-        if (lesson.teacher.value != null && lesson.teacher.value!.unavailableDays.contains(day)) {
+        if (lesson.teacher.value != null &&
+            lesson.teacher.value!.unavailableDays.contains(day)) {
           continue;
         }
 
         // Check teacher daily limit
-        int teacherLessonsToday = generatedLessons.where((l) =>
-          l.teacher.value?.id == lesson.teacher.value?.id &&
-          l.dayIndex == day
-        ).length;
+        int teacherLessonsToday = generatedLessons
+            .where((l) =>
+                l.teacher.value?.id == lesson.teacher.value?.id &&
+                l.dayIndex == day)
+            .length;
 
-        if (lesson.teacher.value != null && teacherLessonsToday >= lesson.teacher.value!.maxLessonsPerDay) {
+        if (lesson.teacher.value != null &&
+            teacherLessonsToday >= lesson.teacher.value!.maxLessonsPerDay) {
           continue;
         }
 
@@ -82,26 +96,24 @@ class TimetableGenerator {
         bool subjectAlreadyOnDay = generatedLessons.any((l) =>
             l.classroom.value?.id == lesson.classroom.value?.id &&
             l.subject.value?.id == lesson.subject.value?.id &&
-            l.dayIndex == day
-        );
+            l.dayIndex == day);
         if (subjectAlreadyOnDay) {
           continue;
         }
 
         for (int period in periodOrder) {
           // Check teacher conflict
-          bool teacherConflict = lesson.teacher.value != null && generatedLessons.any((l) =>
-            l.teacher.value?.id == lesson.teacher.value?.id &&
-            l.dayIndex == day &&
-            l.periodIndex == period
-          );
+          bool teacherConflict = lesson.teacher.value != null &&
+              generatedLessons.any((l) =>
+                  l.teacher.value?.id == lesson.teacher.value?.id &&
+                  l.dayIndex == day &&
+                  l.periodIndex == period);
 
           // Check classroom conflict
           bool classroomConflict = generatedLessons.any((l) =>
-            l.classroom.value?.id == lesson.classroom.value?.id &&
-            l.dayIndex == day &&
-            l.periodIndex == period
-          );
+              l.classroom.value?.id == lesson.classroom.value?.id &&
+              l.dayIndex == day &&
+              l.periodIndex == period);
 
           if (!teacherConflict && !classroomConflict) {
             lesson.dayIndex = day;

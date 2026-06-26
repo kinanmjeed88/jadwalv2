@@ -22,8 +22,23 @@ const AppSettingsSchema = CollectionSchema(
       name: r'daysPerWeek',
       type: IsarType.long,
     ),
-    r'periodsPerDay': PropertySchema(
+    r'exportAutoScale': PropertySchema(
       id: 1,
+      name: r'exportAutoScale',
+      type: IsarType.bool,
+    ),
+    r'exportOrientation': PropertySchema(
+      id: 2,
+      name: r'exportOrientation',
+      type: IsarType.string,
+    ),
+    r'exportPageSize': PropertySchema(
+      id: 3,
+      name: r'exportPageSize',
+      type: IsarType.string,
+    ),
+    r'periodsPerDay': PropertySchema(
+      id: 4,
       name: r'periodsPerDay',
       type: IsarType.long,
     )
@@ -48,6 +63,8 @@ int _appSettingsEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  bytesCount += 3 + object.exportOrientation.length * 3;
+  bytesCount += 3 + object.exportPageSize.length * 3;
   return bytesCount;
 }
 
@@ -58,7 +75,10 @@ void _appSettingsSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeLong(offsets[0], object.daysPerWeek);
-  writer.writeLong(offsets[1], object.periodsPerDay);
+  writer.writeBool(offsets[1], object.exportAutoScale);
+  writer.writeString(offsets[2], object.exportOrientation);
+  writer.writeString(offsets[3], object.exportPageSize);
+  writer.writeLong(offsets[4], object.periodsPerDay);
 }
 
 AppSettings _appSettingsDeserialize(
@@ -69,8 +89,11 @@ AppSettings _appSettingsDeserialize(
 ) {
   final object = AppSettings();
   object.daysPerWeek = reader.readLong(offsets[0]);
+  object.exportAutoScale = reader.readBool(offsets[1]);
+  object.exportOrientation = reader.readString(offsets[2]);
+  object.exportPageSize = reader.readString(offsets[3]);
   object.id = id;
-  object.periodsPerDay = reader.readLong(offsets[1]);
+  object.periodsPerDay = reader.readLong(offsets[4]);
   return object;
 }
 
@@ -84,6 +107,12 @@ P _appSettingsDeserializeProp<P>(
     case 0:
       return (reader.readLong(offset)) as P;
     case 1:
+      return (reader.readBool(offset)) as P;
+    case 2:
+      return (reader.readString(offset)) as P;
+    case 3:
+      return (reader.readString(offset)) as P;
+    case 4:
       return (reader.readLong(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -239,6 +268,288 @@ extension AppSettingsQueryFilter
     });
   }
 
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportAutoScaleEqualTo(bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'exportAutoScale',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportOrientationEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'exportOrientation',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportOrientationGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'exportOrientation',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportOrientationLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'exportOrientation',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportOrientationBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'exportOrientation',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportOrientationStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'exportOrientation',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportOrientationEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'exportOrientation',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportOrientationContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'exportOrientation',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportOrientationMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'exportOrientation',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportOrientationIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'exportOrientation',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportOrientationIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'exportOrientation',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportPageSizeEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'exportPageSize',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportPageSizeGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'exportPageSize',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportPageSizeLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'exportPageSize',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportPageSizeBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'exportPageSize',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportPageSizeStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'exportPageSize',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportPageSizeEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'exportPageSize',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportPageSizeContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'exportPageSize',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportPageSizeMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'exportPageSize',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportPageSizeIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'exportPageSize',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      exportPageSizeIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'exportPageSize',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition> idEqualTo(
       Id value) {
     return QueryBuilder.apply(this, (query) {
@@ -369,6 +680,46 @@ extension AppSettingsQuerySortBy
     });
   }
 
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy> sortByExportAutoScale() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportAutoScale', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      sortByExportAutoScaleDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportAutoScale', Sort.desc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      sortByExportOrientation() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportOrientation', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      sortByExportOrientationDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportOrientation', Sort.desc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy> sortByExportPageSize() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportPageSize', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      sortByExportPageSizeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportPageSize', Sort.desc);
+    });
+  }
+
   QueryBuilder<AppSettings, AppSettings, QAfterSortBy> sortByPeriodsPerDay() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'periodsPerDay', Sort.asc);
@@ -394,6 +745,46 @@ extension AppSettingsQuerySortThenBy
   QueryBuilder<AppSettings, AppSettings, QAfterSortBy> thenByDaysPerWeekDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'daysPerWeek', Sort.desc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy> thenByExportAutoScale() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportAutoScale', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      thenByExportAutoScaleDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportAutoScale', Sort.desc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      thenByExportOrientation() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportOrientation', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      thenByExportOrientationDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportOrientation', Sort.desc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy> thenByExportPageSize() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportPageSize', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      thenByExportPageSizeDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'exportPageSize', Sort.desc);
     });
   }
 
@@ -431,6 +822,29 @@ extension AppSettingsQueryWhereDistinct
     });
   }
 
+  QueryBuilder<AppSettings, AppSettings, QDistinct>
+      distinctByExportAutoScale() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'exportAutoScale');
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QDistinct> distinctByExportOrientation(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'exportOrientation',
+          caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QDistinct> distinctByExportPageSize(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'exportPageSize',
+          caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<AppSettings, AppSettings, QDistinct> distinctByPeriodsPerDay() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'periodsPerDay');
@@ -449,6 +863,25 @@ extension AppSettingsQueryProperty
   QueryBuilder<AppSettings, int, QQueryOperations> daysPerWeekProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'daysPerWeek');
+    });
+  }
+
+  QueryBuilder<AppSettings, bool, QQueryOperations> exportAutoScaleProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'exportAutoScale');
+    });
+  }
+
+  QueryBuilder<AppSettings, String, QQueryOperations>
+      exportOrientationProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'exportOrientation');
+    });
+  }
+
+  QueryBuilder<AppSettings, String, QQueryOperations> exportPageSizeProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'exportPageSize');
     });
   }
 

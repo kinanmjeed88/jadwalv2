@@ -28,7 +28,9 @@ class TimetableNotifier extends _$TimetableNotifier {
       final subjects = await isar.subjects.where().findAll();
       final classrooms = await isar.classrooms.where().findAll();
       final settingsList = await isar.appSettings.where().findAll();
-      final settings = settingsList.isNotEmpty ? settingsList.first : (AppSettings()..periodsPerDay = 7);
+      final settings = settingsList.isNotEmpty
+          ? settingsList.first
+          : (AppSettings()..periodsPerDay = 7);
 
       // Clear existing schedule assignments (or you might want to create a new pool)
       final existingLessons = await isar.lessons.where().findAll();
@@ -53,7 +55,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       // Save to Isar
       await isar.writeTxn(() async {
         await isar.lessons.putAll(generatedLessons);
-        for(var lesson in generatedLessons) {
+        for (var lesson in generatedLessons) {
           await lesson.teacher.save();
           await lesson.subject.save();
           await lesson.classroom.save();
@@ -61,7 +63,6 @@ class TimetableNotifier extends _$TimetableNotifier {
       });
 
       state = AsyncValue.data(generatedLessons);
-
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
@@ -69,8 +70,10 @@ class TimetableNotifier extends _$TimetableNotifier {
 
   Future<bool> swapLessons(Lesson lesson1, Lesson lesson2) async {
     // Validate swap constraints
-    if (lesson1.dayIndex == null || lesson1.periodIndex == null ||
-        lesson2.dayIndex == null || lesson2.periodIndex == null) {
+    if (lesson1.dayIndex == null ||
+        lesson1.periodIndex == null ||
+        lesson2.dayIndex == null ||
+        lesson2.periodIndex == null) {
       return false;
     }
 
@@ -79,18 +82,18 @@ class TimetableNotifier extends _$TimetableNotifier {
 
     // Check if swap causes teacher conflict
     bool lesson1TeacherConflict = allLessons.any((l) =>
-      l.id != lesson1.id && l.id != lesson2.id &&
-      l.teacher.value?.id == lesson1.teacher.value?.id &&
-      l.dayIndex == lesson2.dayIndex &&
-      l.periodIndex == lesson2.periodIndex
-    );
+        l.id != lesson1.id &&
+        l.id != lesson2.id &&
+        l.teacher.value?.id == lesson1.teacher.value?.id &&
+        l.dayIndex == lesson2.dayIndex &&
+        l.periodIndex == lesson2.periodIndex);
 
     bool lesson2TeacherConflict = allLessons.any((l) =>
-      l.id != lesson1.id && l.id != lesson2.id &&
-      l.teacher.value?.id == lesson2.teacher.value?.id &&
-      l.dayIndex == lesson1.dayIndex &&
-      l.periodIndex == lesson1.periodIndex
-    );
+        l.id != lesson1.id &&
+        l.id != lesson2.id &&
+        l.teacher.value?.id == lesson2.teacher.value?.id &&
+        l.dayIndex == lesson1.dayIndex &&
+        l.periodIndex == lesson1.periodIndex);
 
     if (lesson1TeacherConflict || lesson2TeacherConflict) {
       return false; // Swap invalid

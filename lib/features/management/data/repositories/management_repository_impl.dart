@@ -3,6 +3,7 @@ import 'package:isar/isar.dart';
 import '../../../../core/models/teacher.dart';
 import '../../../../core/models/subject.dart';
 import '../../../../core/models/classroom.dart';
+import '../../../../core/models/settings.dart';
 import '../../domain/repositories/management_repository.dart';
 
 class ManagementRepositoryImpl implements ManagementRepository {
@@ -64,6 +65,18 @@ class ManagementRepositoryImpl implements ManagementRepository {
   Future<void> deleteClassroom(int id) async {
     await _isar.writeTxn(() async {
       await _isar.classrooms.delete(id);
+    });
+  }
+
+  @override
+  Future<AppSettings?> getSettings() async {
+    return await _isar.appSettings.where().findFirst();
+  }
+
+  @override
+  Future<void> saveSettings(AppSettings settings) async {
+    await _isar.writeTxn(() async {
+      await _isar.appSettings.put(settings);
     });
   }
 }

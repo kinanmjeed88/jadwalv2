@@ -25,13 +25,17 @@ class TimetablePage extends ConsumerWidget {
             onPressed: () async {
               final isar = await ref.read(isarDatabaseProvider.future);
               final lessons = await isar.lessons.where().findAll();
-              final classRooms = await isar.collection<Classroom>().where().findAll();
+              final classRooms =
+                  await isar.collection<Classroom>().where().findAll();
 
               final settingsList = await isar.appSettings.where().findAll();
-              final settings = settingsList.isNotEmpty ? settingsList.first : (AppSettings()..periodsPerDay = 7);
+              final settings = settingsList.isNotEmpty
+                  ? settingsList.first
+                  : (AppSettings()..periodsPerDay = 7);
 
               final pdfUsecase = PdfExportUseCase();
-              final pdfBytes = await pdfUsecase.generateTimetablePdf(lessons, classRooms, settings.periodsPerDay);
+              final pdfBytes = await pdfUsecase.generateTimetablePdf(
+                  lessons, classRooms, settings.periodsPerDay);
 
               await Printing.layoutPdf(onLayout: (_) => pdfBytes);
             },
@@ -58,7 +62,8 @@ class TimetablePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildTimetableGrid(BuildContext context, WidgetRef ref, List<Lesson> lessons) {
+  Widget _buildTimetableGrid(
+      BuildContext context, WidgetRef ref, List<Lesson> lessons) {
     final assigned = lessons.where((l) => !l.isUnassigned).toList();
     final unassigned = lessons.where((l) => l.isUnassigned).toList();
 
@@ -68,7 +73,9 @@ class TimetablePage extends ConsumerWidget {
           Container(
             color: Colors.red.shade100,
             padding: const EdgeInsets.all(8.0),
-            child: Text('يوجد \${unassigned.length} دروس غير مجدولة (استعصاء)', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+            child: Text('يوجد \${unassigned.length} دروس غير مجدولة (استعصاء)',
+                style: const TextStyle(
+                    color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         Expanded(
           child: GridView.builder(
@@ -79,7 +86,8 @@ class TimetablePage extends ConsumerWidget {
               crossAxisSpacing: 4,
               mainAxisSpacing: 4,
             ),
-            itemCount: assigned.length, // Rough representation. Proper grid needs strict day/period mapping
+            itemCount: assigned
+                .length, // Rough representation. Proper grid needs strict day/period mapping
             itemBuilder: (context, index) {
               final lesson = assigned[index];
               return Draggable<Lesson>(
@@ -88,7 +96,8 @@ class TimetablePage extends ConsumerWidget {
                   child: Container(
                     color: Colors.teal.withOpacity(0.7),
                     padding: const EdgeInsets.all(8),
-                    child: Text('\${lesson.subject.value?.name}', style: const TextStyle(color: Colors.white)),
+                    child: Text('\${lesson.subject.value?.name}',
+                        style: const TextStyle(color: Colors.white)),
                   ),
                 ),
                 childWhenDragging: Container(color: Colors.grey.shade300),
@@ -97,17 +106,22 @@ class TimetablePage extends ConsumerWidget {
                     return incoming != null && incoming.id != lesson.id;
                   },
                   onAccept: (incoming) async {
-                    final success = await ref.read(timetableNotifierProvider.notifier).swapLessons(incoming, lesson);
+                    final success = await ref
+                        .read(timetableNotifierProvider.notifier)
+                        .swapLessons(incoming, lesson);
                     if (!success && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('لا يمكن التبديل لوجود تعارض')),
+                        const SnackBar(
+                            content: Text('لا يمكن التبديل لوجود تعارض')),
                       );
                     }
                   },
                   builder: (context, candidateData, rejectedData) {
                     return Container(
                       decoration: BoxDecoration(
-                        color: candidateData.isNotEmpty ? Colors.teal.shade100 : Colors.teal.shade50,
+                        color: candidateData.isNotEmpty
+                            ? Colors.teal.shade100
+                            : Colors.teal.shade50,
                         border: Border.all(color: Colors.teal),
                         borderRadius: BorderRadius.circular(4),
                       ),
@@ -115,9 +129,14 @@ class TimetablePage extends ConsumerWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(lesson.subject.value?.name ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                            Text(lesson.teacher.value?.name ?? '', style: const TextStyle(fontSize: 10)),
-                            Text(lesson.classroom.value?.name ?? '', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                            Text(lesson.subject.value?.name ?? '',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 12)),
+                            Text(lesson.teacher.value?.name ?? '',
+                                style: const TextStyle(fontSize: 10)),
+                            Text(lesson.classroom.value?.name ?? '',
+                                style: const TextStyle(
+                                    fontSize: 10, color: Colors.grey)),
                           ],
                         ),
                       ),
