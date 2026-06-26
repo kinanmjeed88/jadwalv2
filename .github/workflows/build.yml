@@ -2,7 +2,7 @@ name: Flutter Build
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
@@ -22,6 +22,13 @@ jobs:
       with:
         flutter-version: '3.19.0'
         channel: 'stable'
+
+    - name: Server-Side Android Fix
+      run: |
+        rm -rf android
+        flutter create . --platforms=android
+        sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle || true
+        sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle.kts || true
 
     - name: Clean Workspace
       run: flutter clean
