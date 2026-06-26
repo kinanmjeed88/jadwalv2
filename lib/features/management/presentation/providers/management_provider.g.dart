@@ -55,5 +55,21 @@ final classroomsNotifierProvider = AutoDisposeAsyncNotifierProvider<
 );
 
 typedef _$ClassroomsNotifier = AutoDisposeAsyncNotifier<List<Classroom>>;
+String _$settingsNotifierHash() => r'89e21d1c80d5e546883f09334b6603a0cf141e94';
+
+/// See also [SettingsNotifier].
+@ProviderFor(SettingsNotifier)
+final settingsNotifierProvider =
+    AutoDisposeAsyncNotifierProvider<SettingsNotifier, AppSettings>.internal(
+  SettingsNotifier.new,
+  name: r'settingsNotifierProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$settingsNotifierHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+typedef _$SettingsNotifier = AutoDisposeAsyncNotifier<AppSettings>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member

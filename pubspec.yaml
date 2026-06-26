@@ -45,6 +45,7 @@ dependencies:
   riverpod_annotation: ^2.3.5
   flutter_localizations:
     sdk: flutter
+  file_picker: ^11.0.2
 
 dev_dependencies:
   flutter_test:
