@@ -17,18 +17,23 @@ const SubjectSchema = CollectionSchema(
   name: r'Subject',
   id: 7648000959054204885,
   properties: {
-    r'lessonsPerWeek': PropertySchema(
+    r'allowedPeriods': PropertySchema(
       id: 0,
+      name: r'allowedPeriods',
+      type: IsarType.longList,
+    ),
+    r'lessonsPerWeek': PropertySchema(
+      id: 1,
       name: r'lessonsPerWeek',
       type: IsarType.long,
     ),
     r'name': PropertySchema(
-      id: 1,
+      id: 2,
       name: r'name',
       type: IsarType.string,
     ),
     r'preferEarlyPeriods': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'preferEarlyPeriods',
       type: IsarType.bool,
     )
@@ -53,6 +58,7 @@ int _subjectEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  bytesCount += 3 + object.allowedPeriods.length * 8;
   bytesCount += 3 + object.name.length * 3;
   return bytesCount;
 }
@@ -63,9 +69,10 @@ void _subjectSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeLong(offsets[0], object.lessonsPerWeek);
-  writer.writeString(offsets[1], object.name);
-  writer.writeBool(offsets[2], object.preferEarlyPeriods);
+  writer.writeLongList(offsets[0], object.allowedPeriods);
+  writer.writeLong(offsets[1], object.lessonsPerWeek);
+  writer.writeString(offsets[2], object.name);
+  writer.writeBool(offsets[3], object.preferEarlyPeriods);
 }
 
 Subject _subjectDeserialize(
@@ -75,10 +82,11 @@ Subject _subjectDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = Subject();
+  object.allowedPeriods = reader.readLongList(offsets[0]) ?? [];
   object.id = id;
-  object.lessonsPerWeek = reader.readLong(offsets[0]);
-  object.name = reader.readString(offsets[1]);
-  object.preferEarlyPeriods = reader.readBool(offsets[2]);
+  object.lessonsPerWeek = reader.readLong(offsets[1]);
+  object.name = reader.readString(offsets[2]);
+  object.preferEarlyPeriods = reader.readBool(offsets[3]);
   return object;
 }
 
@@ -90,10 +98,12 @@ P _subjectDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readLong(offset)) as P;
+      return (reader.readLongList(offset) ?? []) as P;
     case 1:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 2:
+      return (reader.readString(offset)) as P;
+    case 3:
       return (reader.readBool(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -189,6 +199,151 @@ extension SubjectQueryWhere on QueryBuilder<Subject, Subject, QWhereClause> {
 
 extension SubjectQueryFilter
     on QueryBuilder<Subject, Subject, QFilterCondition> {
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      allowedPeriodsElementEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'allowedPeriods',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      allowedPeriodsElementGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'allowedPeriods',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      allowedPeriodsElementLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'allowedPeriods',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      allowedPeriodsElementBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'allowedPeriods',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      allowedPeriodsLengthEqualTo(int length) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        length,
+        true,
+        length,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      allowedPeriodsIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        0,
+        true,
+        0,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      allowedPeriodsIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        0,
+        false,
+        999999,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      allowedPeriodsLengthLessThan(
+    int length, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        0,
+        true,
+        length,
+        include,
+      );
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      allowedPeriodsLengthGreaterThan(
+    int length, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        length,
+        include,
+        999999,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      allowedPeriodsLengthBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        lower,
+        includeLower,
+        upper,
+        includeUpper,
+      );
+    });
+  }
+
   QueryBuilder<Subject, Subject, QAfterFilterCondition> idEqualTo(Id value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
@@ -533,6 +688,12 @@ extension SubjectQuerySortThenBy
 
 extension SubjectQueryWhereDistinct
     on QueryBuilder<Subject, Subject, QDistinct> {
+  QueryBuilder<Subject, Subject, QDistinct> distinctByAllowedPeriods() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'allowedPeriods');
+    });
+  }
+
   QueryBuilder<Subject, Subject, QDistinct> distinctByLessonsPerWeek() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'lessonsPerWeek');
@@ -558,6 +719,12 @@ extension SubjectQueryProperty
   QueryBuilder<Subject, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<Subject, List<int>, QQueryOperations> allowedPeriodsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'allowedPeriods');
     });
   }
 

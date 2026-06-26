@@ -6,7 +6,8 @@ import 'database_provider.dart';
 part 'repository_provider.g.dart';
 
 @Riverpod(keepAlive: true)
-Future<ManagementRepository> managementRepository(ManagementRepositoryRef ref) async {
+Future<ManagementRepository> managementRepository(
+    ManagementRepositoryRef ref) async {
   final isar = await ref.watch(isarDatabaseProvider.future);
   return ManagementRepositoryImpl(isar);
 }

@@ -22,7 +22,9 @@ class TeachersPage extends ConsumerWidget {
               trailing: IconButton(
                 icon: const Icon(Icons.delete, color: Colors.red),
                 onPressed: () {
-                  ref.read(teachersNotifierProvider.notifier).deleteTeacher(teacher.id);
+                  ref
+                      .read(teachersNotifierProvider.notifier)
+                      .deleteTeacher(teacher.id);
                 },
               ),
             );
@@ -51,14 +53,28 @@ class TeachersPage extends ConsumerWidget {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameCtrl, decoration: const InputDecoration(labelText: 'الاسم')),
-            TextField(controller: specCtrl, decoration: const InputDecoration(labelText: 'الاختصاص')),
-            TextField(controller: maxDailyCtrl, decoration: const InputDecoration(labelText: 'الحد الأقصى يومياً'), keyboardType: TextInputType.number),
-            TextField(controller: maxWeeklyCtrl, decoration: const InputDecoration(labelText: 'الحد الأقصى أسبوعياً'), keyboardType: TextInputType.number),
+            TextField(
+                controller: nameCtrl,
+                decoration: const InputDecoration(labelText: 'الاسم')),
+            TextField(
+                controller: specCtrl,
+                decoration: const InputDecoration(labelText: 'الاختصاص')),
+            TextField(
+                controller: maxDailyCtrl,
+                decoration:
+                    const InputDecoration(labelText: 'الحد الأقصى يومياً'),
+                keyboardType: TextInputType.number),
+            TextField(
+                controller: maxWeeklyCtrl,
+                decoration:
+                    const InputDecoration(labelText: 'الحد الأقصى أسبوعياً'),
+                keyboardType: TextInputType.number),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء')),
           TextButton(
             onPressed: () {
               final teacher = Teacher()
