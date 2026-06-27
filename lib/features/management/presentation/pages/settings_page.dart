@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'dart:io';
+import 'dart:convert';
 
 import '../../../../core/models/settings.dart';
 import '../../../../core/providers/repository_provider.dart';
@@ -18,7 +19,7 @@ class SettingsPage extends ConsumerWidget {
       body: settingsAsync.when(
         data: (settings) => _SettingsForm(settings: settings),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('حدث خطأ: \$e')),
+        error: (e, st) => Center(child: Text('حدث خطأ: ' + e.toString())),
       ),
     );
   }
@@ -75,14 +76,16 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
       // In a real device we'd use a file picker to choose location,
       // here we just simulate saving to a default location for demo purposes.
       // We will try to use file_picker to get a directory.
+      final jsonBytes = const Utf8Encoder().convert(jsonStr);
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'احفظ النسخة الاحتياطية',
         fileName: 'jadwal_backup.json',
+        bytes: jsonBytes,
       );
 
       if (outputFile != null) {
         final file = File(outputFile);
-        await file.writeAsString(jsonStr);
+        await file.writeAsBytes(jsonBytes);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('تم تصدير البيانات بنجاح')),
@@ -92,7 +95,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل في التصدير: \$e')),
+          SnackBar(content: Text('فشل في التصدير: ' + e.toString())),
         );
       }
     }
@@ -126,7 +129,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل في الاستيراد: \$e')),
+          SnackBar(content: Text('فشل في الاستيراد: ' + e.toString())),
         );
       }
     }

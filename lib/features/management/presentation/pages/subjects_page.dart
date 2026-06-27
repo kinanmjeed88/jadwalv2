@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/models/subject.dart';
+import '../../../../core/utils/period_mapper.dart';
 import '../providers/management_provider.dart';
 
 class SubjectsPage extends ConsumerWidget {
@@ -25,7 +26,7 @@ class SubjectsPage extends ConsumerWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text(subject.name),
-                  subtitle: Text('الحصص الأسبوعية: \${subject.lessonsPerWeek}'),
+                  subtitle: Text('الحصص الأسبوعية: ' + subject.lessonsPerWeek.toString()),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () => _confirmDelete(context, ref, subject),
@@ -37,7 +38,7 @@ class SubjectsPage extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('حدث خطأ: \$e')),
+        error: (e, st) => Center(child: Text('حدث خطأ: ' + e.toString())),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddOrEditDialog(context, ref, null),
@@ -51,7 +52,7 @@ class SubjectsPage extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('حذف المادة'),
-        content: Text('هل أنت متأكد من حذف المادة "\${subject.name}"؟'),
+        content: Text('هل أنت متأكد من حذف المادة "' + subject.name + '"؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -116,14 +117,18 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
             children: [
               TextFormField(
                 initialValue: _name,
-                decoration: const InputDecoration(labelText: 'اسم المادة'),
+                decoration: const InputDecoration(
+                    labelText: 'اسم المادة',
+                    helperText: 'مثال: رياضيات, علوم'),
                 validator: (val) => val == null || val.isEmpty ? 'مطلوب' : null,
                 onSaved: (val) => _name = val!,
               ),
               const SizedBox(height: 10),
               TextFormField(
                 initialValue: _lessonsPerWeek.toString(),
-                decoration: const InputDecoration(labelText: 'الحصص الأسبوعية'),
+                decoration: const InputDecoration(
+                    labelText: 'الحصص الأسبوعية',
+                    helperText: 'عدد الحصص المطلوبة خلال الأسبوع'),
                 keyboardType: TextInputType.number,
                 validator: (val) => val == null || int.tryParse(val) == null ? 'أدخل رقماً صحيحاً' : null,
                 onSaved: (val) => _lessonsPerWeek = int.parse(val!),
@@ -135,7 +140,11 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                 onChanged: (val) => setState(() => _preferEarlyPeriods = val ?? false),
               ),
               const SizedBox(height: 10),
-              const Text('القيود الزمنية (الحصص المسموحة):', style: TextStyle(fontWeight: FontWeight.bold)),
+              ListTile(
+                title: const Text('القيود الزمنية (الحصص المسموحة للمادة)'),
+                subtitle: const Text('تحديد حصص معينة يجبر النظام على وضع المادة فيها.'),
+                contentPadding: EdgeInsets.zero,
+              ),
               settingsAsync.when(
                 data: (settings) {
                   return Wrap(
@@ -143,7 +152,7 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                     children: List.generate(settings.periodsPerDay, (index) {
                       final isSelected = _allowedPeriods.contains(index);
                       return FilterChip(
-                        label: Text('الحصة \${index + 1}'),
+                        label: Text(PeriodMapper.toArabicName(index)),
                         selected: isSelected,
                         onSelected: (selected) {
                           setState(() {

@@ -27,8 +27,10 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
         _selectedSubject!,
         _selectedTeacher!,
       );
+      final subjectName = _selectedSubject!.name;
+      final classroomName = _selectedClassroom!.name;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تم إسناد مادة \${_selectedSubject!.name} لـ \${_selectedClassroom!.name} بنجاح')),
+        SnackBar(content: Text('تم إسناد مادة ' + subjectName + ' لـ ' + classroomName + ' بنجاح')),
       );
       setState(() {
         _selectedSubject = null;
@@ -65,7 +67,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                         onChanged: (val) => setState(() => _selectedClassroom = val),
                       ),
                       loading: () => const CircularProgressIndicator(),
-                      error: (e, st) => Text('خطأ: \$e'),
+                      error: (e, st) => Text('خطأ: ' + e.toString()),
                     ),
                     const SizedBox(height: 16),
                     subjectsAsync.when(
@@ -76,7 +78,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                         onChanged: (val) => setState(() => _selectedSubject = val),
                       ),
                       loading: () => const CircularProgressIndicator(),
-                      error: (e, st) => Text('خطأ: \$e'),
+                      error: (e, st) => Text('خطأ: ' + e.toString()),
                     ),
                     const SizedBox(height: 16),
                     teachersAsync.when(
@@ -87,7 +89,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                         onChanged: (val) => setState(() => _selectedTeacher = val),
                       ),
                       loading: () => const CircularProgressIndicator(),
-                      error: (e, st) => Text('خطأ: \$e'),
+                      error: (e, st) => Text('خطأ: ' + e.toString()),
                     ),
                     const SizedBox(height: 24),
                     SizedBox(
@@ -95,7 +97,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                       child: ElevatedButton(
                         onPressed: (_selectedClassroom != null && _selectedSubject != null && _selectedTeacher != null) ? _assignLesson : null,
                         style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
-                        child: const Text('إسناد المادة وإضافتها للجدول (Unscheduled)', style: TextStyle(fontSize: 16)),
+                        child: const Text('إسناد المادة وإضافتها للجدول (دروس بانتظار التوزيع)', style: TextStyle(fontSize: 16)),
                       ),
                     ),
                   ],
@@ -103,7 +105,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text('الإسنادات الحالية (بانتظار التوليد)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
+            const Text('الإسنادات الحالية (دروس بانتظار التوزيع)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
             const SizedBox(height: 8),
             Expanded(
               child: lessonsAsync.when(
@@ -138,12 +140,12 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
 
                       return ExpansionTile(
                         title: Text(classroomName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                        subtitle: Text('إجمالي الحصص المطلوبة: \${classLessons.length}'),
+                        subtitle: Text('إجمالي الحصص المطلوبة: ' + classLessons.length.toString()),
                         children: subjectsMap.keys.map((sName) {
                           return ListTile(
                             title: Text(sName),
-                            subtitle: Text('المدرس: \${teachersMap[sName]}'),
-                            trailing: Text('\${subjectsMap[sName]} حصص', style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold)),
+                            subtitle: Text('المدرس: ' + (teachersMap[sName] ?? 'غير محدد')),
+                            trailing: Text(subjectsMap[sName].toString() + ' حصص', style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold)),
                           );
                         }).toList(),
                       );
@@ -151,7 +153,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                   );
                 },
                 loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, st) => Center(child: Text('حدث خطأ: \$e')),
+                error: (e, st) => Center(child: Text('حدث خطأ: ' + e.toString())),
               ),
             ),
           ],
