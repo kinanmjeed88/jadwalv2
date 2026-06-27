@@ -37,7 +37,7 @@ jobs:
 
     - name: Fix Isar Namespace Error
       run: |
-        echo "android { namespace 'dev.isar.isar_flutter_libs' }" >> ~/.pub-cache/hosted/pub.dev/isar_flutter_libs-*/android/build.gradle
+        sed -i 's/compileSdkVersion/namespace "dev.isar.isar_flutter_libs"\n    compileSdkVersion/g' ~/.pub-cache/hosted/pub.dev/isar_flutter_libs-*/android/build.gradle
       
     - name: Build APK
       run: flutter build apk --release
