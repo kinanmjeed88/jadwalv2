@@ -31,7 +31,7 @@ class TeachersPage extends ConsumerWidget {
           },
         ),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('حدث خطأ: ' + e.toString())),
+        error: (e, st) => Center(child: Text('حدث خطأ: $e')),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddTeacherDialog(context, ref),
@@ -68,14 +68,14 @@ class TeachersPage extends ConsumerWidget {
                 decoration:
                     const InputDecoration(
                         labelText: 'الحد الأقصى يومياً',
-                        helperText: 'عدد الحصص القصوى باليوم الواحد'),
+                        helperText: 'عدد الدروس القصوى باليوم الواحد'),
                 keyboardType: TextInputType.number),
             TextField(
                 controller: maxWeeklyCtrl,
                 decoration:
                     const InputDecoration(
                         labelText: 'الحد الأقصى أسبوعياً',
-                        helperText: 'عدد الحصص القصوى بالأسبوع'),
+                        helperText: 'عدد الدروس القصوى بالأسبوع'),
                 keyboardType: TextInputType.number),
           ],
         ),

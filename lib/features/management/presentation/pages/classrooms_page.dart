@@ -25,7 +25,7 @@ class ClassroomsPage extends ConsumerWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text(classroom.name),
-                  subtitle: Text('المرحلة: ' + classroom.grade),
+                  subtitle: Text('المرحلة: ${classroom.grade}'),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () => _confirmDelete(context, ref, classroom),
@@ -37,7 +37,7 @@ class ClassroomsPage extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('حدث خطأ: ' + e.toString())),
+        error: (e, st) => Center(child: Text('حدث خطأ: $e')),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddOrEditDialog(context, ref, null),
@@ -51,7 +51,7 @@ class ClassroomsPage extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('حذف الصف'),
-        content: Text('هل أنت متأكد من حذف "' + classroom.name + '"؟'),
+        content: Text('هل أنت متأكد من حذف "${classroom.name}"؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -111,7 +111,7 @@ class _ClassroomDialogState extends ConsumerState<_ClassroomDialog> {
               initialValue: _name,
               decoration: const InputDecoration(
                   labelText: 'اسم الصف/الشعبة',
-                  helperText: 'مثال: شعبة أ'),
+                  helperText: 'مثال: الصف الأول / أ'),
               validator: (val) => val == null || val.isEmpty ? 'مطلوب' : null,
               onSaved: (val) => _name = val!,
             ),
@@ -120,7 +120,7 @@ class _ClassroomDialogState extends ConsumerState<_ClassroomDialog> {
               initialValue: _grade,
               decoration: const InputDecoration(
                   labelText: 'المرحلة الدراسية',
-                  helperText: 'مثال: الصف الأول'),
+                  helperText: 'مثال: المتوسطة'),
               validator: (val) => val == null || val.isEmpty ? 'مطلوب' : null,
               onSaved: (val) => _grade = val!,
             ),

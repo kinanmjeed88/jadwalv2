@@ -4,9 +4,9 @@ abstract class Failure {
 }
 
 class DatabaseFailure extends Failure {
-  DatabaseFailure(String message) : super(message);
+  DatabaseFailure(super.message);
 }
 
 class GenerationFailure extends Failure {
-  GenerationFailure(String message) : super(message);
+  GenerationFailure(super.message);
 }
