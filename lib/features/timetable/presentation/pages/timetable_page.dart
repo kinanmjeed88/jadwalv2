@@ -12,6 +12,7 @@ import '../providers/timetable_provider.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/settings.dart';
+import '../../../../core/utils/period_mapper.dart';
 import '../../domain/usecases/pdf_export_usecase.dart';
 import '../../../../core/providers/database_provider.dart';
 import '../../../management/presentation/providers/management_provider.dart';
@@ -68,7 +69,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             if (unassigned.isNotEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('تم توليد الجدول، ولكن فشل تعيين ${unassigned.length} حصة بسبب القيود.'),
+                  content: Text('تم توليد الجدول، ولكن فشل تعيين ' + unassigned.length.toString() + ' حصة بسبب القيود.'),
                   backgroundColor: Colors.red,
                   duration: const Duration(seconds: 5),
                 ),
@@ -138,6 +139,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       fileName: 'timetable.pdf',
       type: FileType.custom,
       allowedExtensions: ['pdf'],
+      bytes: pdfBytes,
     );
 
     if (outputFile != null) {
@@ -179,8 +181,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'حفظ كـ صورة',
-        fileName: 'timetable_${currentClassroom.name}.png',
+        fileName: 'timetable_' + currentClassroom.name + '.png',
         type: FileType.image,
+        bytes: pngBytes,
       );
 
       if (outputFile != null) {
@@ -202,7 +205,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('حدث خطأ أثناء تصدير الصورة: $e'),
+            content: Text('حدث خطأ أثناء تصدير الصورة: ' + e.toString()),
             backgroundColor: Colors.red,
           ),
         );
@@ -223,7 +226,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         children: [
           const Center(child: Text('جميع الحصص المضافة لم يتم جدولتها بعد. اضغط توليد.')),
           const SizedBox(height: 16),
-          Text('(${unassigned.length} حصة بانتظار التوزيع)', style: const TextStyle(color: Colors.red)),
+          Text('(' + unassigned.length.toString() + ' حصة بانتظار التوزيع)', style: const TextStyle(color: Colors.red)),
         ],
       );
     }
@@ -234,7 +237,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           Container(
             color: Colors.red.shade100,
             padding: const EdgeInsets.all(8.0),
-            child: Text('يوجد ${unassigned.length} دروس غير مجدولة (استعصاء أو لم يتم التوليد)',
+            child: Text('يوجد ' + unassigned.length.toString() + ' دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
                 style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         Expanded(
@@ -298,7 +301,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               columns: [
                 const DataColumn(label: Text('اليوم / الحصة', style: TextStyle(fontWeight: FontWeight.bold))),
                 for (int p = 0; p < settings.periodsPerDay; p++)
-                  DataColumn(label: Text('الحصة ${p + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text(PeriodMapper.toArabicName(p), style: const TextStyle(fontWeight: FontWeight.bold))),
               ],
               rows: [
                 for (int d = 0; d < displayDays.length; d++)
@@ -338,13 +341,15 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         }
       },
       builder: (context, candidateData, rejectedData) {
+        final subjectName = lesson.subject.value?.name ?? 'غير محدد';
+        final teacherName = lesson.teacher.value?.name ?? 'غير محدد';
         return Draggable<Lesson>(
           data: lesson,
           feedback: Material(
             child: Container(
               color: Colors.teal.withValues(alpha: 0.8),
               padding: const EdgeInsets.all(8),
-              child: Text('${lesson.subject.value?.name}', style: const TextStyle(color: Colors.white)),
+              child: Text(subjectName, style: const TextStyle(color: Colors.white)),
             ),
           ),
           childWhenDragging: Container(color: Colors.grey.shade200, width: 100, height: 60),
@@ -357,9 +362,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(lesson.subject.value?.name ?? '',
+                Text(subjectName,
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center),
-                Text(lesson.teacher.value?.name ?? '',
+                Text(teacherName,
                     style: const TextStyle(fontSize: 10, color: Colors.grey), textAlign: TextAlign.center),
               ],
             ),

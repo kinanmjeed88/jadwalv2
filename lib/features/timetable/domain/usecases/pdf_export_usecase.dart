@@ -6,6 +6,7 @@ import 'package:printing/printing.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/settings.dart';
+import '../../../../core/utils/period_mapper.dart';
 
 class PdfExportUseCase {
   /// Generates a PDF document for the timetables grouped by grade.
@@ -70,7 +71,7 @@ class PdfExportUseCase {
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
                   pw.Text(
-                      'جدول الحصص الأسبوعي - $grade ${i > 0 ? '(تابع)' : ''}',
+                      'جدول الحصص الأسبوعي - ' + grade + (i > 0 ? ' (تابع)' : ''),
                       style: pw.TextStyle(fontSize: 24, font: font)),
                   pw.SizedBox(height: 20),
                   ...chunk
@@ -115,7 +116,7 @@ class PdfExportUseCase {
         child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('الشعبة: ${classroom.name}',
+              pw.Text('الشعبة: ' + classroom.name,
                   style: pw.TextStyle(
                       fontSize: 18,
                       font: font,
@@ -135,7 +136,7 @@ class PdfExportUseCase {
                       for (int p = 0; p < periodsPerDay; p++)
                         pw.Padding(
                             padding: const pw.EdgeInsets.all(5),
-                            child: pw.Text('${p + 1}',
+                            child: pw.Text(PeriodMapper.toArabicName(p),
                                 textAlign: pw.TextAlign.center,
                                 style: pw.TextStyle(font: font, fontSize: baseFontSize))),
                     ]),
