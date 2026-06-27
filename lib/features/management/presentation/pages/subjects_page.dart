@@ -26,7 +26,7 @@ class SubjectsPage extends ConsumerWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text(subject.name),
-                  subtitle: Text('الحصص الأسبوعية: ' + subject.lessonsPerWeek.toString()),
+                  subtitle: Text('الدروس الأسبوعية: ${subject.lessonsPerWeek}'),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () => _confirmDelete(context, ref, subject),
@@ -38,7 +38,7 @@ class SubjectsPage extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('حدث خطأ: ' + e.toString())),
+        error: (e, st) => Center(child: Text('حدث خطأ: $e')),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddOrEditDialog(context, ref, null),
@@ -52,7 +52,7 @@ class SubjectsPage extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('حذف المادة'),
-        content: Text('هل أنت متأكد من حذف المادة "' + subject.name + '"؟'),
+        content: Text('هل أنت متأكد من حذف المادة "${subject.name}"؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -127,22 +127,22 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
               TextFormField(
                 initialValue: _lessonsPerWeek.toString(),
                 decoration: const InputDecoration(
-                    labelText: 'الحصص الأسبوعية',
-                    helperText: 'عدد الحصص المطلوبة خلال الأسبوع'),
+                    labelText: 'الدروس الأسبوعية',
+                    helperText: 'عدد الدروس المطلوبة خلال الأسبوع'),
                 keyboardType: TextInputType.number,
                 validator: (val) => val == null || int.tryParse(val) == null ? 'أدخل رقماً صحيحاً' : null,
                 onSaved: (val) => _lessonsPerWeek = int.parse(val!),
               ),
               const SizedBox(height: 10),
               CheckboxListTile(
-                title: const Text('تفضيل الحصص المبكرة'),
+                title: const Text('تفضيل الدروس المبكرة'),
                 value: _preferEarlyPeriods,
                 onChanged: (val) => setState(() => _preferEarlyPeriods = val ?? false),
               ),
               const SizedBox(height: 10),
-              ListTile(
-                title: const Text('القيود الزمنية (الحصص المسموحة للمادة)'),
-                subtitle: const Text('تحديد حصص معينة يجبر النظام على وضع المادة فيها.'),
+              const ListTile(
+                title: Text('القيود الزمنية (الدروس المسموحة للمادة)'),
+                subtitle: Text('تحديد درس معين هنا يجبر النظام على جدولة هذه المادة في هذا الوقت حصراً (مثلاً: إجبار مادة الرياضة لتكون دائماً في الدرس الأخير)'),
                 contentPadding: EdgeInsets.zero,
               ),
               settingsAsync.when(

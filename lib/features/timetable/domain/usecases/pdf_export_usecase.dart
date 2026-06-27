@@ -71,13 +71,13 @@ class PdfExportUseCase {
                 crossAxisAlignment: pw.CrossAxisAlignment.center,
                 children: [
                   pw.Text(
-                      'جدول الحصص الأسبوعي - ' + grade + (i > 0 ? ' (تابع)' : ''),
+                      'جدول الدروس الأسبوعي - $grade${i > 0 ? ' (تابع)' : ''}',
                       style: pw.TextStyle(fontSize: 24, font: font)),
                   pw.SizedBox(height: 20),
                   ...chunk
                       .map((c) =>
                           _buildClassroomTable(c, lessons, settings, font, autoScale, format))
-                      .toList(),
+                      ,
                 ],
               );
             },
@@ -102,7 +102,7 @@ class PdfExportUseCase {
     // Use FlexColumnWidth for equal column widths to fill space
     final Map<int, pw.TableColumnWidth> columnWidths = {
       0: const pw.FlexColumnWidth(1.5),
-      for (int i = 1; i <= periodsPerDay; i++) i: const pw.FlexColumnWidth(1),
+      for (int i = 1; i <= displayDays.length; i++) i: const pw.FlexColumnWidth(1),
     };
 
 
@@ -116,7 +116,7 @@ class PdfExportUseCase {
         child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text('الشعبة: ' + classroom.name,
+              pw.Text('الشعبة: ${classroom.name}',
                   style: pw.TextStyle(
                       fontSize: 18,
                       font: font,
@@ -130,25 +130,25 @@ class PdfExportUseCase {
                     children: [
                       pw.Padding(
                           padding: const pw.EdgeInsets.all(5),
-                          child: pw.Text('اليوم / الحصة',
+                          child: pw.Text('الدرس / اليوم',
                               textAlign: pw.TextAlign.center,
                               style: pw.TextStyle(font: font, fontSize: baseFontSize))),
-                      for (int p = 0; p < periodsPerDay; p++)
+                      for (int d = 0; d < displayDays.length; d++)
                         pw.Padding(
                             padding: const pw.EdgeInsets.all(5),
-                            child: pw.Text(PeriodMapper.toArabicName(p),
+                            child: pw.Text(displayDays[d],
                                 textAlign: pw.TextAlign.center,
                                 style: pw.TextStyle(font: font, fontSize: baseFontSize))),
                     ]),
                 // Data rows
-                for (int d = 0; d < displayDays.length; d++)
+                for (int p = 0; p < periodsPerDay; p++)
                   pw.TableRow(children: [
                     pw.Padding(
                         padding: const pw.EdgeInsets.all(5),
-                        child: pw.Text(days[d],
+                        child: pw.Text(PeriodMapper.toArabicName(p),
                             textAlign: pw.TextAlign.center,
                             style: pw.TextStyle(font: font, fontSize: baseFontSize))),
-                    for (int p = 0; p < periodsPerDay; p++)
+                    for (int d = 0; d < displayDays.length; d++)
                       _buildCell(classLessons, d, p, font, baseFontSize),
                   ])
               ])

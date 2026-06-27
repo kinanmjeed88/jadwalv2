@@ -1,4 +1,4 @@
-import 'dart:io';
+
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
@@ -49,7 +49,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           return timetableAsync.when(
             data: (lessons) {
               if (lessons.isEmpty) {
-                return const Center(child: Text('لا يوجد حصص مضافة. اذهب للإدارة لتعيين حصص.'));
+                return const Center(child: Text('لا يوجد دروس مضافة. اذهب للإدارة لتعيين دروس.'));
               }
               return _buildTimetableGrid(context, lessons, settings);
             },
@@ -69,7 +69,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             if (unassigned.isNotEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('تم توليد الجدول، ولكن فشل تعيين ' + unassigned.length.toString() + ' حصة بسبب القيود.'),
+                  content: Text('تم توليد الجدول، ولكن فشل تعيين ${unassigned.length} حصة بسبب القيود.'),
                   backgroundColor: Colors.red,
                   duration: const Duration(seconds: 5),
                 ),
@@ -143,11 +143,18 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
 
     if (outputFile != null) {
-      if (!outputFile.endsWith('.pdf')) {
-        outputFile += '.pdf';
-      }
-      final file = File(outputFile);
-      await file.writeAsBytes(pdfBytes);
+      // In newer FilePicker versions, if bytes are provided to saveFile and it returns a path,
+      // it might have already saved the bytes to the destination on some platforms (like Web).
+      // On Android/iOS, if it returns a URI/path, we might still need to write it if the plugin didn't.
+      // But since user reported PathNotFoundException, it's safer to rely on the platform handling.
+      // Actually, if we pass `bytes: pdfBytes` to `saveFile`, FilePicker handles the saving on supported platforms.
+      // If it doesn't, we can try to save it using path_provider and share_plus, but let's stick to the user's request.
+
+      // Wait, let's just make sure we are not trying to write to a scoped storage path directly.
+      // The user requested: "Do not use File(path).writeAsBytes(). Instead, pass the bytes directly to file_picker via the dedicated parameter: await FilePicker.platform.saveFile(..., bytes: imageBytes)."
+      // Wait, looking at the code above, `bytes: pdfBytes` IS passed. But then `await file.writeAsBytes(pdfBytes);` is STILL called, which causes the crash!
+      // Let's remove the writeAsBytes call.
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -181,17 +188,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'حفظ كـ صورة',
-        fileName: 'timetable_' + currentClassroom.name + '.png',
+        fileName: 'timetable_${currentClassroom.name}.png',
         type: FileType.image,
         bytes: pngBytes,
       );
 
       if (outputFile != null) {
-        if (!outputFile.endsWith('.png')) {
-          outputFile += '.png';
-        }
-        final file = File(outputFile);
-        await file.writeAsBytes(pngBytes);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -205,7 +207,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('حدث خطأ أثناء تصدير الصورة: ' + e.toString()),
+            content: Text('حدث خطأ أثناء تصدير الصورة: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -224,9 +226,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Center(child: Text('جميع الحصص المضافة لم يتم جدولتها بعد. اضغط توليد.')),
+          const Center(child: Text('جميع الدروس المضافة لم يتم جدولتها بعد. اضغط توليد.')),
           const SizedBox(height: 16),
-          Text('(' + unassigned.length.toString() + ' حصة بانتظار التوزيع)', style: const TextStyle(color: Colors.red)),
+          Text('(${unassigned.length} حصة بانتظار التوزيع)', style: const TextStyle(color: Colors.red)),
         ],
       );
     }
@@ -237,7 +239,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           Container(
             color: Colors.red.shade100,
             padding: const EdgeInsets.all(8.0),
-            child: Text('يوجد ' + unassigned.length.toString() + ' دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
+            child: Text('يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
                 style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         Expanded(
@@ -293,21 +295,23 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         child: RepaintBoundary(
           key: _classroomKeys[classroomId],
           child: Container(
+            // Set white background for the entire exported area
             color: Colors.white,
-            padding: const EdgeInsets.all(16.0),
+            // Add substantial padding so the exported image has a white margin for printing
+            padding: const EdgeInsets.all(48.0),
             child: DataTable(
               border: TableBorder.all(color: Colors.grey.shade300),
               headingRowColor: WidgetStateProperty.all(Colors.teal.shade50),
               columns: [
-                const DataColumn(label: Text('اليوم / الحصة', style: TextStyle(fontWeight: FontWeight.bold))),
-                for (int p = 0; p < settings.periodsPerDay; p++)
-                  DataColumn(label: Text(PeriodMapper.toArabicName(p), style: const TextStyle(fontWeight: FontWeight.bold))),
+                const DataColumn(label: Text('الدرس / اليوم', style: TextStyle(fontWeight: FontWeight.bold))),
+                for (int d = 0; d < displayDays.length; d++)
+                  DataColumn(label: Text(displayDays[d], style: const TextStyle(fontWeight: FontWeight.bold))),
               ],
               rows: [
-                for (int d = 0; d < displayDays.length; d++)
+                for (int p = 0; p < settings.periodsPerDay; p++)
                   DataRow(cells: [
-                    DataCell(Text(displayDays[d], style: const TextStyle(fontWeight: FontWeight.bold))),
-                    for (int p = 0; p < settings.periodsPerDay; p++)
+                    DataCell(Text(PeriodMapper.toArabicName(p), style: const TextStyle(fontWeight: FontWeight.bold))),
+                    for (int d = 0; d < displayDays.length; d++)
                       DataCell(
                         _buildCell(classLessons, d, p),
                       ),

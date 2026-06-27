@@ -19,7 +19,7 @@ class SettingsPage extends ConsumerWidget {
       body: settingsAsync.when(
         data: (settings) => _SettingsForm(settings: settings),
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('حدث خطأ: ' + e.toString())),
+        error: (e, st) => Center(child: Text('حدث خطأ: $e')),
       ),
     );
   }
@@ -95,7 +95,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل في التصدير: ' + e.toString())),
+          SnackBar(content: Text('فشل في التصدير: $e')),
         );
       }
     }
@@ -129,7 +129,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل في الاستيراد: ' + e.toString())),
+          SnackBar(content: Text('فشل في الاستيراد: $e')),
         );
       }
     }
@@ -153,7 +153,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                   children: [
                     TextFormField(
                       initialValue: _periodsPerDay.toString(),
-                      decoration: const InputDecoration(labelText: 'عدد الحصص في اليوم', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(labelText: 'عدد الدروس في اليوم', border: OutlineInputBorder()),
                       keyboardType: TextInputType.number,
                       validator: (val) => val == null || int.tryParse(val) == null ? 'أدخل رقماً صحيحاً' : null,
                       onSaved: (val) => _periodsPerDay = int.parse(val!),
