@@ -3,6 +3,7 @@ import '../../../../core/providers/repository_provider.dart';
 import '../../../../core/models/teacher.dart';
 import '../../../../core/models/subject.dart';
 import '../../../../core/models/classroom.dart';
+import '../../../../core/models/settings.dart';
 
 part 'management_provider.g.dart';
 
@@ -66,5 +67,21 @@ class ClassroomsNotifier extends _$ClassroomsNotifier {
     final repo = await ref.read(managementRepositoryProvider.future);
     await repo.deleteClassroom(id);
     state = AsyncValue.data(await repo.getClassrooms());
+  }
+}
+
+@riverpod
+class SettingsNotifier extends _$SettingsNotifier {
+  @override
+  Future<AppSettings> build() async {
+    final repo = await ref.watch(managementRepositoryProvider.future);
+    final settings = await repo.getSettings();
+    return settings ?? AppSettings();
+  }
+
+  Future<void> saveSettings(AppSettings settings) async {
+    final repo = await ref.read(managementRepositoryProvider.future);
+    await repo.saveSettings(settings);
+    state = AsyncValue.data(await repo.getSettings() ?? AppSettings());
   }
 }

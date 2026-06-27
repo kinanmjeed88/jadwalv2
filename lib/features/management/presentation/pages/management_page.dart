@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'teachers_page.dart';
+import 'subjects_page.dart';
+import 'classrooms_page.dart';
+import 'settings_page.dart';
 
 class ManagementPage extends ConsumerWidget {
   const ManagementPage({super.key});
@@ -24,9 +27,9 @@ class ManagementPage extends ConsumerWidget {
         body: const TabBarView(
           children: [
             TeachersPage(),
-            Center(child: Text('واجهة إدارة المواد (تحت الإنشاء)')),
-            Center(child: Text('واجهة إدارة الصفوف (تحت الإنشاء)')),
-            Center(child: Text('واجهة الإعدادات (تحت الإنشاء)')),
+            SubjectsPage(),
+            ClassroomsPage(),
+            SettingsPage(),
           ],
         ),
       ),

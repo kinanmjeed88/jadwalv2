@@ -5,7 +5,7 @@ import '../models/teacher.dart';
 import '../models/subject.dart';
 import '../models/classroom.dart';
 import '../models/lesson.dart';
-
+import '../models/settings.dart';
 
 class BackupService {
   final Isar _isar;
@@ -16,36 +16,46 @@ class BackupService {
     final teachers = await _isar.teachers.where().findAll();
     final subjects = await _isar.subjects.where().findAll();
     final classrooms = await _isar.classrooms.where().findAll();
-    // In a real scenario, we'd also export lessons and settings and handle IsarLinks.
-    // Simplifying here to just export basic collections for demo.
+    final lessons = await _isar.lessons.where().findAll();
+    final settings = await _isar.appSettings.where().findAll();
 
     final Map<String, dynamic> data = {
-      'teachers': teachers
-          .map((t) => {
-                'id': t.id,
-                'name': t.name,
-                'specialization': t.specialization,
-                'maxLessonsPerDay': t.maxLessonsPerDay,
-                'maxLessonsPerWeek': t.maxLessonsPerWeek,
-                'unavailableDays': t.unavailableDays,
-              })
-          .toList(),
-      'subjects': subjects
-          .map((s) => {
-                'id': s.id,
-                'name': s.name,
-                'lessonsPerWeek': s.lessonsPerWeek,
-                'preferEarlyPeriods': s.preferEarlyPeriods,
-                'allowedPeriods': s.allowedPeriods,
-              })
-          .toList(),
-      'classrooms': classrooms
-          .map((c) => {
-                'id': c.id,
-                'name': c.name,
-                'grade': c.grade,
-              })
-          .toList(),
+      'teachers': teachers.map((t) => {
+        'id': t.id,
+        'name': t.name,
+        'specialization': t.specialization,
+        'maxLessonsPerDay': t.maxLessonsPerDay,
+        'maxLessonsPerWeek': t.maxLessonsPerWeek,
+        'unavailableDays': t.unavailableDays,
+      }).toList(),
+      'subjects': subjects.map((s) => {
+        'id': s.id,
+        'name': s.name,
+        'lessonsPerWeek': s.lessonsPerWeek,
+        'preferEarlyPeriods': s.preferEarlyPeriods,
+        'allowedPeriods': s.allowedPeriods,
+      }).toList(),
+      'classrooms': classrooms.map((c) => {
+        'id': c.id,
+        'name': c.name,
+        'grade': c.grade,
+      }).toList(),
+      'settings': settings.map((s) => {
+        'id': s.id,
+        'periodsPerDay': s.periodsPerDay,
+        'daysPerWeek': s.daysPerWeek,
+        'exportPageSize': s.exportPageSize,
+        'exportOrientation': s.exportOrientation,
+        'exportAutoScale': s.exportAutoScale,
+      }).toList(),
+      'lessons': lessons.map((l) => {
+        'id': l.id,
+        'teacherId': l.teacher.value?.id,
+        'subjectId': l.subject.value?.id,
+        'classroomId': l.classroom.value?.id,
+        'dayIndex': l.dayIndex,
+        'periodIndex': l.periodIndex,
+      }).toList(),
     };
 
     return jsonEncode(data);
@@ -60,43 +70,87 @@ class BackupService {
       await _isar.subjects.clear();
       await _isar.classrooms.clear();
       await _isar.lessons.clear();
+      await _isar.appSettings.clear();
+
+      if (data.containsKey('settings')) {
+        final List<dynamic> settingsList = data['settings'];
+        final newSettings = settingsList.map((s) => AppSettings()
+          ..id = s['id']
+          ..periodsPerDay = s['periodsPerDay']
+          ..daysPerWeek = s['daysPerWeek']
+          ..exportPageSize = s['exportPageSize'] ?? 'A4'
+          ..exportOrientation = s['exportOrientation'] ?? 'Landscape'
+          ..exportAutoScale = s['exportAutoScale'] ?? true
+        ).toList();
+        await _isar.appSettings.putAll(newSettings);
+      }
 
       if (data.containsKey('teachers')) {
         final List<dynamic> teachersList = data['teachers'];
-        final newTeachers = teachersList
-            .map((t) => Teacher()
-              ..id = t['id']
-              ..name = t['name']
-              ..specialization = t['specialization']
-              ..maxLessonsPerDay = t['maxLessonsPerDay']
-              ..maxLessonsPerWeek = t['maxLessonsPerWeek']
-              ..unavailableDays = List<int>.from(t['unavailableDays'] ?? []))
-            .toList();
+        final newTeachers = teachersList.map((t) => Teacher()
+          ..id = t['id']
+          ..name = t['name']
+          ..specialization = t['specialization']
+          ..maxLessonsPerDay = t['maxLessonsPerDay']
+          ..maxLessonsPerWeek = t['maxLessonsPerWeek']
+          ..unavailableDays = List<int>.from(t['unavailableDays'] ?? [])
+        ).toList();
         await _isar.teachers.putAll(newTeachers);
       }
 
       if (data.containsKey('subjects')) {
         final List<dynamic> subjectsList = data['subjects'];
-        final newSubjects = subjectsList
-            .map((s) => Subject()
-              ..id = s['id']
-              ..name = s['name']
-              ..lessonsPerWeek = s['lessonsPerWeek']
-              ..preferEarlyPeriods = s['preferEarlyPeriods']
-              ..allowedPeriods = List<int>.from(s['allowedPeriods'] ?? []))
-            .toList();
+        final newSubjects = subjectsList.map((s) => Subject()
+          ..id = s['id']
+          ..name = s['name']
+          ..lessonsPerWeek = s['lessonsPerWeek']
+          ..preferEarlyPeriods = s['preferEarlyPeriods']
+          ..allowedPeriods = List<int>.from(s['allowedPeriods'] ?? [])
+        ).toList();
         await _isar.subjects.putAll(newSubjects);
       }
 
       if (data.containsKey('classrooms')) {
         final List<dynamic> classroomsList = data['classrooms'];
-        final newClassrooms = classroomsList
-            .map((c) => Classroom()
-              ..id = c['id']
-              ..name = c['name']
-              ..grade = c['grade'])
-            .toList();
+        final newClassrooms = classroomsList.map((c) => Classroom()
+          ..id = c['id']
+          ..name = c['name']
+          ..grade = c['grade']
+        ).toList();
         await _isar.classrooms.putAll(newClassrooms);
+      }
+
+      if (data.containsKey('lessons')) {
+        final List<dynamic> lessonsList = data['lessons'];
+        final newLessons = lessonsList.map((l) => Lesson()
+          ..id = l['id']
+          ..dayIndex = l['dayIndex']
+          ..periodIndex = l['periodIndex']
+        ).toList();
+        await _isar.lessons.putAll(newLessons);
+
+        // Map relationships
+        for (var i = 0; i < lessonsList.length; i++) {
+          final lMap = lessonsList[i];
+          final l = newLessons[i];
+
+          if (lMap['teacherId'] != null) {
+            final t = await _isar.teachers.get(lMap['teacherId']);
+            if (t != null) l.teacher.value = t;
+          }
+          if (lMap['subjectId'] != null) {
+            final s = await _isar.subjects.get(lMap['subjectId']);
+            if (s != null) l.subject.value = s;
+          }
+          if (lMap['classroomId'] != null) {
+            final c = await _isar.classrooms.get(lMap['classroomId']);
+            if (c != null) l.classroom.value = c;
+          }
+
+          await l.teacher.save();
+          await l.subject.save();
+          await l.classroom.save();
+        }
       }
     });
   }
