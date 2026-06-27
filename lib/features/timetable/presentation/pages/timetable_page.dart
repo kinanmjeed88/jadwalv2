@@ -1,6 +1,11 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'package:flutter/rendering.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:printing/printing.dart';
+
 import 'package:isar/isar.dart';
 
 import '../providers/timetable_provider.dart';
@@ -11,11 +16,19 @@ import '../../domain/usecases/pdf_export_usecase.dart';
 import '../../../../core/providers/database_provider.dart';
 import '../../../management/presentation/providers/management_provider.dart';
 
-class TimetablePage extends ConsumerWidget {
+class TimetablePage extends ConsumerStatefulWidget {
   const TimetablePage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<TimetablePage> createState() => _TimetablePageState();
+}
+
+class _TimetablePageState extends ConsumerState<TimetablePage> {
+  final Map<int, GlobalKey> _classroomKeys = {};
+  int _currentTabIndex = 0;
+
+  @override
+  Widget build(BuildContext context) {
     final timetableAsync = ref.watch(timetableNotifierProvider);
     final settingsAsync = ref.watch(settingsNotifierProvider);
 
@@ -24,24 +37,9 @@ class TimetablePage extends ConsumerWidget {
         title: const Text('الجدول المدرسي'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'تصدير كـ PDF',
-            onPressed: () async {
-              final isar = await ref.read(isarDatabaseProvider.future);
-              final lessons = await isar.lessons.where().findAll();
-              final classRooms = await isar.collection<Classroom>().where().findAll();
-
-              final settingsList = await isar.appSettings.where().findAll();
-              final settings = settingsList.isNotEmpty
-                  ? settingsList.first
-                  : (AppSettings()..periodsPerDay = 7);
-
-              final pdfUsecase = PdfExportUseCase();
-              final pdfBytes = await pdfUsecase.generateTimetablePdf(
-                  lessons, classRooms, settings.periodsPerDay);
-
-              await Printing.layoutPdf(onLayout: (_) => pdfBytes);
-            },
+            icon: const Icon(Icons.file_download),
+            tooltip: 'تصدير الجدول',
+            onPressed: () => _showExportOptions(context),
           )
         ],
       ),
@@ -52,14 +50,14 @@ class TimetablePage extends ConsumerWidget {
               if (lessons.isEmpty) {
                 return const Center(child: Text('لا يوجد حصص مضافة. اذهب للإدارة لتعيين حصص.'));
               }
-              return _buildTimetableGrid(context, ref, lessons, settings);
+              return _buildTimetableGrid(context, lessons, settings);
             },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, st) => Center(child: Text('حدث خطأ: \$e')),
+            error: (e, st) => Center(child: Text('حدث خطأ: $e')),
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('حدث خطأ في الإعدادات: \$e')),
+        error: (e, st) => Center(child: Text('حدث خطأ في الإعدادات: $e')),
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
@@ -70,7 +68,7 @@ class TimetablePage extends ConsumerWidget {
             if (unassigned.isNotEmpty) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('تم توليد الجدول، ولكن فشل تعيين \${unassigned.length} حصة بسبب القيود.'),
+                  content: Text('تم توليد الجدول، ولكن فشل تعيين ${unassigned.length} حصة بسبب القيود.'),
                   backgroundColor: Colors.red,
                   duration: const Duration(seconds: 5),
                 ),
@@ -91,7 +89,128 @@ class TimetablePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildTimetableGrid(BuildContext context, WidgetRef ref, List<Lesson> lessons, AppSettings settings) {
+  void _showExportOptions(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.picture_as_pdf, color: Colors.red),
+                title: const Text('تصدير كـ PDF'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _exportToPdf();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.image, color: Colors.blue),
+                title: const Text('تصدير كـ صورة (الشعبة الحالية)'),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _exportToImage();
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _exportToPdf() async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+    final lessons = await isar.lessons.where().findAll();
+    final classRooms = await isar.collection<Classroom>().where().findAll();
+    final settingsList = await isar.appSettings.where().findAll();
+    final settings = settingsList.isNotEmpty
+        ? settingsList.first
+        : (AppSettings()..periodsPerDay = 7);
+
+    final pdfUsecase = PdfExportUseCase();
+    // We will update generateTimetablePdf later to accept AppSettings
+    final pdfBytes = await pdfUsecase.generateTimetablePdf(
+        lessons, classRooms, settings);
+
+    String? outputFile = await FilePicker.platform.saveFile(
+      dialogTitle: 'حفظ ملف PDF',
+      fileName: 'timetable.pdf',
+      type: FileType.custom,
+      allowedExtensions: ['pdf'],
+    );
+
+    if (outputFile != null) {
+      if (!outputFile.endsWith('.pdf')) {
+        outputFile += '.pdf';
+      }
+      final file = File(outputFile);
+      await file.writeAsBytes(pdfBytes);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم حفظ الملف بنجاح: $outputFile'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportToImage() async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+    final lessons = await isar.lessons.where().findAll();
+    final assigned = lessons.where((l) => !l.isUnassigned).toList();
+    final classrooms = assigned.map((l) => l.classroom.value).where((c) => c != null).toSet().toList();
+
+    if (classrooms.isEmpty || _currentTabIndex >= classrooms.length) return;
+
+    final currentClassroom = classrooms[_currentTabIndex];
+    final key = _classroomKeys[currentClassroom!.id];
+
+    if (key == null || key.currentContext == null) return;
+
+    try {
+      final boundary = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) return;
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'حفظ كـ صورة',
+        fileName: 'timetable_${currentClassroom.name}.png',
+        type: FileType.image,
+      );
+
+      if (outputFile != null) {
+        if (!outputFile.endsWith('.png')) {
+          outputFile += '.png';
+        }
+        final file = File(outputFile);
+        await file.writeAsBytes(pngBytes);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('تم حفظ الصورة بنجاح: $outputFile'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('حدث خطأ أثناء تصدير الصورة: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Widget _buildTimetableGrid(BuildContext context, List<Lesson> lessons, AppSettings settings) {
     final assigned = lessons.where((l) => !l.isUnassigned).toList();
     final unassigned = lessons.where((l) => l.isUnassigned).toList();
 
@@ -104,7 +223,7 @@ class TimetablePage extends ConsumerWidget {
         children: [
           const Center(child: Text('جميع الحصص المضافة لم يتم جدولتها بعد. اضغط توليد.')),
           const SizedBox(height: 16),
-          Text('(\${unassigned.length} حصة بانتظار التوزيع)', style: const TextStyle(color: Colors.red)),
+          Text('(${unassigned.length} حصة بانتظار التوزيع)', style: const TextStyle(color: Colors.red)),
         ],
       );
     }
@@ -115,28 +234,42 @@ class TimetablePage extends ConsumerWidget {
           Container(
             color: Colors.red.shade100,
             padding: const EdgeInsets.all(8.0),
-            child: Text('يوجد \${unassigned.length} دروس غير مجدولة (استعصاء أو لم يتم التوليد)',
+            child: Text('يوجد ${unassigned.length} دروس غير مجدولة (استعصاء أو لم يتم التوليد)',
                 style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         Expanded(
           child: DefaultTabController(
             length: classrooms.length,
-            child: Column(
-              children: [
-                TabBar(
-                  isScrollable: true,
-                  tabs: classrooms.map((c) => Tab(text: c!.name)).toList(),
-                  labelColor: Colors.teal,
-                  unselectedLabelColor: Colors.grey,
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: classrooms.map((c) {
-                      return _buildClassroomTable(assigned.where((l) => l.classroom.value?.id == c!.id).toList(), settings, ref);
-                    }).toList(),
-                  ),
-                ),
-              ],
+            child: Builder(
+              builder: (context) {
+                final tabController = DefaultTabController.of(context);
+                Future.microtask(() {
+                  tabController.addListener(() {
+                    if (!tabController.indexIsChanging && mounted) {
+                      setState(() {
+                        _currentTabIndex = tabController.index;
+                      });
+                    }
+                  });
+                });
+                return Column(
+                  children: [
+                    TabBar(
+                      isScrollable: true,
+                      tabs: classrooms.map((c) => Tab(text: c!.name)).toList(),
+                      labelColor: Colors.teal,
+                      unselectedLabelColor: Colors.grey,
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: classrooms.map((c) {
+                          return _buildClassroomTable(c!.id, assigned.where((l) => l.classroom.value?.id == c.id).toList(), settings);
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                );
+              }
             ),
           ),
         ),
@@ -144,40 +277,47 @@ class TimetablePage extends ConsumerWidget {
     );
   }
 
-  Widget _buildClassroomTable(List<Lesson> classLessons, AppSettings settings, WidgetRef ref) {
+  Widget _buildClassroomTable(int classroomId, List<Lesson> classLessons, AppSettings settings) {
+    if (!_classroomKeys.containsKey(classroomId)) {
+      _classroomKeys[classroomId] = GlobalKey();
+    }
     final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
     final displayDays = days.take(settings.daysPerWeek).toList();
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SingleChildScrollView(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: DataTable(
-            border: TableBorder.all(color: Colors.grey.shade300),
-            headingRowColor: WidgetStateProperty.all(Colors.teal.shade50),
-            columns: [
-              const DataColumn(label: Text('اليوم / الحصة', style: TextStyle(fontWeight: FontWeight.bold))),
-              for (int p = 0; p < settings.periodsPerDay; p++)
-                DataColumn(label: Text('الحصة \${p + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
-            ],
-            rows: [
-              for (int d = 0; d < displayDays.length; d++)
-                DataRow(cells: [
-                  DataCell(Text(displayDays[d], style: const TextStyle(fontWeight: FontWeight.bold))),
-                  for (int p = 0; p < settings.periodsPerDay; p++)
-                    DataCell(
-                      _buildCell(classLessons, d, p, ref),
-                    ),
-                ]),
-            ],
+        child: RepaintBoundary(
+          key: _classroomKeys[classroomId],
+          child: Container(
+            color: Colors.white,
+            padding: const EdgeInsets.all(16.0),
+            child: DataTable(
+              border: TableBorder.all(color: Colors.grey.shade300),
+              headingRowColor: WidgetStateProperty.all(Colors.teal.shade50),
+              columns: [
+                const DataColumn(label: Text('اليوم / الحصة', style: TextStyle(fontWeight: FontWeight.bold))),
+                for (int p = 0; p < settings.periodsPerDay; p++)
+                  DataColumn(label: Text('الحصة ${p + 1}', style: const TextStyle(fontWeight: FontWeight.bold))),
+              ],
+              rows: [
+                for (int d = 0; d < displayDays.length; d++)
+                  DataRow(cells: [
+                    DataCell(Text(displayDays[d], style: const TextStyle(fontWeight: FontWeight.bold))),
+                    for (int p = 0; p < settings.periodsPerDay; p++)
+                      DataCell(
+                        _buildCell(classLessons, d, p),
+                      ),
+                  ]),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildCell(List<Lesson> classLessons, int dayIndex, int periodIndex, WidgetRef ref) {
+  Widget _buildCell(List<Lesson> classLessons, int dayIndex, int periodIndex) {
     final lesson = classLessons.where((l) => l.dayIndex == dayIndex && l.periodIndex == periodIndex).firstOrNull;
 
     if (lesson == null) {
@@ -204,7 +344,7 @@ class TimetablePage extends ConsumerWidget {
             child: Container(
               color: Colors.teal.withValues(alpha: 0.8),
               padding: const EdgeInsets.all(8),
-              child: Text('\${lesson.subject.value?.name}', style: const TextStyle(color: Colors.white)),
+              child: Text('${lesson.subject.value?.name}', style: const TextStyle(color: Colors.white)),
             ),
           ),
           childWhenDragging: Container(color: Colors.grey.shade200, width: 100, height: 60),
