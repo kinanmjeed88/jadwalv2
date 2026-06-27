@@ -75,7 +75,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
       // In a real device we'd use a file picker to choose location,
       // here we just simulate saving to a default location for demo purposes.
       // We will try to use file_picker to get a directory.
-      String? outputFile = await FilePicker.saveFile(
+      String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'احفظ النسخة الاحتياطية',
         fileName: 'jadwal_backup.json',
       );
@@ -100,7 +100,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
 
   Future<void> _importData() async {
     try {
-      FilePickerResult? result = await FilePicker.pickFiles(
+      FilePickerResult? result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['json'],
       );

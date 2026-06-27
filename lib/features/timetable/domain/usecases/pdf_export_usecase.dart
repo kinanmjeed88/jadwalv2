@@ -5,12 +5,13 @@ import 'package:printing/printing.dart';
 
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/classroom.dart';
+import '../../../../core/models/settings.dart';
 
 class PdfExportUseCase {
   /// Generates a PDF document for the timetables grouped by grade.
   /// Handles Arabic text (RTL) and splits pages if a grade has too many classrooms.
   Future<Uint8List> generateTimetablePdf(List<Lesson> lessons,
-      List<Classroom> classrooms, int periodsPerDay) async {
+      List<Classroom> classrooms, AppSettings settings) async {
     final doc = pw.Document();
 
     // Load Arabic Font (Cairo)
@@ -24,7 +25,27 @@ class PdfExportUseCase {
       classroomsByGrade.putIfAbsent(c.grade, () => []).add(c);
     }
 
-    final maxClassroomsPerPage = 4;
+
+    PdfPageFormat format;
+    switch (settings.exportPageSize) {
+      case 'A3':
+        format = PdfPageFormat.a3;
+        break;
+      case 'A4':
+      default:
+        format = PdfPageFormat.a4;
+        break;
+    }
+    if (settings.exportOrientation == 'Landscape') {
+      format = format.landscape;
+    } else {
+      format = format.portrait;
+    }
+
+    // Scale factor to adjust fonts slightly based on page size and periods
+    final bool autoScale = settings.exportAutoScale;
+
+    final maxClassroomsPerPage = settings.exportOrientation == 'Landscape' ? 2 : 4;
 
     for (var grade in classroomsByGrade.keys) {
       final gradeClassrooms = classroomsByGrade[grade]!;
@@ -39,7 +60,7 @@ class PdfExportUseCase {
 
         doc.addPage(
           pw.Page(
-            pageFormat: PdfPageFormat.a4,
+            pageFormat: format,
             textDirection: pw.TextDirection.rtl,
             theme: pw.ThemeData.withFont(
               base: font,
@@ -54,7 +75,7 @@ class PdfExportUseCase {
                   pw.SizedBox(height: 20),
                   ...chunk
                       .map((c) =>
-                          _buildClassroomTable(c, lessons, periodsPerDay, font))
+                          _buildClassroomTable(c, lessons, settings, font, autoScale, format))
                       .toList(),
                 ],
               );
@@ -68,8 +89,21 @@ class PdfExportUseCase {
   }
 
   pw.Widget _buildClassroomTable(Classroom classroom, List<Lesson> allLessons,
-      int periodsPerDay, pw.Font font) {
+      AppSettings settings, pw.Font font, bool autoScale, PdfPageFormat format) {
     final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+    final displayDays = days.take(settings.daysPerWeek).toList();
+    final int periodsPerDay = settings.periodsPerDay;
+
+    // Auto-scale fonts based on the page width and number of periods
+    double baseFontSize = format.width > 500 ? 12.0 : 10.0;
+    if (autoScale && periodsPerDay > 7) baseFontSize -= 2.0;
+
+    // Use FlexColumnWidth for equal column widths to fill space
+    final Map<int, pw.TableColumnWidth> columnWidths = {
+      0: const pw.FlexColumnWidth(1.5),
+      for (int i = 1; i <= periodsPerDay; i++) i: const pw.FlexColumnWidth(1),
+    };
+
 
     // Filter lessons for this classroom
     final classLessons = allLessons
@@ -87,7 +121,7 @@ class PdfExportUseCase {
                       font: font,
                       fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
-              pw.Table(border: pw.TableBorder.all(), children: [
+              pw.Table(border: pw.TableBorder.all(), columnWidths: columnWidths, children: [
                 // Header row
                 pw.TableRow(
                     decoration:
@@ -97,31 +131,31 @@ class PdfExportUseCase {
                           padding: const pw.EdgeInsets.all(5),
                           child: pw.Text('اليوم / الحصة',
                               textAlign: pw.TextAlign.center,
-                              style: pw.TextStyle(font: font))),
+                              style: pw.TextStyle(font: font, fontSize: baseFontSize))),
                       for (int p = 0; p < periodsPerDay; p++)
                         pw.Padding(
                             padding: const pw.EdgeInsets.all(5),
                             child: pw.Text('${p + 1}',
                                 textAlign: pw.TextAlign.center,
-                                style: pw.TextStyle(font: font))),
+                                style: pw.TextStyle(font: font, fontSize: baseFontSize))),
                     ]),
                 // Data rows
-                for (int d = 0; d < days.length; d++)
+                for (int d = 0; d < displayDays.length; d++)
                   pw.TableRow(children: [
                     pw.Padding(
                         padding: const pw.EdgeInsets.all(5),
                         child: pw.Text(days[d],
                             textAlign: pw.TextAlign.center,
-                            style: pw.TextStyle(font: font))),
+                            style: pw.TextStyle(font: font, fontSize: baseFontSize))),
                     for (int p = 0; p < periodsPerDay; p++)
-                      _buildCell(classLessons, d, p, font),
+                      _buildCell(classLessons, d, p, font, baseFontSize),
                   ])
               ])
             ]));
   }
 
   pw.Widget _buildCell(
-      List<Lesson> classLessons, int dayIndex, int periodIndex, pw.Font font) {
+      List<Lesson> classLessons, int dayIndex, int periodIndex, pw.Font font, double baseFontSize) {
     final lesson = classLessons
         .where((l) => l.dayIndex == dayIndex && l.periodIndex == periodIndex)
         .firstOrNull;
@@ -129,7 +163,7 @@ class PdfExportUseCase {
     if (lesson == null) {
       return pw.Padding(
           padding: const pw.EdgeInsets.all(5),
-          child: pw.Text('', style: pw.TextStyle(font: font)));
+          child: pw.Text('', style: pw.TextStyle(font: font, fontSize: baseFontSize)));
     }
 
     return pw.Padding(
@@ -139,11 +173,11 @@ class PdfExportUseCase {
             children: [
               pw.Text(lesson.subject.value?.name ?? '',
                   textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(font: font, fontSize: 10)),
+                  style: pw.TextStyle(font: font, fontSize: baseFontSize - 1)),
               pw.Text(lesson.teacher.value?.name ?? '',
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(
-                      font: font, fontSize: 8, color: PdfColors.grey700)),
+                      font: font, fontSize: baseFontSize - 3, color: PdfColors.grey700)),
             ]));
   }
 }
