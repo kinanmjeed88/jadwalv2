@@ -22,33 +22,15 @@ class TimetableGenerator {
 
   /// Generates the timetable and returns a list of lessons.
   List<Lesson> generate() {
-    List<Lesson> pool = [];
-
-    // Generate the required pool of lessons based on subject requirements per classroom
-    for (var classroom in classrooms) {
-      for (var subject in subjects) {
-        // Find a teacher that teaches this subject
-        final availableTeachers =
-            teachers.where((t) => t.specialization == subject.name).toList();
-        Teacher? assignedTeacher;
-        if (availableTeachers.isNotEmpty) {
-          // For simplicity, just pick the first one, or do round-robin.
-          // A full implementation would load-balance.
-          assignedTeacher = availableTeachers.first;
-        }
-
-        for (int i = 0; i < subject.lessonsPerWeek; i++) {
-          final lesson = Lesson()
-            ..subject.value = subject
-            ..classroom.value = classroom
-            ..teacher.value = assignedTeacher;
-          pool.add(lesson);
-        }
-      }
-    }
-
     int maxDays = settings.daysPerWeek;
     int maxPeriods = settings.periodsPerDay;
+
+    // Use existing lessons as the pool. Reset their day and period indexes.
+    List<Lesson> pool = List.from(existingLessons);
+    for (var l in pool) {
+      l.dayIndex = null;
+      l.periodIndex = null;
+    }
 
     List<Lesson> generatedLessons = [];
 

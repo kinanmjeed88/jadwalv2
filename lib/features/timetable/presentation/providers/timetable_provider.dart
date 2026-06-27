@@ -18,6 +18,30 @@ class TimetableNotifier extends _$TimetableNotifier {
     return isar.lessons.where().findAll();
   }
 
+  Future<void> assignLessonsToPool(Classroom classroom, Subject subject, Teacher teacher) async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+
+    final newLessons = <Lesson>[];
+    for (int i = 0; i < subject.lessonsPerWeek; i++) {
+      final lesson = Lesson()
+        ..classroom.value = classroom
+        ..subject.value = subject
+        ..teacher.value = teacher;
+      newLessons.add(lesson);
+    }
+
+    await isar.writeTxn(() async {
+      await isar.lessons.putAll(newLessons);
+      for (var l in newLessons) {
+        await l.classroom.save();
+        await l.subject.save();
+        await l.teacher.save();
+      }
+    });
+
+    state = AsyncValue.data(await isar.lessons.where().findAll());
+  }
+
   Future<void> generateTimetable() async {
     state = const AsyncValue.loading();
 
@@ -32,15 +56,8 @@ class TimetableNotifier extends _$TimetableNotifier {
           ? settingsList.first
           : (AppSettings()..periodsPerDay = 7);
 
-      // Clear existing schedule assignments (or you might want to create a new pool)
+      // Clear existing schedule assignments by resetting indexes
       final existingLessons = await isar.lessons.where().findAll();
-      // For this example, we assume `existingLessons` are the requirements.
-      // If none exist, we would normally build them from Subject/Classroom relationships.
-      // To keep it simple, we just pass the current list and let the generator assign day/period.
-      for (var l in existingLessons) {
-        l.dayIndex = null;
-        l.periodIndex = null;
-      }
 
       final generator = TimetableGenerator(
         teachers: teachers,
@@ -50,19 +67,20 @@ class TimetableNotifier extends _$TimetableNotifier {
         existingLessons: existingLessons,
       );
 
-      final generatedLessons = generator.generate();
+      generator.generate();
 
-      // Save to Isar
+      // Ensure that we save the entire modified pool (even those unplaced/unscheduled)
+      // Since generator modifies existingLessons in-place and returns it.
       await isar.writeTxn(() async {
-        await isar.lessons.putAll(generatedLessons);
-        for (var lesson in generatedLessons) {
+        await isar.lessons.putAll(existingLessons);
+        for (var lesson in existingLessons) {
           await lesson.teacher.save();
           await lesson.subject.save();
           await lesson.classroom.save();
         }
       });
 
-      state = AsyncValue.data(generatedLessons);
+      state = AsyncValue.data(existingLessons);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
