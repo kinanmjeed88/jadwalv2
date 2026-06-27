@@ -30,7 +30,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
       final subjectName = _selectedSubject!.name;
       final classroomName = _selectedClassroom!.name;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('تم إسناد مادة $subjectName لـ $classroomName بنجاح')),
+        SnackBar(content: Text('تم إسناد مادة ' + subjectName + ' لـ ' + classroomName + ' بنجاح')),
       );
       setState(() {
         _selectedSubject = null;
@@ -47,7 +47,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
     final lessonsAsync = ref.watch(timetableNotifierProvider);
 
     return Scaffold(
-      body: SingleChildScrollView(
+      body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -67,7 +67,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                         onChanged: (val) => setState(() => _selectedClassroom = val),
                       ),
                       loading: () => const CircularProgressIndicator(),
-                      error: (e, st) => Text('خطأ: $e'),
+                      error: (e, st) => Text('خطأ: ' + e.toString()),
                     ),
                     const SizedBox(height: 16),
                     subjectsAsync.when(
@@ -78,7 +78,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                         onChanged: (val) => setState(() => _selectedSubject = val),
                       ),
                       loading: () => const CircularProgressIndicator(),
-                      error: (e, st) => Text('خطأ: $e'),
+                      error: (e, st) => Text('خطأ: ' + e.toString()),
                     ),
                     const SizedBox(height: 16),
                     teachersAsync.when(
@@ -89,7 +89,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                         onChanged: (val) => setState(() => _selectedTeacher = val),
                       ),
                       loading: () => const CircularProgressIndicator(),
-                      error: (e, st) => Text('خطأ: $e'),
+                      error: (e, st) => Text('خطأ: ' + e.toString()),
                     ),
                     const SizedBox(height: 24),
                     SizedBox(
@@ -107,26 +107,25 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
             const SizedBox(height: 24),
             const Text('الإسنادات الحالية (دروس بانتظار التوزيع)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
             const SizedBox(height: 8),
-            lessonsAsync.when(
-              data: (lessons) {
-                // We only show unassigned (unscheduled) lessons here, grouped by classroom/subject
-                final unassigned = lessons.where((l) => l.isUnassigned).toList();
-                if (unassigned.isEmpty) {
-                  return const Center(child: Text('لا يوجد دروس غير مجدولة. قم بإنشاء إسناد أو توليد الجدول.'));
-                }
+            Expanded(
+              child: lessonsAsync.when(
+                data: (lessons) {
+                  // We only show unassigned (unscheduled) lessons here, grouped by classroom/subject
+                  final unassigned = lessons.where((l) => l.isUnassigned).toList();
+                  if (unassigned.isEmpty) {
+                    return const Center(child: Text('لا يوجد دروس غير مجدولة. قم بإنشاء إسناد أو توليد الجدول.'));
+                  }
 
-                // Simple grouped view by classroom
-                final grouped = <String, List<Lesson>>{};
-                for (var l in unassigned) {
-                  final key = l.classroom.value?.name ?? 'بدون صف';
-                  grouped.putIfAbsent(key, () => []).add(l);
-                }
+                  // Simple grouped view by classroom
+                  final grouped = <String, List<Lesson>>{};
+                  for (var l in unassigned) {
+                    final key = l.classroom.value?.name ?? 'بدون صف';
+                    grouped.putIfAbsent(key, () => []).add(l);
+                  }
 
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: grouped.keys.length,
-                  itemBuilder: (context, index) {
+                  return ListView.builder(
+                    itemCount: grouped.keys.length,
+                    itemBuilder: (context, index) {
                     final classroomName = grouped.keys.elementAt(index);
                     final classLessons = grouped[classroomName]!;
 
@@ -139,22 +138,23 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                       teachersMap[sName] = l.teacher.value?.name ?? 'بدون مدرس';
                     }
 
-                    return ExpansionTile(
-                      title: Text(classroomName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text('إجمالي الدروس المطلوبة: ${classLessons.length}'),
-                      children: subjectsMap.keys.map((sName) {
-                        return ListTile(
-                          title: Text(sName),
-                          subtitle: Text('المدرس: ${teachersMap[sName] ?? 'غير محدد'}'),
-                          trailing: Text('${subjectsMap[sName]} دروس', style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold)),
-                        );
-                      }).toList(),
-                    );
-                  },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, st) => Center(child: Text('حدث خطأ: $e')),
+                      return ExpansionTile(
+                        title: Text(classroomName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Text('إجمالي الدروس المطلوبة: ' + classLessons.length.toString()),
+                        children: subjectsMap.keys.map((sName) {
+                          return ListTile(
+                            title: Text(sName),
+                            subtitle: Text('المدرس: ' + (teachersMap[sName] ?? 'غير محدد')),
+                            trailing: Text(subjectsMap[sName].toString() + ' دروس', style: const TextStyle(color: Colors.teal, fontWeight: FontWeight.bold)),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, st) => Center(child: Text('حدث خطأ: ' + e.toString())),
+              ),
             ),
           ],
         ),
