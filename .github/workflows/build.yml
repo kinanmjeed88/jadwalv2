@@ -28,8 +28,8 @@ jobs:
         flutter create . --platforms=android
         sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle || true
         sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle.kts || true
-        sed -i 's/flutter.compileSdkVersion/34/g' android/app/build.gradle || true
-        sed -i 's/flutter.compileSdkVersion/34/g' android/app/build.gradle.kts || true
+        sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle || true
+        sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle.kts || true
 
     - name: Clean Workspace
       run: flutter clean
@@ -40,7 +40,7 @@ jobs:
     - name: Fix Isar Namespace & SDK Version
       run: |
         sed -i 's/compileSdkVersion/namespace "dev.isar.isar_flutter_libs"\n    compileSdkVersion/g' ~/.pub-cache/hosted/pub.dev/isar_flutter_libs-*/android/build.gradle
-        sed -i -E 's/compileSdkVersion [0-9]+/compileSdkVersion 34/g' ~/.pub-cache/hosted/pub.dev/isar_flutter_libs-*/android/build.gradle
+        sed -i -E 's/compileSdkVersion [0-9]+/compileSdkVersion 36/g' ~/.pub-cache/hosted/pub.dev/isar_flutter_libs-*/android/build.gradle
       
     - name: Build APK
       run: flutter build apk --release
