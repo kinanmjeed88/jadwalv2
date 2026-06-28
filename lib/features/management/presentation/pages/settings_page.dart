@@ -40,6 +40,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
   late String _exportPageSize;
   late String _exportOrientation;
   late bool _exportAutoScale;
+  late String _schoolName;
 
   @override
   void initState() {
@@ -49,12 +50,14 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     _exportPageSize = widget.settings.exportPageSize;
     _exportOrientation = widget.settings.exportOrientation;
     _exportAutoScale = widget.settings.exportAutoScale;
+    _schoolName = widget.settings.schoolName;
   }
 
   void _saveSettings() {
     if (_formKey.currentState!.validate()) {
       _formKey.currentState!.save();
       final newSettings = widget.settings
+        ..schoolName = _schoolName
         ..periodsPerDay = _periodsPerDay
         ..daysPerWeek = _daysPerWeek
         ..exportPageSize = _exportPageSize
@@ -155,6 +158,14 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
                   children: [
+                    TextFormField(
+                      initialValue: _schoolName,
+                      decoration: const InputDecoration(
+                          labelText: 'اسم المدرسة',
+                          border: OutlineInputBorder()),
+                      onSaved: (val) => _schoolName = val ?? '',
+                    ),
+                    const SizedBox(height: 16),
                     TextFormField(
                       initialValue: _periodsPerDay.toString(),
                       decoration: const InputDecoration(

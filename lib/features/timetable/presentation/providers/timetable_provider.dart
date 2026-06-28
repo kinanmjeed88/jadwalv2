@@ -43,6 +43,36 @@ class TimetableNotifier extends _$TimetableNotifier {
     state = AsyncValue.data(await isar.lessons.where().findAll());
   }
 
+  Future<void> deleteAssignment(int classroomId, int subjectId) async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+    final allLessons = await isar.lessons.where().findAll();
+    final toDelete = allLessons.where((l) =>
+        l.classroom.value?.id == classroomId &&
+        l.subject.value?.id == subjectId).toList();
+
+    await isar.writeTxn(() async {
+      await isar.lessons.deleteAll(toDelete.map((e) => e.id).toList());
+    });
+    state = AsyncValue.data(await isar.lessons.where().findAll());
+  }
+
+  Future<void> updateAssignment(int classroomId, int subjectId, Teacher newTeacher) async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+    final allLessons = await isar.lessons.where().findAll();
+    final toUpdate = allLessons.where((l) =>
+        l.classroom.value?.id == classroomId &&
+        l.subject.value?.id == subjectId).toList();
+
+    await isar.writeTxn(() async {
+      for (var lesson in toUpdate) {
+        lesson.teacher.value = newTeacher;
+        await isar.lessons.put(lesson);
+        await lesson.teacher.save();
+      }
+    });
+    state = AsyncValue.data(await isar.lessons.where().findAll());
+  }
+
   Future<void> generateTimetable() async {
     state = const AsyncValue.loading();
 

@@ -52,6 +52,14 @@ class TimetableGenerator {
             .toList();
       }
 
+      // Hard constraint: Filter periodOrder by Teacher's allowedPeriods
+      if (lesson.teacher.value != null &&
+          lesson.teacher.value!.allowedPeriods.isNotEmpty) {
+        periodOrder = periodOrder
+            .where((p) => lesson.teacher.value!.allowedPeriods.contains(p))
+            .toList();
+      }
+
       for (int day = 0; day < maxDays; day++) {
         if (placed) break;
 

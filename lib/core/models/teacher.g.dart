@@ -17,28 +17,33 @@ const TeacherSchema = CollectionSchema(
   name: r'Teacher',
   id: 356616661396274803,
   properties: {
-    r'maxLessonsPerDay': PropertySchema(
+    r'allowedPeriods': PropertySchema(
       id: 0,
+      name: r'allowedPeriods',
+      type: IsarType.longList,
+    ),
+    r'maxLessonsPerDay': PropertySchema(
+      id: 1,
       name: r'maxLessonsPerDay',
       type: IsarType.long,
     ),
     r'maxLessonsPerWeek': PropertySchema(
-      id: 1,
+      id: 2,
       name: r'maxLessonsPerWeek',
       type: IsarType.long,
     ),
     r'name': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'name',
       type: IsarType.string,
     ),
     r'specialization': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'specialization',
       type: IsarType.string,
     ),
     r'unavailableDays': PropertySchema(
-      id: 4,
+      id: 5,
       name: r'unavailableDays',
       type: IsarType.longList,
     )
@@ -63,6 +68,7 @@ int _teacherEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  bytesCount += 3 + object.allowedPeriods.length * 8;
   bytesCount += 3 + object.name.length * 3;
   bytesCount += 3 + object.specialization.length * 3;
   bytesCount += 3 + object.unavailableDays.length * 8;
@@ -75,11 +81,12 @@ void _teacherSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeLong(offsets[0], object.maxLessonsPerDay);
-  writer.writeLong(offsets[1], object.maxLessonsPerWeek);
-  writer.writeString(offsets[2], object.name);
-  writer.writeString(offsets[3], object.specialization);
-  writer.writeLongList(offsets[4], object.unavailableDays);
+  writer.writeLongList(offsets[0], object.allowedPeriods);
+  writer.writeLong(offsets[1], object.maxLessonsPerDay);
+  writer.writeLong(offsets[2], object.maxLessonsPerWeek);
+  writer.writeString(offsets[3], object.name);
+  writer.writeString(offsets[4], object.specialization);
+  writer.writeLongList(offsets[5], object.unavailableDays);
 }
 
 Teacher _teacherDeserialize(
@@ -89,12 +96,13 @@ Teacher _teacherDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = Teacher();
+  object.allowedPeriods = reader.readLongList(offsets[0]) ?? [];
   object.id = id;
-  object.maxLessonsPerDay = reader.readLong(offsets[0]);
-  object.maxLessonsPerWeek = reader.readLong(offsets[1]);
-  object.name = reader.readString(offsets[2]);
-  object.specialization = reader.readString(offsets[3]);
-  object.unavailableDays = reader.readLongList(offsets[4]) ?? [];
+  object.maxLessonsPerDay = reader.readLong(offsets[1]);
+  object.maxLessonsPerWeek = reader.readLong(offsets[2]);
+  object.name = reader.readString(offsets[3]);
+  object.specialization = reader.readString(offsets[4]);
+  object.unavailableDays = reader.readLongList(offsets[5]) ?? [];
   return object;
 }
 
@@ -106,14 +114,16 @@ P _teacherDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readLong(offset)) as P;
+      return (reader.readLongList(offset) ?? []) as P;
     case 1:
       return (reader.readLong(offset)) as P;
     case 2:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 3:
       return (reader.readString(offset)) as P;
     case 4:
+      return (reader.readString(offset)) as P;
+    case 5:
       return (reader.readLongList(offset) ?? []) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -209,6 +219,151 @@ extension TeacherQueryWhere on QueryBuilder<Teacher, Teacher, QWhereClause> {
 
 extension TeacherQueryFilter
     on QueryBuilder<Teacher, Teacher, QFilterCondition> {
+  QueryBuilder<Teacher, Teacher, QAfterFilterCondition>
+      allowedPeriodsElementEqualTo(int value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'allowedPeriods',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Teacher, Teacher, QAfterFilterCondition>
+      allowedPeriodsElementGreaterThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'allowedPeriods',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Teacher, Teacher, QAfterFilterCondition>
+      allowedPeriodsElementLessThan(
+    int value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'allowedPeriods',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<Teacher, Teacher, QAfterFilterCondition>
+      allowedPeriodsElementBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'allowedPeriods',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<Teacher, Teacher, QAfterFilterCondition>
+      allowedPeriodsLengthEqualTo(int length) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        length,
+        true,
+        length,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Teacher, Teacher, QAfterFilterCondition>
+      allowedPeriodsIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        0,
+        true,
+        0,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Teacher, Teacher, QAfterFilterCondition>
+      allowedPeriodsIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        0,
+        false,
+        999999,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Teacher, Teacher, QAfterFilterCondition>
+      allowedPeriodsLengthLessThan(
+    int length, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        0,
+        true,
+        length,
+        include,
+      );
+    });
+  }
+
+  QueryBuilder<Teacher, Teacher, QAfterFilterCondition>
+      allowedPeriodsLengthGreaterThan(
+    int length, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        length,
+        include,
+        999999,
+        true,
+      );
+    });
+  }
+
+  QueryBuilder<Teacher, Teacher, QAfterFilterCondition>
+      allowedPeriodsLengthBetween(
+    int lower,
+    int upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.listLength(
+        r'allowedPeriods',
+        lower,
+        includeLower,
+        upper,
+        includeUpper,
+      );
+    });
+  }
+
   QueryBuilder<Teacher, Teacher, QAfterFilterCondition> idEqualTo(Id value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
@@ -903,6 +1058,12 @@ extension TeacherQuerySortThenBy
 
 extension TeacherQueryWhereDistinct
     on QueryBuilder<Teacher, Teacher, QDistinct> {
+  QueryBuilder<Teacher, Teacher, QDistinct> distinctByAllowedPeriods() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'allowedPeriods');
+    });
+  }
+
   QueryBuilder<Teacher, Teacher, QDistinct> distinctByMaxLessonsPerDay() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'maxLessonsPerDay');
@@ -942,6 +1103,12 @@ extension TeacherQueryProperty
   QueryBuilder<Teacher, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<Teacher, List<int>, QQueryOperations> allowedPeriodsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'allowedPeriods');
     });
   }
 
