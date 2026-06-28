@@ -9,6 +9,9 @@ class AppSettings {
   /// Default number of periods per day (e.g., 7)
   late int periodsPerDay;
 
+  /// School name
+  String schoolName = "";
+
   /// Number of days in the week (typically 5 for Sun-Thu)
   int daysPerWeek = 5;
 

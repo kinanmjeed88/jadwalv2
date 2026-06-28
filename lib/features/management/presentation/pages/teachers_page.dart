@@ -25,13 +25,24 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
               title: Text(teacher.name),
               subtitle: Text(
                   '${teacher.specialization} - مفرغ في: ${_getDaysString(teacher.unavailableDays)}'),
-              trailing: IconButton(
-                icon: const Icon(Icons.delete, color: Colors.red),
-                onPressed: () {
-                  ref
-                      .read(teachersNotifierProvider.notifier)
-                      .deleteTeacher(teacher.id);
-                },
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.blue),
+                    onPressed: () {
+                      _showAddTeacherDialog(context, ref, teacher: teacher);
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    onPressed: () {
+                      ref
+                          .read(teachersNotifierProvider.notifier)
+                          .deleteTeacher(teacher.id);
+                    },
+                  ),
+                ],
               ),
             );
           },
@@ -54,14 +65,19 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
         .join('، ');
   }
 
-  void _showAddTeacherDialog(BuildContext context, WidgetRef ref) {
-    final nameCtrl = TextEditingController();
-    final specCtrl = TextEditingController();
-    final maxDailyCtrl = TextEditingController(text: '5');
-    final maxWeeklyCtrl = TextEditingController(text: '20');
-    final selectedDays = <int>[];
+  void _showAddTeacherDialog(BuildContext context, WidgetRef ref, {Teacher? teacher}) {
+    final nameCtrl = TextEditingController(text: teacher?.name ?? '');
+    final specCtrl = TextEditingController(text: teacher?.specialization ?? '');
+    final maxDailyCtrl = TextEditingController(text: teacher?.maxLessonsPerDay.toString() ?? '5');
+    final maxWeeklyCtrl = TextEditingController(text: teacher?.maxLessonsPerWeek.toString() ?? '20');
+    final selectedDays = <int>[...teacher?.unavailableDays ?? []];
+    final allowedPeriods = <int>[...teacher?.allowedPeriods ?? []];
 
     const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+
+    // Default to 10 periods for the UI constraint checkbox selection
+    // In a real app we might fetch this from Settings
+    const maxPeriods = 10;
 
     showDialog(
       context: context,
@@ -115,6 +131,30 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
                       );
                     }),
                   ),
+                  const SizedBox(height: 16),
+                  const Text('الدروس المسموحة (اتركه فارغاً للسماح بالكل):',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Wrap(
+                      spacing: 8.0,
+                      children: List.generate(maxPeriods, (index) {
+                        return FilterChip(
+                          label: Text('الدرس ${index + 1}'),
+                          selected: allowedPeriods.contains(index),
+                          onSelected: (bool selected) {
+                            setState(() {
+                              if (selected) {
+                                allowedPeriods.add(index);
+                              } else {
+                                allowedPeriods.remove(index);
+                              }
+                            });
+                          },
+                        );
+                      }),
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -124,15 +164,17 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
                   child: const Text('إلغاء')),
               TextButton(
                 onPressed: () {
-                  final teacher = Teacher()
+                  final newTeacher = teacher ?? Teacher();
+                  newTeacher
                     ..name = nameCtrl.text
                     ..specialization = specCtrl.text
                     ..maxLessonsPerDay = int.tryParse(maxDailyCtrl.text) ?? 5
                     ..maxLessonsPerWeek = int.tryParse(maxWeeklyCtrl.text) ?? 20
-                    ..unavailableDays = List.from(selectedDays);
+                    ..unavailableDays = List.from(selectedDays)
+                    ..allowedPeriods = List.from(allowedPeriods);
                   ref
                       .read(teachersNotifierProvider.notifier)
-                      .addTeacher(teacher);
+                      .addTeacher(newTeacher); // acts as put (insert or update)
                   Navigator.pop(context);
                 },
                 child: const Text('حفظ'),

@@ -46,6 +46,55 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
     }
   }
 
+  void _showEditAssignmentDialog(BuildContext context, Lesson lesson) {
+    Teacher? newTeacher = lesson.teacher.value;
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return StatefulBuilder(builder: (context, setState) {
+          final teachersAsync = ref.watch(teachersNotifierProvider);
+          return AlertDialog(
+            title: const Text('تعديل المدرس للمادة'),
+            content: teachersAsync.when(
+              data: (teachers) => DropdownButtonFormField<Teacher>(
+                decoration: const InputDecoration(
+                    labelText: 'اختر المدرس',
+                    border: OutlineInputBorder()),
+                value: teachers.where((t) => t.id == newTeacher?.id).firstOrNull,
+                items: teachers
+                    .map((t) => DropdownMenuItem(
+                        value: t, child: Text(t.name)))
+                    .toList(),
+                onChanged: (val) =>
+                    setState(() => newTeacher = val),
+              ),
+              loading: () => const CircularProgressIndicator(),
+              error: (e, st) => Text('خطأ: ' + e.toString()),
+            ),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('إلغاء')),
+              TextButton(
+                onPressed: () {
+                  if (lesson.classroom.value != null && lesson.subject.value != null && newTeacher != null) {
+                    ref.read(timetableNotifierProvider.notifier).updateAssignment(
+                        lesson.classroom.value!.id,
+                        lesson.subject.value!.id,
+                        newTeacher!);
+                  }
+                  Navigator.pop(context);
+                },
+                child: const Text('حفظ'),
+              ),
+            ],
+          );
+        });
+      }
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final classroomsAsync = ref.watch(classroomsNotifierProvider);
@@ -198,15 +247,38 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                         subtitle: Text('إجمالي الدروس المطلوبة: ' +
                             classLessons.length.toString()),
                         children: subjectsMap.keys.map((sName) {
+                          final subjectLesson = classLessons.firstWhere((l) => (l.subject.value?.name ?? 'بدون مادة') == sName);
                           return ListTile(
                             title: Text(sName),
                             subtitle: Text('المدرس: ' +
                                 (teachersMap[sName] ?? 'غير محدد')),
-                            trailing: Text(
-                                subjectsMap[sName].toString() + ' دروس',
-                                style: const TextStyle(
-                                    color: Colors.teal,
-                                    fontWeight: FontWeight.bold)),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                    subjectsMap[sName].toString() + ' دروس',
+                                    style: const TextStyle(
+                                        color: Colors.teal,
+                                        fontWeight: FontWeight.bold)),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.edit, color: Colors.blue),
+                                  onPressed: () {
+                                    _showEditAssignmentDialog(context, subjectLesson);
+                                  },
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                  onPressed: () {
+                                    if (subjectLesson.classroom.value != null && subjectLesson.subject.value != null) {
+                                      ref.read(timetableNotifierProvider.notifier).deleteAssignment(
+                                          subjectLesson.classroom.value!.id,
+                                          subjectLesson.subject.value!.id);
+                                    }
+                                  },
+                                ),
+                              ],
+                            ),
                           );
                         }).toList(),
                       );

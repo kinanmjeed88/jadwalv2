@@ -19,4 +19,7 @@ class Teacher {
   /// List of integers representing days of the week the teacher is unavailable
   /// (e.g., 0 for Sunday, 1 for Monday, etc.)
   List<int> unavailableDays = [];
+
+  /// List of integers representing allowed periods for this teacher
+  List<int> allowedPeriods = [];
 }

@@ -11,7 +11,6 @@ import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/providers/database_provider.dart';
-import '../../../../core/utils/period_mapper.dart';
 import '../../domain/usecases/pdf_export_usecase.dart';
 import '../providers/timetable_provider.dart';
 
@@ -188,7 +187,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         uniqueClassrooms[lesson.classroom.value!.id] = lesson.classroom.value!;
       }
     }
-    final classrooms = uniqueClassrooms.values.toList();
+    final classrooms = uniqueClassrooms.values.toList()..sort((a, b) => a.id.compareTo(b.id));
 
     if (classrooms.isEmpty && unassigned.isNotEmpty) {
       return Column(
@@ -202,92 +201,110 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     }
 
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (settings.schoolName.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              settings.schoolName,
+              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.teal),
+              textAlign: TextAlign.center,
+            ),
+          ),
         if (unassigned.isNotEmpty)
           Container(
             color: Colors.red.shade100,
             padding: const EdgeInsets.all(8.0),
             child: Text('يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
-                style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
           ),
         Expanded(
-          child: DefaultTabController(
-            length: classrooms.length,
-            child: Builder(
-              builder: (context) {
-                final tabController = DefaultTabController.of(context);
-                Future.microtask(() {
-                  tabController.addListener(() {
-                    if (!tabController.indexIsChanging && mounted) {
-                      setState(() {
-                        _currentTabIndex = tabController.index;
-                      });
-                    }
-                  });
-                });
-                return Column(
-                  children: [
-                    TabBar(
-                      isScrollable: true,
-                      tabs: classrooms.map((c) => Tab(text: c.name)).toList(),
-                      labelColor: Colors.teal,
-                      unselectedLabelColor: Colors.grey,
-                    ),
-                    Expanded(
-                      child: TabBarView(
-                        children: classrooms.map((c) {
-                          return _buildClassroomTable(c.id, assigned.where((l) => l.classroom.value?.id == c.id).toList(), settings);
-                        }).toList(),
-                      ),
-                    ),
-                  ],
-                );
-              }
-            ),
-          ),
+          child: _buildMasterGrid(assigned, classrooms, settings),
         ),
       ],
     );
   }
 
-  Widget _buildClassroomTable(int classroomId, List<Lesson> classLessons, AppSettings settings) {
-    if (!_classroomKeys.containsKey(classroomId)) {
-      _classroomKeys[classroomId] = GlobalKey();
+  Widget _buildMasterGrid(List<Lesson> assignedLessons, List<Classroom> classrooms, AppSettings settings) {
+    if (classrooms.isEmpty) {
+      return const Center(child: Text('لا يوجد بيانات لعرضها.'));
     }
+
     final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
     final displayDays = days.take(settings.daysPerWeek).toList();
+    final int masterKeyId = 0; // use 0 for the master grid
+    if (!_classroomKeys.containsKey(masterKeyId)) {
+      _classroomKeys[masterKeyId] = GlobalKey();
+    }
+
+    // Build Rows
+    List<DataRow> rows = [];
+    for (int d = 0; d < displayDays.length; d++) {
+      for (int p = 0; p < settings.periodsPerDay; p++) {
+        List<DataCell> cells = [];
+
+        // Vertical merging logic: only show day name on the first period of the day
+        if (p == 0) {
+          // This cell would ideally span vertically, but DataTable does not support rowspans.
+          // We can simulate it by showing the text only on the first row, or center it, etc.
+          // For a true Master Grid in flutter DataTable, we just place the day on the first cell.
+          cells.add(DataCell(
+            Container(
+              alignment: Alignment.center,
+              child: Text(displayDays[d], style: const TextStyle(fontWeight: FontWeight.bold)),
+            )
+          ));
+        } else {
+          cells.add(DataCell(const SizedBox.shrink()));
+        }
+
+        // Sequence column
+        cells.add(DataCell(
+          Container(
+            alignment: Alignment.center,
+            child: Text((p + 1).toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
+          )
+        ));
+
+        // Classrooms columns
+        for (var classroom in classrooms) {
+          cells.add(DataCell(
+             _buildCell(assignedLessons.where((l) => l.classroom.value?.id == classroom.id).toList(), d, p)
+          ));
+        }
+
+        rows.add(DataRow(
+          color: p % 2 == 0 ? WidgetStateProperty.all(Colors.grey.shade50) : WidgetStateProperty.all(Colors.white),
+          cells: cells,
+        ));
+      }
+    }
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: SingleChildScrollView(
         child: RepaintBoundary(
-          key: _classroomKeys[classroomId],
+          key: _classroomKeys[masterKeyId],
           child: Container(
             color: Colors.white,
-            padding: const EdgeInsets.all(16.0), // reduced padding
+            padding: const EdgeInsets.all(16.0),
             child: DataTable(
               border: TableBorder.all(color: Colors.grey.shade300),
-              headingRowColor: WidgetStateProperty.all(Colors.teal.shade50),
-              columnSpacing: 8.0, // Tight spacing
-              horizontalMargin: 8.0, // Tight margin
-              dataRowMinHeight: 35.0,
-              dataRowMaxHeight: 50.0,
-              headingRowHeight: 40.0,
+              headingRowColor: WidgetStateProperty.all(Colors.teal.shade100),
+              columnSpacing: 8.0,
+              horizontalMargin: 8.0,
+              dataRowMinHeight: 45.0,
+              dataRowMaxHeight: 60.0,
+              headingRowHeight: 45.0,
               columns: [
-                const DataColumn(label: Text('الدرس / اليوم', style: TextStyle(fontWeight: FontWeight.bold))),
-                for (int d = 0; d < displayDays.length; d++)
-                  DataColumn(label: Text(displayDays[d], style: const TextStyle(fontWeight: FontWeight.bold))),
+                const DataColumn(label: Text('اليوم', style: TextStyle(fontWeight: FontWeight.bold))),
+                const DataColumn(label: Text('الدرس', style: TextStyle(fontWeight: FontWeight.bold))),
+                for (var classroom in classrooms)
+                  DataColumn(label: Text(classroom.name, style: const TextStyle(fontWeight: FontWeight.bold))),
               ],
-              rows: [
-                for (int p = 0; p < settings.periodsPerDay; p++)
-                  DataRow(cells: [
-                    DataCell(Text(PeriodMapper.toArabicName(p), style: const TextStyle(fontWeight: FontWeight.bold))),
-                    for (int d = 0; d < displayDays.length; d++)
-                      DataCell(
-                        _buildCell(classLessons, d, p),
-                      ),
-                  ]),
-              ],
+              rows: rows,
             ),
           ),
         ),
