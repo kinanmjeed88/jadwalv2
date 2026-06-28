@@ -26,7 +26,7 @@ class SubjectsPage extends ConsumerWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text(subject.name),
-                  subtitle: Text('الدروس الأسبوعية: ${subject.lessonsPerWeek}'),
+                  subtitle: Text('الدروس الأسبوعية: ' + subject.lessonsPerWeek.toString()),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () => _confirmDelete(context, ref, subject),
@@ -38,7 +38,7 @@ class SubjectsPage extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('حدث خطأ: $e')),
+        error: (e, st) => Center(child: Text('حدث خطأ: ' + e.toString())),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddOrEditDialog(context, ref, null),
@@ -52,7 +52,7 @@ class SubjectsPage extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('حذف المادة'),
-        content: Text('هل أنت متأكد من حذف المادة "${subject.name}"؟'),
+        content: Text('هل أنت متأكد من حذف المادة "' + subject.name + '"؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),

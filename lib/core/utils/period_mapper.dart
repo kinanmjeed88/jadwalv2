@@ -17,6 +17,6 @@ class PeriodMapper {
       return _arabicLessons[index];
     }
     // Fallback if needed, using string concatenation without RTL interpolation issues
-    return 'الدرس رقم ${index + 1}';
+    return 'الدرس رقم ' + (index + 1).toString();
   }
 }
