@@ -46,7 +46,8 @@ class ClassroomsPage extends ConsumerWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, WidgetRef ref, Classroom classroom) {
+  void _confirmDelete(
+      BuildContext context, WidgetRef ref, Classroom classroom) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -60,7 +61,9 @@ class ClassroomsPage extends ConsumerWidget {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
-              ref.read(classroomsNotifierProvider.notifier).deleteClassroom(classroom.id);
+              ref
+                  .read(classroomsNotifierProvider.notifier)
+                  .deleteClassroom(classroom.id);
               Navigator.pop(context);
             },
             child: const Text('حذف', style: TextStyle(color: Colors.white)),
@@ -70,10 +73,12 @@ class ClassroomsPage extends ConsumerWidget {
     );
   }
 
-  void _showAddOrEditDialog(BuildContext context, WidgetRef ref, Classroom? existingClassroom) {
+  void _showAddOrEditDialog(
+      BuildContext context, WidgetRef ref, Classroom? existingClassroom) {
     showDialog(
       context: context,
-      builder: (context) => _ClassroomDialog(existingClassroom: existingClassroom),
+      builder: (context) =>
+          _ClassroomDialog(existingClassroom: existingClassroom),
     );
   }
 }
@@ -119,8 +124,7 @@ class _ClassroomDialogState extends ConsumerState<_ClassroomDialog> {
             TextFormField(
               initialValue: _grade,
               decoration: const InputDecoration(
-                  labelText: 'المرحلة الدراسية',
-                  helperText: 'مثال: المتوسطة'),
+                  labelText: 'المرحلة الدراسية', helperText: 'مثال: المتوسطة'),
               validator: (val) => val == null || val.isEmpty ? 'مطلوب' : null,
               onSaved: (val) => _grade = val!,
             ),

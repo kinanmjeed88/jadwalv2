@@ -144,7 +144,11 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('الإعدادات العامة', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
+            const Text('الإعدادات العامة',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal)),
             const SizedBox(height: 16),
             Card(
               child: Padding(
@@ -153,17 +157,27 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                   children: [
                     TextFormField(
                       initialValue: _periodsPerDay.toString(),
-                      decoration: const InputDecoration(labelText: 'عدد الدروس في اليوم', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                          labelText: 'عدد الدروس في اليوم',
+                          border: OutlineInputBorder()),
                       keyboardType: TextInputType.number,
-                      validator: (val) => val == null || int.tryParse(val) == null ? 'أدخل رقماً صحيحاً' : null,
+                      validator: (val) =>
+                          val == null || int.tryParse(val) == null
+                              ? 'أدخل رقماً صحيحاً'
+                              : null,
                       onSaved: (val) => _periodsPerDay = int.parse(val!),
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
                       initialValue: _daysPerWeek.toString(),
-                      decoration: const InputDecoration(labelText: 'عدد أيام الدوام في الأسبوع', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                          labelText: 'عدد أيام الدوام في الأسبوع',
+                          border: OutlineInputBorder()),
                       keyboardType: TextInputType.number,
-                      validator: (val) => val == null || int.tryParse(val) == null ? 'أدخل رقماً صحيحاً' : null,
+                      validator: (val) =>
+                          val == null || int.tryParse(val) == null
+                              ? 'أدخل رقماً صحيحاً'
+                              : null,
                       onSaved: (val) => _daysPerWeek = int.parse(val!),
                     ),
                   ],
@@ -171,8 +185,11 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
               ),
             ),
             const SizedBox(height: 24),
-
-            const Text('إعدادات التصدير (PDF)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
+            const Text('إعدادات التصدير (PDF)',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal)),
             const SizedBox(height: 16),
             Card(
               child: Padding(
@@ -181,34 +198,41 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                   children: [
                     DropdownButtonFormField<String>(
                       initialValue: _exportPageSize,
-                      decoration: const InputDecoration(labelText: 'حجم الصفحة', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                          labelText: 'حجم الصفحة',
+                          border: OutlineInputBorder()),
                       items: ['A4', 'A3', 'Custom'].map((String value) {
                         return DropdownMenuItem<String>(
                           value: value,
                           child: Text(value),
                         );
                       }).toList(),
-                      onChanged: (newValue) => setState(() => _exportPageSize = newValue!),
+                      onChanged: (newValue) =>
+                          setState(() => _exportPageSize = newValue!),
                       onSaved: (val) => _exportPageSize = val!,
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       initialValue: _exportOrientation,
-                      decoration: const InputDecoration(labelText: 'اتجاه الصفحة', border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                          labelText: 'اتجاه الصفحة',
+                          border: OutlineInputBorder()),
                       items: ['Portrait', 'Landscape'].map((String value) {
                         return DropdownMenuItem<String>(
                           value: value,
                           child: Text(value),
                         );
                       }).toList(),
-                      onChanged: (newValue) => setState(() => _exportOrientation = newValue!),
+                      onChanged: (newValue) =>
+                          setState(() => _exportOrientation = newValue!),
                       onSaved: (val) => _exportOrientation = val!,
                     ),
                     const SizedBox(height: 16),
                     CheckboxListTile(
                       title: const Text('التمدد التلقائي للجدول'),
                       value: _exportAutoScale,
-                      onChanged: (val) => setState(() => _exportAutoScale = val ?? true),
+                      onChanged: (val) =>
+                          setState(() => _exportAutoScale = val ?? true),
                       contentPadding: EdgeInsets.zero,
                     ),
                   ],
@@ -216,8 +240,11 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
               ),
             ),
             const SizedBox(height: 24),
-
-            const Text('نظام النسخ الاحتياطي', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal)),
+            const Text('نظام النسخ الاحتياطي',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal)),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -253,8 +280,10 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: _saveSettings,
-                style: ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
-                child: const Text('حفظ الإعدادات', style: TextStyle(fontSize: 16)),
+                style:
+                    ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+                child:
+                    const Text('حفظ الإعدادات', style: TextStyle(fontSize: 16)),
               ),
             ),
           ],

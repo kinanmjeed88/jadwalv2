@@ -18,7 +18,8 @@ class TimetableNotifier extends _$TimetableNotifier {
     return isar.lessons.where().findAll();
   }
 
-  Future<void> assignLessonsToPool(Classroom classroom, Subject subject, Teacher teacher) async {
+  Future<void> assignLessonsToPool(
+      Classroom classroom, Subject subject, Teacher teacher) async {
     final isar = await ref.read(isarDatabaseProvider.future);
 
     final newLessons = <Lesson>[];
@@ -86,19 +87,19 @@ class TimetableNotifier extends _$TimetableNotifier {
     }
   }
 
-  Future<bool> swapLessons(Lesson lesson1, Lesson lesson2) async {
+  Future<(bool, String?)> swapLessons(Lesson lesson1, Lesson lesson2) async {
     // Validate swap constraints
     if (lesson1.dayIndex == null ||
         lesson1.periodIndex == null ||
         lesson2.dayIndex == null ||
         lesson2.periodIndex == null) {
-      return false;
+      return (false, "لا يمكن تبديل دروس غير مجدولة");
     }
 
     final isar = await ref.read(isarDatabaseProvider.future);
     final allLessons = await isar.lessons.where().findAll();
 
-    // Check if swap causes teacher conflict
+    // Check teacher conflict
     bool lesson1TeacherConflict = allLessons.any((l) =>
         l.id != lesson1.id &&
         l.id != lesson2.id &&
@@ -114,7 +115,43 @@ class TimetableNotifier extends _$TimetableNotifier {
         l.periodIndex == lesson1.periodIndex);
 
     if (lesson1TeacherConflict || lesson2TeacherConflict) {
-      return false; // Swap invalid
+      return (false, "تعارض للمدرس في الوقت الجديد");
+    }
+
+    // Check classroom conflict
+    bool lesson1ClassroomConflict = allLessons.any((l) =>
+        l.id != lesson1.id &&
+        l.id != lesson2.id &&
+        l.classroom.value?.id == lesson1.classroom.value?.id &&
+        l.dayIndex == lesson2.dayIndex &&
+        l.periodIndex == lesson2.periodIndex);
+
+    bool lesson2ClassroomConflict = allLessons.any((l) =>
+        l.id != lesson1.id &&
+        l.id != lesson2.id &&
+        l.classroom.value?.id == lesson2.classroom.value?.id &&
+        l.dayIndex == lesson1.dayIndex &&
+        l.periodIndex == lesson1.periodIndex);
+
+    if (lesson1ClassroomConflict || lesson2ClassroomConflict) {
+      return (false, "تعارض للصف في الوقت الجديد");
+    }
+
+    // Check teacher day off constraint
+    if (lesson1.teacher.value?.unavailableDays.contains(lesson2.dayIndex) ??
+        false) {
+      return (
+        false,
+        "المدرس (${lesson1.teacher.value?.name}) مفرغ في هذا اليوم"
+      );
+    }
+
+    if (lesson2.teacher.value?.unavailableDays.contains(lesson1.dayIndex) ??
+        false) {
+      return (
+        false,
+        "المدرس (${lesson2.teacher.value?.name}) مفرغ في هذا اليوم"
+      );
     }
 
     // Perform swap
@@ -132,6 +169,6 @@ class TimetableNotifier extends _$TimetableNotifier {
     });
 
     state = AsyncValue.data(await isar.lessons.where().findAll());
-    return true;
+    return (true, null);
   }
 }

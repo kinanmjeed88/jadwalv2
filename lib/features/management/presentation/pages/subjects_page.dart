@@ -26,7 +26,8 @@ class SubjectsPage extends ConsumerWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text(subject.name),
-                  subtitle: Text('الدروس الأسبوعية: ' + subject.lessonsPerWeek.toString()),
+                  subtitle: Text(
+                      'الدروس الأسبوعية: ' + subject.lessonsPerWeek.toString()),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     onPressed: () => _confirmDelete(context, ref, subject),
@@ -61,7 +62,9 @@ class SubjectsPage extends ConsumerWidget {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
-              ref.read(subjectsNotifierProvider.notifier).deleteSubject(subject.id);
+              ref
+                  .read(subjectsNotifierProvider.notifier)
+                  .deleteSubject(subject.id);
               Navigator.pop(context);
             },
             child: const Text('حذف', style: TextStyle(color: Colors.white)),
@@ -71,7 +74,8 @@ class SubjectsPage extends ConsumerWidget {
     );
   }
 
-  void _showAddOrEditDialog(BuildContext context, WidgetRef ref, Subject? existingSubject) {
+  void _showAddOrEditDialog(
+      BuildContext context, WidgetRef ref, Subject? existingSubject) {
     showDialog(
       context: context,
       builder: (context) => _SubjectDialog(existingSubject: existingSubject),
@@ -118,8 +122,7 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
               TextFormField(
                 initialValue: _name,
                 decoration: const InputDecoration(
-                    labelText: 'اسم المادة',
-                    helperText: 'مثال: رياضيات, علوم'),
+                    labelText: 'اسم المادة', helperText: 'مثال: رياضيات, علوم'),
                 validator: (val) => val == null || val.isEmpty ? 'مطلوب' : null,
                 onSaved: (val) => _name = val!,
               ),
@@ -130,19 +133,23 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                     labelText: 'الدروس الأسبوعية',
                     helperText: 'عدد الدروس المطلوبة خلال الأسبوع'),
                 keyboardType: TextInputType.number,
-                validator: (val) => val == null || int.tryParse(val) == null ? 'أدخل رقماً صحيحاً' : null,
+                validator: (val) => val == null || int.tryParse(val) == null
+                    ? 'أدخل رقماً صحيحاً'
+                    : null,
                 onSaved: (val) => _lessonsPerWeek = int.parse(val!),
               ),
               const SizedBox(height: 10),
               CheckboxListTile(
                 title: const Text('تفضيل الدروس المبكرة'),
                 value: _preferEarlyPeriods,
-                onChanged: (val) => setState(() => _preferEarlyPeriods = val ?? false),
+                onChanged: (val) =>
+                    setState(() => _preferEarlyPeriods = val ?? false),
               ),
               const SizedBox(height: 10),
               const ListTile(
                 title: Text('القيود الزمنية (الدروس المسموحة للمادة)'),
-                subtitle: Text('تحديد درس معين هنا يجبر النظام على جدولة هذه المادة في هذا الوقت حصراً (مثلاً: إجبار مادة الرياضة لتكون دائماً في الدرس الأخير)'),
+                subtitle: Text(
+                    'تحديد درس معين هنا يجبر النظام على جدولة هذه المادة في هذا الوقت حصراً (مثلاً: إجبار مادة الرياضة لتكون دائماً في الدرس الأخير)'),
                 contentPadding: EdgeInsets.zero,
               ),
               settingsAsync.when(
