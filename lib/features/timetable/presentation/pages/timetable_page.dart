@@ -25,7 +25,6 @@ class TimetablePage extends ConsumerStatefulWidget {
 }
 
 class _TimetablePageState extends ConsumerState<TimetablePage> {
-  int _currentTabIndex = 0;
   final Map<int, GlobalKey> _classroomKeys = {};
 
   Future<void> _exportToPdf() async {
@@ -71,24 +70,19 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   }
 
   Future<void> _exportToImage() async {
-    final isar = await ref.read(isarDatabaseProvider.future);
-    final lessons = await isar.lessons.where().findAll();
-    final assigned = lessons.where((l) => !l.isUnassigned).toList();
+    final key = _classroomKeys[0]; // Master grid key is 0
 
-    final uniqueClassrooms = <int, Classroom>{};
-    for (var lesson in assigned) {
-      if (lesson.classroom.value != null) {
-        uniqueClassrooms[lesson.classroom.value!.id] = lesson.classroom.value!;
+    if (key == null || key.currentContext == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('الجدول غير متوفر للتصدير'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
+      return;
     }
-    final classrooms = uniqueClassrooms.values.toList();
-
-    if (classrooms.isEmpty || _currentTabIndex >= classrooms.length) return;
-
-    final currentClassroom = classrooms[_currentTabIndex];
-    final key = _classroomKeys[currentClassroom.id];
-
-    if (key == null || key.currentContext == null) return;
 
     try {
       final boundary = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
@@ -99,7 +93,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
       try {
         final tempDir = await getTemporaryDirectory();
-        final tempFile = File('${tempDir.path}/timetable_${currentClassroom.name}.png');
+        final tempFile = File('${tempDir.path}/timetable_master.png');
         await tempFile.writeAsBytes(pngBytes);
 
         await Gal.putImage(tempFile.path);

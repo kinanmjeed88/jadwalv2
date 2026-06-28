@@ -1,7 +1,6 @@
-import 'dart:typed_data';
+import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/classroom.dart';
@@ -16,8 +15,9 @@ class PdfExportUseCase {
     final doc = pw.Document();
 
     // Load Arabic Font (Cairo or Amiri from Google Fonts via Printing)
-    final font = await PdfGoogleFonts.cairoRegular();
-    final fontBold = await PdfGoogleFonts.cairoBold();
+    final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
+    final font = pw.Font.ttf(fontData);
+    final fontBold = pw.Font.ttf(fontData);
 
     // Group classrooms by Grade
     final classroomsByGrade = <String, List<Classroom>>{};
@@ -45,7 +45,7 @@ class PdfExportUseCase {
     final bool autoScale = settings.exportAutoScale;
 
     final maxClassroomsPerPage =
-        settings.exportOrientation == 'Landscape' ? 2 : 4;
+        settings.exportOrientation == 'Landscape' ? 4 : 3;
 
     for (var grade in classroomsByGrade.keys) {
       final gradeClassrooms = classroomsByGrade[grade]!;
@@ -111,8 +111,11 @@ class PdfExportUseCase {
 
     // Auto-scale fonts based on the page width and number of periods
     double baseFontSize = format.width > 500 ? 12.0 : 10.0;
-    if (autoScale && periodsPerDay > 7) baseFontSize -= 2.0;
-    if (autoScale && displayDays.length > 5) baseFontSize -= 1.0;
+    if (autoScale) {
+      if (periodsPerDay > 7) baseFontSize -= 2.0;
+      if (displayDays.length > 5) baseFontSize -= 1.0;
+      baseFontSize -= 1.0; // Extra compression to fit A to D columns
+    }
 
     // Use FlexColumnWidth for equal column widths to fill space dynamically
     final Map<int, pw.TableColumnWidth> columnWidths = {
@@ -148,7 +151,7 @@ class PdfExportUseCase {
                             const pw.BoxDecoration(color: PdfColors.grey300),
                         children: [
                           pw.Padding(
-                              padding: const pw.EdgeInsets.all(5),
+                              padding: const pw.EdgeInsets.all(2),
                               child: pw.Text('الدرس / اليوم',
                                   textAlign: pw.TextAlign.center,
                                   textDirection: pw.TextDirection.rtl,
@@ -158,7 +161,7 @@ class PdfExportUseCase {
                                       fontWeight: pw.FontWeight.bold))),
                           for (int d = 0; d < displayDays.length; d++)
                             pw.Padding(
-                                padding: const pw.EdgeInsets.all(5),
+                                padding: const pw.EdgeInsets.all(2),
                                 child: pw.Text(displayDays[d],
                                     textAlign: pw.TextAlign.center,
                                     textDirection: pw.TextDirection.rtl,
@@ -171,7 +174,7 @@ class PdfExportUseCase {
                     for (int p = 0; p < periodsPerDay; p++)
                       pw.TableRow(children: [
                         pw.Padding(
-                            padding: const pw.EdgeInsets.all(5),
+                            padding: const pw.EdgeInsets.all(2),
                             child: pw.Text(PeriodMapper.toArabicName(p),
                                 textAlign: pw.TextAlign.center,
                                 textDirection: pw.TextDirection.rtl,
@@ -194,13 +197,13 @@ class PdfExportUseCase {
 
     if (lesson == null) {
       return pw.Padding(
-          padding: const pw.EdgeInsets.all(5),
+          padding: const pw.EdgeInsets.all(2),
           child: pw.Text('',
               style: pw.TextStyle(font: font, fontSize: baseFontSize)));
     }
 
     return pw.Padding(
-        padding: const pw.EdgeInsets.all(5),
+        padding: const pw.EdgeInsets.all(2),
         child: pw.Column(
             mainAxisAlignment: pw.MainAxisAlignment.center,
             children: [
