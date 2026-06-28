@@ -72,14 +72,13 @@ flutter_launcher_icons:
 # following page: https://dart.dev/tools/pub/pubspec
 
 # The following section is specific to Flutter packages.
-flutter:
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
   # the material Icons class.
+  flutter:
   uses-material-design: true
-
-    assets:
+  assets:
     - assets/images/
 
   # An image asset can refer to one or more resolution-specific "variants", see
