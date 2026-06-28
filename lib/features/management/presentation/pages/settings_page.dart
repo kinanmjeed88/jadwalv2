@@ -98,7 +98,10 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل في التصدير: $e')),
+          SnackBar(
+            content: Text('فشل في التصدير: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -132,7 +135,10 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('فشل في الاستيراد: $e')),
+          SnackBar(
+            content: Text('فشل في الاستيراد: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

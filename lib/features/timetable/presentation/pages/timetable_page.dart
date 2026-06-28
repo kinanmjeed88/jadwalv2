@@ -3,9 +3,12 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:isar/isar.dart';
+import 'package:gal/gal.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
@@ -94,20 +97,30 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       if (byteData == null) return;
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
-      String? outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'حفظ كـ صورة',
-        fileName: 'timetable_${currentClassroom.name}.png',
-        type: FileType.image,
-        bytes: pngBytes,
-      );
+      try {
+        final tempDir = await getTemporaryDirectory();
+        final tempFile = File('${tempDir.path}/timetable_${currentClassroom.name}.png');
+        await tempFile.writeAsBytes(pngBytes);
 
-      if (outputFile != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم حفظ الصورة بنجاح: $outputFile'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        await Gal.putImage(tempFile.path);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('تم حفظ الصورة بنجاح في المعرض'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (innerE) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('حدث خطأ أثناء حفظ الصورة (تأكد من الصلاحيات): $innerE'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
