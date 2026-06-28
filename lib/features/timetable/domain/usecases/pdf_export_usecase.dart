@@ -67,17 +67,26 @@ class PdfExportUseCase {
               bold: fontBold,
             ),
             build: (pw.Context context) {
-              return pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.center,
-                children: [
-                  pw.Text(
-                      'جدول الدروس الأسبوعي - $grade${i > 0 ? ' (تابع)' : ''}',
-                      style: pw.TextStyle(fontSize: 24, font: fontBold),
-                      textDirection: pw.TextDirection.rtl),
-                  pw.SizedBox(height: 20),
-                  ...chunk.map((c) => _buildClassroomTable(
-                      c, lessons, settings, font, fontBold, autoScale, format)),
-                ],
+              return pw.Directionality(
+                textDirection: pw.TextDirection.rtl,
+                child: pw.Theme(
+                  data: pw.ThemeData.withFont(
+                    base: font,
+                    bold: fontBold,
+                  ),
+                  child: pw.Column(
+                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                    children: [
+                      pw.Text(
+                          'جدول الدروس الأسبوعي - $grade${i > 0 ? ' (تابع)' : ''}',
+                          style: pw.TextStyle(fontSize: 24, font: fontBold),
+                          textDirection: pw.TextDirection.rtl),
+                      pw.SizedBox(height: 20),
+                      ...chunk.map((c) => _buildClassroomTable(
+                          c, lessons, settings, font, fontBold, autoScale, format)),
+                    ],
+                  ),
+                ),
               );
             },
           ),
