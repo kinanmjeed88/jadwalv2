@@ -15,8 +15,9 @@ class PdfExportUseCase {
       List<Classroom> classrooms, AppSettings settings) async {
     final doc = pw.Document();
 
-    // Load Arabic Font (Cairo)
+    // Load Arabic Font (Cairo or Amiri from Google Fonts via Printing)
     final font = await PdfGoogleFonts.cairoRegular();
+    final fontBold = await PdfGoogleFonts.cairoBold();
 
     // Group classrooms by Grade
     final classroomsByGrade = <String, List<Classroom>>{};
@@ -63,6 +64,7 @@ class PdfExportUseCase {
             textDirection: pw.TextDirection.rtl,
             theme: pw.ThemeData.withFont(
               base: font,
+              bold: fontBold,
             ),
             build: (pw.Context context) {
               return pw.Column(
@@ -70,10 +72,11 @@ class PdfExportUseCase {
                 children: [
                   pw.Text(
                       'جدول الدروس الأسبوعي - $grade${i > 0 ? ' (تابع)' : ''}',
-                      style: pw.TextStyle(fontSize: 24, font: font)),
+                      style: pw.TextStyle(fontSize: 24, font: fontBold),
+                      textDirection: pw.TextDirection.rtl),
                   pw.SizedBox(height: 20),
                   ...chunk.map((c) => _buildClassroomTable(
-                      c, lessons, settings, font, autoScale, format)),
+                      c, lessons, settings, font, fontBold, autoScale, format)),
                 ],
               );
             },
@@ -90,6 +93,7 @@ class PdfExportUseCase {
       List<Lesson> allLessons,
       AppSettings settings,
       pw.Font font,
+      pw.Font fontBold,
       bool autoScale,
       PdfPageFormat format) {
     final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
@@ -121,8 +125,9 @@ class PdfExportUseCase {
               pw.Text('الشعبة: ${classroom.name}',
                   style: pw.TextStyle(
                       fontSize: 18,
-                      font: font,
-                      fontWeight: pw.FontWeight.bold)),
+                      font: fontBold,
+                      fontWeight: pw.FontWeight.bold),
+                  textDirection: pw.TextDirection.rtl),
               pw.SizedBox(height: 10),
               pw.Table(
                   border: pw.TableBorder.all(),
@@ -137,8 +142,9 @@ class PdfExportUseCase {
                               padding: const pw.EdgeInsets.all(5),
                               child: pw.Text('الدرس / اليوم',
                                   textAlign: pw.TextAlign.center,
+                                  textDirection: pw.TextDirection.rtl,
                                   style: pw.TextStyle(
-                                      font: font,
+                                      font: fontBold,
                                       fontSize: baseFontSize,
                                       fontWeight: pw.FontWeight.bold))),
                           for (int d = 0; d < displayDays.length; d++)
@@ -146,8 +152,9 @@ class PdfExportUseCase {
                                 padding: const pw.EdgeInsets.all(5),
                                 child: pw.Text(displayDays[d],
                                     textAlign: pw.TextAlign.center,
+                                    textDirection: pw.TextDirection.rtl,
                                     style: pw.TextStyle(
-                                        font: font,
+                                        font: fontBold,
                                         fontSize: baseFontSize,
                                         fontWeight: pw.FontWeight.bold))),
                         ]),
@@ -158,19 +165,20 @@ class PdfExportUseCase {
                             padding: const pw.EdgeInsets.all(5),
                             child: pw.Text(PeriodMapper.toArabicName(p),
                                 textAlign: pw.TextAlign.center,
+                                textDirection: pw.TextDirection.rtl,
                                 style: pw.TextStyle(
-                                    font: font,
+                                    font: fontBold,
                                     fontSize: baseFontSize,
                                     fontWeight: pw.FontWeight.bold))),
                         for (int d = 0; d < displayDays.length; d++)
-                          _buildCell(classLessons, d, p, font, baseFontSize),
+                          _buildCell(classLessons, d, p, font, fontBold, baseFontSize),
                       ])
                   ])
             ]));
   }
 
   pw.Widget _buildCell(List<Lesson> classLessons, int dayIndex, int periodIndex,
-      pw.Font font, double baseFontSize) {
+      pw.Font font, pw.Font fontBold, double baseFontSize) {
     final lesson = classLessons
         .where((l) => l.dayIndex == dayIndex && l.periodIndex == periodIndex)
         .firstOrNull;
@@ -189,12 +197,14 @@ class PdfExportUseCase {
             children: [
               pw.Text(lesson.subject.value?.name ?? '',
                   textAlign: pw.TextAlign.center,
+                  textDirection: pw.TextDirection.rtl,
                   style: pw.TextStyle(
-                      font: font,
+                      font: fontBold,
                       fontSize: baseFontSize - 1,
                       fontWeight: pw.FontWeight.bold)),
               pw.Text(lesson.teacher.value?.name ?? '',
                   textAlign: pw.TextAlign.center,
+                  textDirection: pw.TextDirection.rtl,
                   style: pw.TextStyle(
                       font: font,
                       fontSize: baseFontSize - 3,
