@@ -1,4 +1,4 @@
-name: Flutter Build
+Name: Flutter Build
 
 on:
   push:
@@ -22,20 +22,18 @@ jobs:
       with:
         channel: 'stable'
 
-    - name: Server-Side Android Fix
-      run: |
-        rm -rf android
-        flutter create . --platforms=android
-        sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle || true
-        sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle.kts || true
-        sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle || true
-        sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle.kts || true
-
     - name: Clean Workspace
       run: flutter clean
 
     - name: Get Dependencies
       run: flutter pub get
+
+    - name: Server-Side Android Fix
+      run: |
+        sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle || true
+        sed -i 's/flutter.minSdkVersion/21/g' android/app/build.gradle.kts || true
+        sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle || true
+        sed -i 's/flutter.compileSdkVersion/36/g' android/app/build.gradle.kts || true
 
     - name: Fix Isar Namespace & SDK Version
       run: |
