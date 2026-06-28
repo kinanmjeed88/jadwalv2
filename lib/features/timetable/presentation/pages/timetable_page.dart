@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:isar/isar.dart';
 
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
@@ -29,16 +30,15 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     try {
       final isar = await ref.read(isarDatabaseProvider.future);
       final lessons = await isar.lessons.where().findAll();
-      final classRooms =
-          await isar.collection<Classroom>().where().findAll();
+      final classRooms = await isar.collection<Classroom>().where().findAll();
       final settingsList = await isar.appSettings.where().findAll();
       final settings = settingsList.isNotEmpty
           ? settingsList.first
           : (AppSettings()..periodsPerDay = 7);
 
       final pdfUsecase = PdfExportUseCase();
-      final pdfBytes =
-          await pdfUsecase.generateTimetablePdf(lessons, classRooms, settings);
+      final pdfBytes = await pdfUsecase.generateTimetablePdf(
+          lessons, classRooms, settings);
 
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'حفظ ملف PDF',
@@ -89,11 +89,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     if (key == null || key.currentContext == null) return;
 
     try {
-      final boundary =
-          key.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      final boundary = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
       final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      final ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
+      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
       if (byteData == null) return;
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
@@ -127,8 +125,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   @override
   Widget build(BuildContext context) {
     final lessonsAsync = ref.watch(timetableNotifierProvider);
-    final settingsAsync =
-        ref.watch(isarDatabaseProvider).whenData((isar) async {
+    final settingsAsync = ref.watch(isarDatabaseProvider).whenData((isar) async {
       final settingsList = await isar.appSettings.where().findAll();
       return settingsList.isNotEmpty
           ? settingsList.first
@@ -160,8 +157,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final settings =
-                    snapshot.data ?? (AppSettings()..periodsPerDay = 7);
+                final settings = snapshot.data ?? (AppSettings()..periodsPerDay = 7);
                 return _buildTimetableGrid(context, lessons, settings);
               },
             ),
@@ -182,8 +178,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-  Widget _buildTimetableGrid(
-      BuildContext context, List<Lesson> lessons, AppSettings settings) {
+  Widget _buildTimetableGrid(BuildContext context, List<Lesson> lessons, AppSettings settings) {
     final assigned = lessons.where((l) => !l.isUnassigned).toList();
     final unassigned = lessons.where((l) => l.isUnassigned).toList();
 
@@ -199,12 +194,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Center(
-              child:
-                  Text('جميع الدروس المضافة لم يتم جدولتها بعد. اضغط توليد.')),
+          const Center(child: Text('جميع الدروس المضافة لم يتم جدولتها بعد. اضغط توليد.')),
           const SizedBox(height: 16),
-          Text('(${unassigned.length} حصة بانتظار التوزيع)',
-              style: const TextStyle(color: Colors.red)),
+          Text('(${unassigned.length} حصة بانتظار التوزيع)', style: const TextStyle(color: Colors.red)),
         ],
       );
     }
@@ -215,56 +207,50 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           Container(
             color: Colors.red.shade100,
             padding: const EdgeInsets.all(8.0),
-            child: Text(
-                'يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
-                style: const TextStyle(
-                    color: Colors.red, fontWeight: FontWeight.bold)),
+            child: Text('يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
+                style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         Expanded(
           child: DefaultTabController(
             length: classrooms.length,
-            child: Builder(builder: (context) {
-              final tabController = DefaultTabController.of(context);
-              Future.microtask(() {
-                tabController.addListener(() {
-                  if (!tabController.indexIsChanging && mounted) {
-                    setState(() {
-                      _currentTabIndex = tabController.index;
-                    });
-                  }
+            child: Builder(
+              builder: (context) {
+                final tabController = DefaultTabController.of(context);
+                Future.microtask(() {
+                  tabController.addListener(() {
+                    if (!tabController.indexIsChanging && mounted) {
+                      setState(() {
+                        _currentTabIndex = tabController.index;
+                      });
+                    }
+                  });
                 });
-              });
-              return Column(
-                children: [
-                  TabBar(
-                    isScrollable: true,
-                    tabs: classrooms.map((c) => Tab(text: c.name)).toList(),
-                    labelColor: Colors.teal,
-                    unselectedLabelColor: Colors.grey,
-                  ),
-                  Expanded(
-                    child: TabBarView(
-                      children: classrooms.map((c) {
-                        return _buildClassroomTable(
-                            c.id,
-                            assigned
-                                .where((l) => l.classroom.value?.id == c.id)
-                                .toList(),
-                            settings);
-                      }).toList(),
+                return Column(
+                  children: [
+                    TabBar(
+                      isScrollable: true,
+                      tabs: classrooms.map((c) => Tab(text: c.name)).toList(),
+                      labelColor: Colors.teal,
+                      unselectedLabelColor: Colors.grey,
                     ),
-                  ),
-                ],
-              );
-            }),
+                    Expanded(
+                      child: TabBarView(
+                        children: classrooms.map((c) {
+                          return _buildClassroomTable(c.id, assigned.where((l) => l.classroom.value?.id == c.id).toList(), settings);
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                );
+              }
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildClassroomTable(
-      int classroomId, List<Lesson> classLessons, AppSettings settings) {
+  Widget _buildClassroomTable(int classroomId, List<Lesson> classLessons, AppSettings settings) {
     if (!_classroomKeys.containsKey(classroomId)) {
       _classroomKeys[classroomId] = GlobalKey();
     }
@@ -288,19 +274,14 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               dataRowMaxHeight: 50.0,
               headingRowHeight: 40.0,
               columns: [
-                const DataColumn(
-                    label: Text('الدرس / اليوم',
-                        style: TextStyle(fontWeight: FontWeight.bold))),
+                const DataColumn(label: Text('الدرس / اليوم', style: TextStyle(fontWeight: FontWeight.bold))),
                 for (int d = 0; d < displayDays.length; d++)
-                  DataColumn(
-                      label: Text(displayDays[d],
-                          style: const TextStyle(fontWeight: FontWeight.bold))),
+                  DataColumn(label: Text(displayDays[d], style: const TextStyle(fontWeight: FontWeight.bold))),
               ],
               rows: [
                 for (int p = 0; p < settings.periodsPerDay; p++)
                   DataRow(cells: [
-                    DataCell(Text(PeriodMapper.toArabicName(p),
-                        style: const TextStyle(fontWeight: FontWeight.bold))),
+                    DataCell(Text(PeriodMapper.toArabicName(p), style: const TextStyle(fontWeight: FontWeight.bold))),
                     for (int d = 0; d < displayDays.length; d++)
                       DataCell(
                         _buildCell(classLessons, d, p),
@@ -315,9 +296,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   }
 
   Widget _buildCell(List<Lesson> classLessons, int dayIndex, int periodIndex) {
-    final lesson = classLessons
-        .where((l) => l.dayIndex == dayIndex && l.periodIndex == periodIndex)
-        .firstOrNull;
+    final lesson = classLessons.where((l) => l.dayIndex == dayIndex && l.periodIndex == periodIndex).firstOrNull;
 
     if (lesson == null) {
       return const SizedBox(width: 80, height: 40);
@@ -330,9 +309,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       },
       onAcceptWithDetails: (details) async {
         final incoming = details.data;
-        final (success, errorMessage) = await ref
-            .read(timetableNotifierProvider.notifier)
-            .swapLessons(incoming, lesson);
+        final (success, errorMessage) = await ref.read(timetableNotifierProvider.notifier).swapLessons(incoming, lesson);
 
         if (!success && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -352,32 +329,23 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             child: Container(
               color: Colors.teal.withValues(alpha: 0.8),
               padding: const EdgeInsets.all(8),
-              child: Text(subjectName,
-                  style: const TextStyle(color: Colors.white)),
+              child: Text(subjectName, style: const TextStyle(color: Colors.white)),
             ),
           ),
-          childWhenDragging:
-              Container(color: Colors.grey.shade200, width: 80, height: 40),
+          childWhenDragging: Container(color: Colors.grey.shade200, width: 80, height: 40),
           child: Container(
             width: 80, // slightly narrower
             height: 40, // slightly shorter
             decoration: BoxDecoration(
-              color: candidateData.isNotEmpty
-                  ? Colors.teal.shade100
-                  : Colors.transparent,
+              color: candidateData.isNotEmpty ? Colors.teal.shade100 : Colors.transparent,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(subjectName,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 12),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
                 Text(teacherName,
-                    style: const TextStyle(fontSize: 10, color: Colors.grey),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis),
+                    style: const TextStyle(fontSize: 10, color: Colors.grey), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
