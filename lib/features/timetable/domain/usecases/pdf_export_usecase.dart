@@ -46,8 +46,10 @@ class PdfExportUseCase {
         gradesPerPage = 3;
         break;
       case 'Custom':
-        final double width = (settings.customPageWidth ?? 21.0) * PdfPageFormat.cm;
-        final double height = (settings.customPageHeight ?? 29.7) * PdfPageFormat.cm;
+        final double width =
+            (settings.customPageWidth ?? 21.0) * PdfPageFormat.cm;
+        final double height =
+            (settings.customPageHeight ?? 29.7) * PdfPageFormat.cm;
         format = PdfPageFormat(width, height);
         break;
       case 'A4':
@@ -75,9 +77,12 @@ class PdfExportUseCase {
       maxCapacity = totalClassroomsCount;
     }
 
-    if (settings.exportOrientation == 'Landscape' && settings.exportPageSize != 'Custom') {
-       gradesPerPage = gradeNames.length; // Fit all in one page for Landscape if possible
-       maxCapacity = totalClassroomsCount; // In landscape, we show all classrooms, so scale width based on total
+    if (settings.exportOrientation == 'Landscape' &&
+        settings.exportPageSize != 'Custom') {
+      gradesPerPage =
+          gradeNames.length; // Fit all in one page for Landscape if possible
+      maxCapacity =
+          totalClassroomsCount; // In landscape, we show all classrooms, so scale width based on total
     }
 
     // Split grades into chunks (Atomic Grouping)
@@ -124,29 +129,33 @@ class PdfExportUseCase {
                           flex: 15,
                           child: pw.Text(
                             _shape(settings.schoolName),
-                            style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
+                            style: pw.TextStyle(
+                                fontSize: 14,
+                                font: font,
+                                fontWeight: pw.FontWeight.bold),
                             textAlign: pw.TextAlign.right,
                             textDirection: pw.TextDirection.rtl,
                           ),
                         ),
                         pw.Expanded(
                           flex: 20,
-                          child: pw.Column(
-                            children: [
-                              pw.Text(
-                                _shape('جدول الدروس الأسبوعي'),
-                                style: pw.TextStyle(fontSize: 18, font: font, fontWeight: pw.FontWeight.bold),
-                                textAlign: pw.TextAlign.center,
-                                textDirection: pw.TextDirection.rtl,
-                              ),
-                              pw.Text(
-                                _shape('العام الدراسي: ${getAcademicYear()}'),
-                                style: pw.TextStyle(fontSize: 12, font: font),
-                                textAlign: pw.TextAlign.center,
-                                textDirection: pw.TextDirection.rtl,
-                              ),
-                            ]
-                          ),
+                          child: pw.Column(children: [
+                            pw.Text(
+                              _shape('جدول الدروس الأسبوعي'),
+                              style: pw.TextStyle(
+                                  fontSize: 18,
+                                  font: font,
+                                  fontWeight: pw.FontWeight.bold),
+                              textAlign: pw.TextAlign.center,
+                              textDirection: pw.TextDirection.rtl,
+                            ),
+                            pw.Text(
+                              _shape('العام الدراسي: ${getAcademicYear()}'),
+                              style: pw.TextStyle(fontSize: 12, font: font),
+                              textAlign: pw.TextAlign.center,
+                              textDirection: pw.TextDirection.rtl,
+                            ),
+                          ]),
                         ),
                         pw.Expanded(
                           flex: 15,
@@ -157,20 +166,23 @@ class PdfExportUseCase {
                     pw.SizedBox(height: 15),
                     // Master Table
                     pw.Expanded(
-                      child: _buildMasterTable(chunkClassrooms, lessons, settings, font, format, maxCapacity),
+                      child: _buildMasterTable(chunkClassrooms, lessons,
+                          settings, font, format, maxCapacity),
                     ),
                     pw.SizedBox(height: 10),
                     // Footer / Principal
                     pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.end,
-                      children: [
-                        pw.Text(
-                          _shape('مدير المدرسة / ${settings.principalName}'),
-                          style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
-                          textDirection: pw.TextDirection.rtl,
-                        ),
-                      ]
-                    )
+                        mainAxisAlignment: pw.MainAxisAlignment.end,
+                        children: [
+                          pw.Text(
+                            _shape('مدير المدرسة / ${settings.principalName}'),
+                            style: pw.TextStyle(
+                                fontSize: 14,
+                                font: font,
+                                fontWeight: pw.FontWeight.bold),
+                            textDirection: pw.TextDirection.rtl,
+                          ),
+                        ])
                   ],
                 ),
               ),
@@ -206,7 +218,8 @@ class PdfExportUseCase {
     // "For Landscape orientation... adjust maxCols to the total classrooms."
     int columnsToFit = classrooms.length;
     if (settings.exportOrientation != 'Landscape') {
-      columnsToFit = maxCapacity; // Enforce maxCapacity for fixed cell sizes in Portrait chunks
+      columnsToFit =
+          maxCapacity; // Enforce maxCapacity for fixed cell sizes in Portrait chunks
     }
 
     // Proportions: Day (0.8), Period (0.6), Classrooms (1.0 each up to columnsToFit)
@@ -230,10 +243,22 @@ class PdfExportUseCase {
         children: [
           _buildCellHeader('اليوم', font, baseFontSize),
           _buildCellHeader('الدرس', font, baseFontSize),
-          for (var c in classrooms) _buildCellHeader(c.name, font, baseFontSize),
+          for (var c in classrooms)
+            _buildCellHeader(c.name, font, baseFontSize),
         ],
       )
     ];
+
+    // Optimize lesson lookup
+    final Map<String, Lesson> lessonMap = {};
+    for (final l in allLessons) {
+      if (!l.isUnassigned) {
+        final cId = l.classroom.value?.id;
+        if (cId != null) {
+          lessonMap['${cId}_${l.dayIndex}_${l.periodIndex}'] = l;
+        }
+      }
+    }
 
     final dataRows = <pw.TableRow>[];
 
@@ -249,7 +274,10 @@ class PdfExportUseCase {
               child: pw.Center(
                 child: pw.Text(
                   _shape(displayDays[d]),
-                  style: pw.TextStyle(font: font, fontSize: baseFontSize, fontWeight: pw.FontWeight.bold),
+                  style: pw.TextStyle(
+                      font: font,
+                      fontSize: baseFontSize,
+                      fontWeight: pw.FontWeight.bold),
                   textDirection: pw.TextDirection.rtl,
                 ),
               ),
@@ -266,7 +294,10 @@ class PdfExportUseCase {
             child: pw.Center(
               child: pw.Text(
                 (p + 1).toString(),
-                style: pw.TextStyle(font: font, fontSize: baseFontSize, fontWeight: pw.FontWeight.bold),
+                style: pw.TextStyle(
+                    font: font,
+                    fontSize: baseFontSize,
+                    fontWeight: pw.FontWeight.bold),
               ),
             ),
           ),
@@ -274,9 +305,9 @@ class PdfExportUseCase {
 
         // Classrooms
         for (var c in classrooms) {
-          final lesson = allLessons.where((l) => l.classroom.value?.id == c.id && l.dayIndex == d && l.periodIndex == p && !l.isUnassigned).firstOrNull;
+          final lesson = lessonMap['${c.id}_${d}_${p}'];
           if (lesson != null) {
-             cells.add(
+            cells.add(
               pw.Padding(
                 padding: const pw.EdgeInsets.all(2),
                 child: pw.Column(
@@ -285,13 +316,19 @@ class PdfExportUseCase {
                     pw.Text(
                       _shape(lesson.subject.value?.name ?? ''),
                       textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(font: font, fontSize: baseFontSize, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(
+                          font: font,
+                          fontSize: baseFontSize,
+                          fontWeight: pw.FontWeight.bold),
                       textDirection: pw.TextDirection.rtl,
                     ),
                     pw.Text(
                       _shape(lesson.teacher.value?.name ?? ''),
                       textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(font: font, fontSize: baseFontSize - 1, color: PdfColors.grey700),
+                      style: pw.TextStyle(
+                          font: font,
+                          fontSize: baseFontSize - 1,
+                          color: PdfColors.grey700),
                       textDirection: pw.TextDirection.rtl,
                     ),
                   ],
@@ -330,7 +367,8 @@ class PdfExportUseCase {
       child: pw.Center(
         child: pw.Text(
           _shape(text),
-          style: pw.TextStyle(font: font, fontSize: fontSize, fontWeight: pw.FontWeight.bold),
+          style: pw.TextStyle(
+              font: font, fontSize: fontSize, fontWeight: pw.FontWeight.bold),
           textDirection: pw.TextDirection.rtl,
           textAlign: pw.TextAlign.center,
         ),
