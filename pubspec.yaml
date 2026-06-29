@@ -25,6 +25,7 @@ dependencies:
   share_plus: ^12.0.2
   gal: ^2.3.2
   arabic_reshaper: ^0.0.1
+  bidi: ^2.0.13
 
 dev_dependencies:
   flutter_test:

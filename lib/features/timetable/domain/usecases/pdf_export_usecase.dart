@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
-import 'package:arabic_reshaper/arabic_reshaper.dart';
 import 'package:pdf/widgets.dart' as pw;
+import 'package:arabic_reshaper/arabic_reshaper.dart';
+import 'package:bidi/bidi.dart' as bidi;
 
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/classroom.dart';
@@ -10,8 +12,13 @@ import '../../../../core/models/settings.dart';
 class PdfExportUseCase {
   String _shape(String text) {
     if (text.isEmpty) return text;
+    // 1. Reshape the letters (connect them correctly)
     final reshaper = ArabicReshaper();
-    return reshaper.reshape(text);
+    final reshaped = reshaper.reshape(text);
+    // 2. Apply Bidi algorithm to fix RTL character order for the PDF engine
+    final visual = bidi.logicalToVisual(reshaped);
+    // Return String from the Runes list returned by logicalToVisual
+    return String.fromCharCodes(visual);
   }
 
   Future<Uint8List> generateTimetablePdf(List<Lesson> lessons,
@@ -21,23 +28,25 @@ class PdfExportUseCase {
     final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
-    // Group classrooms by Grade
-    final classroomsByGrade = <String, List<Classroom>>{};
-    // Sort classrooms by id to keep consistent order
-    classrooms.sort((a, b) => a.id.compareTo(b.id));
-    for (var c in classrooms) {
-      classroomsByGrade.putIfAbsent(c.grade, () => []).add(c);
-    }
+    // Filter assigned lessons only to determine active classrooms
+    final assignedLessons = lessons.where((l) => !l.isUnassigned).toList();
+    final activeClassroomIds = assignedLessons.map((l) => l.classroom.value?.id).whereType<int>().toSet();
+    final activeClassrooms = classrooms.where((c) => activeClassroomIds.contains(c.id)).toList();
 
-    final List<String> gradeNames = classroomsByGrade.keys.toList();
+    // Sort classrooms by id to keep consistent order
+    activeClassrooms.sort((a, b) => a.id.compareTo(b.id));
+
+    // Dynamic academic year based on current date
+    final now = DateTime.now();
+    final currentYear = now.year;
+    // If month is before July, we are in the second half of the academic year
+    final academicYear = now.month < 7 ? '${currentYear - 1}/$currentYear' : '$currentYear/${currentYear + 1}';
 
     PdfPageFormat format;
-    int gradesPerPage = 2; // Default for A4 or Custom
 
     switch (settings.exportPageSize) {
       case 'A3':
         format = PdfPageFormat.a3;
-        gradesPerPage = 3;
         break;
       case 'Custom':
         final double width = (settings.customPageWidth ?? 21.0) * PdfPageFormat.cm;
@@ -47,7 +56,6 @@ class PdfExportUseCase {
       case 'A4':
       default:
         format = PdfPageFormat.a4;
-        gradesPerPage = 2;
         break;
     }
 
@@ -59,97 +67,71 @@ class PdfExportUseCase {
       }
     }
 
-    // Split grades into chunks (Atomic Grouping)
-    for (int i = 0; i < gradeNames.length; i += gradesPerPage) {
-      final chunkGrades = gradeNames.sublist(
-          i,
-          i + gradesPerPage > gradeNames.length
-              ? gradeNames.length
-              : i + gradesPerPage);
+    if (activeClassrooms.isEmpty) return doc.save();
 
-      // Collect all classrooms for this chunk
-      final chunkClassrooms = <Classroom>[];
-      for (var g in chunkGrades) {
-        chunkClassrooms.addAll(classroomsByGrade[g]!);
-      }
-
-      if (chunkClassrooms.isEmpty) continue;
-
-      doc.addPage(
-        pw.Page(
-          pageFormat: format,
-          textDirection: pw.TextDirection.rtl,
-          margin: const pw.EdgeInsets.all(20),
-          theme: pw.ThemeData.withFont(
-            base: font,
-            bold: font,
-          ),
-          build: (pw.Context context) {
-            return pw.Directionality(
-              textDirection: pw.TextDirection.rtl,
-              child: pw.Theme(
-                data: pw.ThemeData.withFont(
-                  base: font,
-                  bold: font,
-                ),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
-                  children: [
-                    // Header
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Expanded(
-                          child: pw.Text(
-                            _shape(settings.schoolName),
-                            style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
-                            textDirection: pw.TextDirection.rtl,
-                          ),
-                        ),
-                        pw.Expanded(
-                          flex: 2,
-                          child: pw.Text(
-                            _shape('جدول الدروس الأسبوعي'),
-                            style: pw.TextStyle(fontSize: 18, font: font, fontWeight: pw.FontWeight.bold),
-                            textAlign: pw.TextAlign.center,
-                            textDirection: pw.TextDirection.rtl,
-                          ),
-                        ),
-                        pw.Expanded(
-                          child: pw.Text(
-                            _shape('المشرف'), // Prevent duplicating principal name here
-                            style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
-                            textAlign: pw.TextAlign.left,
-                            textDirection: pw.TextDirection.rtl,
-                          ),
-                        ),
-                      ],
-                    ),
-                    pw.SizedBox(height: 15),
-                    // Master Table
-                    pw.Expanded(
-                      child: _buildMasterTable(chunkClassrooms, lessons, settings, font, format),
-                    ),
-                    pw.SizedBox(height: 10),
-                    // Footer / Principal
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.end,
-                      children: [
-                        pw.Text(
-                          _shape('مدير المدرسة / ${settings.principalName}'),
+    // Do NOT split table, single table for all classrooms. If too large, font scaling will handle it
+    doc.addPage(
+      pw.Page(
+        pageFormat: format,
+        textDirection: pw.TextDirection.rtl,
+        margin: const pw.EdgeInsets.all(20),
+        theme: pw.ThemeData.withFont(
+          base: font,
+          bold: font,
+        ),
+        build: (pw.Context context) {
+          return pw.Directionality(
+            textDirection: pw.TextDirection.rtl,
+            child: pw.Theme(
+              data: pw.ThemeData.withFont(
+                base: font,
+                bold: font,
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                children: [
+                  // Top Header Only
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Text(
+                          _shape('${settings.schoolName} | السنة: $academicYear'),
                           style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
                           textDirection: pw.TextDirection.rtl,
                         ),
-                      ]
-                    )
-                  ],
-                ),
+                      ),
+                      pw.Expanded(
+                        flex: 2,
+                        child: pw.Text(
+                          _shape('جدول الدروس الأسبوعي'),
+                          style: pw.TextStyle(fontSize: 18, font: font, fontWeight: pw.FontWeight.bold),
+                          textAlign: pw.TextAlign.center,
+                          textDirection: pw.TextDirection.rtl,
+                        ),
+                      ),
+                      pw.Expanded(
+                        child: pw.Text(
+                          _shape('مدير المدرسة / ${settings.principalName}'),
+                          style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
+                          textAlign: pw.TextAlign.left,
+                          textDirection: pw.TextDirection.rtl,
+                        ),
+                      ),
+                    ],
+                  ),
+                  pw.SizedBox(height: 15),
+                  // Single Master Table for ALL Classrooms
+                  pw.Expanded(
+                    child: _buildMasterTable(activeClassrooms, assignedLessons, settings, font, format),
+                  ),
+                ],
               ),
-            );
-          },
-        ),
-      );
-    }
+            ),
+          );
+        },
+      ),
+    );
 
     return doc.save();
   }
@@ -280,7 +262,7 @@ class PdfExportUseCase {
       ],
     );
 
-    return table; // Removed FittedBox
+    return table; // Single unified table without FittedBox
   }
 
   pw.Widget _buildCellHeader(String text, pw.Font font, double fontSize) {
