@@ -1,14 +1,13 @@
-import 'dart:typed_data';
-import 'dart:ui' as ui;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:isar/isar.dart';
-import 'package:gal/gal.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:printing/printing.dart';
 
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
@@ -71,57 +70,47 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   }
 
   Future<void> _exportToImage() async {
-    final key = _classroomKeys[0]; // Master grid key is 0
-
-    if (key == null || key.currentContext == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('الجدول غير متوفر للتصدير'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-      return;
-    }
-
     try {
-      final boundary = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      final ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (byteData == null) return;
-      final Uint8List pngBytes = byteData.buffer.asUint8List();
+      final isar = await ref.read(isarDatabaseProvider.future);
+      final lessons = await isar.lessons.where().findAll();
+      final classRooms = await isar.collection<Classroom>().where().findAll();
+      final settingsList = await isar.appSettings.where().findAll();
+      final settings = settingsList.isNotEmpty
+          ? settingsList.first
+          : (AppSettings()..periodsPerDay = 7);
 
-      try {
-        final tempDir = await getTemporaryDirectory();
-        final tempFile = File('${tempDir.path}/timetable_master.png');
-        await tempFile.writeAsBytes(pngBytes);
+      final pdfUsecase = PdfExportUseCase();
+      final pdfBytes = await pdfUsecase.generateTimetablePdf(
+          lessons, classRooms, settings);
 
-        await Gal.putImage(tempFile.path);
+      final tempDir = await getTemporaryDirectory();
+      final imageFiles = <XFile>[];
 
+      int pageIndex = 1;
+      await for (final page in Printing.raster(pdfBytes, dpi: 300)) {
+        final imageBytes = await page.toPng();
+        final file = File('${tempDir.path}/timetable_page_$pageIndex.png');
+        await file.writeAsBytes(imageBytes);
+        imageFiles.add(XFile(file.path));
+        pageIndex++;
+      }
+
+      if (imageFiles.isNotEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('تم حفظ الصورة بنجاح في المعرض'),
+              content: Text('تم تجهيز الصور بنجاح، جاري المشاركة...'),
               backgroundColor: Colors.green,
             ),
           );
         }
-      } catch (innerE) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('حدث خطأ أثناء حفظ الصورة (تأكد من الصلاحيات): $innerE'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
+        await Share.shareXFiles(imageFiles, text: 'جدول الدروس');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('حدث خطأ أثناء تصدير الصورة: $e'),
+            content: Text('حدث خطأ أثناء التصدير: $e'),
             backgroundColor: Colors.red,
           ),
         );
