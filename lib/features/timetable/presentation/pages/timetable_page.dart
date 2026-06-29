@@ -31,6 +31,16 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     try {
       final isar = await ref.read(isarDatabaseProvider.future);
       final lessons = await isar.lessons.where().findAll();
+
+      // Eager loading for IsarLinks
+      await isar.txn(() async {
+        for (var lesson in lessons) {
+          await lesson.classroom.load();
+          await lesson.subject.load();
+          await lesson.teacher.load();
+        }
+      });
+
       final classRooms = await isar.collection<Classroom>().where().findAll();
       final settingsList = await isar.appSettings.where().findAll();
       final settings = settingsList.isNotEmpty
@@ -73,6 +83,16 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     try {
       final isar = await ref.read(isarDatabaseProvider.future);
       final lessons = await isar.lessons.where().findAll();
+
+      // Eager loading for IsarLinks
+      await isar.txn(() async {
+        for (var lesson in lessons) {
+          await lesson.classroom.load();
+          await lesson.subject.load();
+          await lesson.teacher.load();
+        }
+      });
+
       final classRooms = await isar.collection<Classroom>().where().findAll();
       final settingsList = await isar.appSettings.where().findAll();
       final settings = settingsList.isNotEmpty

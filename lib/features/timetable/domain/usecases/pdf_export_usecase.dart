@@ -1,5 +1,6 @@
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
+import 'package:arabic_reshaper/arabic_reshaper.dart';
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../../core/models/lesson.dart';
@@ -7,6 +8,12 @@ import '../../../../core/models/classroom.dart';
 import '../../../../core/models/settings.dart';
 
 class PdfExportUseCase {
+  String _shape(String text) {
+    if (text.isEmpty) return text;
+    final reshaper = ArabicReshaper();
+    return reshaper.reshape(text);
+  }
+
   Future<Uint8List> generateTimetablePdf(List<Lesson> lessons,
       List<Classroom> classrooms, AppSettings settings) async {
     final doc = pw.Document();
@@ -94,7 +101,7 @@ class PdfExportUseCase {
                       children: [
                         pw.Expanded(
                           child: pw.Text(
-                            settings.schoolName,
+                            _shape(settings.schoolName),
                             style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
                             textDirection: pw.TextDirection.rtl,
                           ),
@@ -102,7 +109,7 @@ class PdfExportUseCase {
                         pw.Expanded(
                           flex: 2,
                           child: pw.Text(
-                            'جدول الدروس الأسبوعي',
+                            _shape('جدول الدروس الأسبوعي'),
                             style: pw.TextStyle(fontSize: 18, font: font, fontWeight: pw.FontWeight.bold),
                             textAlign: pw.TextAlign.center,
                             textDirection: pw.TextDirection.rtl,
@@ -110,7 +117,7 @@ class PdfExportUseCase {
                         ),
                         pw.Expanded(
                           child: pw.Text(
-                            settings.principalName,
+                            _shape('المشرف'), // Prevent duplicating principal name here
                             style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
                             textAlign: pw.TextAlign.left,
                             textDirection: pw.TextDirection.rtl,
@@ -129,7 +136,7 @@ class PdfExportUseCase {
                       mainAxisAlignment: pw.MainAxisAlignment.end,
                       children: [
                         pw.Text(
-                          'مدير المدرسة / ${settings.principalName}',
+                          _shape('مدير المدرسة / ${settings.principalName}'),
                           style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
                           textDirection: pw.TextDirection.rtl,
                         ),
@@ -157,15 +164,19 @@ class PdfExportUseCase {
     final displayDays = days.take(settings.daysPerWeek).toList();
     final int periodsPerDay = settings.periodsPerDay;
 
-    // We need auto-fit layout. Minimum font size 6pt.
-    // Best way in pw is to use FittedBox scaleDown around the table.
-    // Also use equal FlexColumnWidth for classrooms.
+    // Calculate fixed widths based on available page width
+    // margins are 20 on each side (total 40)
+    final double availableWidth = format.availableWidth - 40;
+
+    // Proportions: Day (0.8), Period (0.6), Classrooms (1.0 each)
+    final double totalProportions = 0.8 + 0.6 + classrooms.length;
+    final double unitWidth = availableWidth / totalProportions;
 
     final Map<int, pw.TableColumnWidth> columnWidths = {
-      0: const pw.FlexColumnWidth(0.8), // Day
-      1: const pw.FlexColumnWidth(0.6), // Period
+      0: pw.FixedColumnWidth(unitWidth * 0.8), // Day
+      1: pw.FixedColumnWidth(unitWidth * 0.6), // Period
       for (int i = 0; i < classrooms.length; i++)
-        i + 2: const pw.FlexColumnWidth(1),
+        i + 2: pw.FixedColumnWidth(unitWidth * 1.0),
     };
 
     double baseFontSize = 10.0;
@@ -196,7 +207,7 @@ class PdfExportUseCase {
               padding: const pw.EdgeInsets.all(2),
               child: pw.Center(
                 child: pw.Text(
-                  displayDays[d],
+                  _shape(displayDays[d]),
                   style: pw.TextStyle(font: font, fontSize: baseFontSize, fontWeight: pw.FontWeight.bold),
                   textDirection: pw.TextDirection.rtl,
                 ),
@@ -231,13 +242,13 @@ class PdfExportUseCase {
                   mainAxisAlignment: pw.MainAxisAlignment.center,
                   children: [
                     pw.Text(
-                      lesson.subject.value?.name ?? '',
+                      _shape(lesson.subject.value?.name ?? ''),
                       textAlign: pw.TextAlign.center,
                       style: pw.TextStyle(font: font, fontSize: baseFontSize, fontWeight: pw.FontWeight.bold),
                       textDirection: pw.TextDirection.rtl,
                     ),
                     pw.Text(
-                      lesson.teacher.value?.name ?? '',
+                      _shape(lesson.teacher.value?.name ?? ''),
                       textAlign: pw.TextAlign.center,
                       style: pw.TextStyle(font: font, fontSize: baseFontSize - 1, color: PdfColors.grey700),
                       textDirection: pw.TextDirection.rtl,
@@ -269,10 +280,7 @@ class PdfExportUseCase {
       ],
     );
 
-    return pw.FittedBox(
-      fit: pw.BoxFit.scaleDown,
-      child: table,
-    );
+    return table; // Removed FittedBox
   }
 
   pw.Widget _buildCellHeader(String text, pw.Font font, double fontSize) {
@@ -280,7 +288,7 @@ class PdfExportUseCase {
       padding: const pw.EdgeInsets.all(4),
       child: pw.Center(
         child: pw.Text(
-          text,
+          _shape(text),
           style: pw.TextStyle(font: font, fontSize: fontSize, fontWeight: pw.FontWeight.bold),
           textDirection: pw.TextDirection.rtl,
           textAlign: pw.TextAlign.center,
