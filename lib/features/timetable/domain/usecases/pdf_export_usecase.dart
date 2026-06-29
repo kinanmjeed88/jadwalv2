@@ -30,15 +30,22 @@ class PdfExportUseCase {
       case 'A3':
         format = PdfPageFormat.a3;
         break;
+      case 'Custom':
+        final double width = (settings.customPageWidth ?? 21.0) * PdfPageFormat.cm;
+        final double height = (settings.customPageHeight ?? 29.7) * PdfPageFormat.cm;
+        format = PdfPageFormat(width, height);
+        break;
       case 'A4':
       default:
         format = PdfPageFormat.a4;
         break;
     }
-    if (settings.exportOrientation == 'Landscape') {
-      format = format.landscape;
-    } else {
-      format = format.portrait;
+    if (settings.exportPageSize != 'Custom') {
+      if (settings.exportOrientation == 'Landscape') {
+        format = format.landscape;
+      } else {
+        format = format.portrait;
+      }
     }
 
     // Scale factor to adjust fonts slightly based on page size and periods
@@ -77,10 +84,35 @@ class PdfExportUseCase {
                   child: pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.center,
                     children: [
-                      pw.Text(
-                          'جدول الدروس الأسبوعي - $grade${i > 0 ? ' (تابع)' : ''}',
-                          style: pw.TextStyle(fontSize: 24, font: fontBold),
-                          textDirection: pw.TextDirection.rtl),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
+                          pw.Expanded(
+                            child: pw.Text(
+                              settings.schoolName,
+                              style: pw.TextStyle(fontSize: 16, font: fontBold),
+                              textDirection: pw.TextDirection.rtl,
+                            ),
+                          ),
+                          pw.Expanded(
+                            flex: 2,
+                            child: pw.Text(
+                              'جدول الدروس الأسبوعي - $grade${i > 0 ? ' (تابع)' : ''}',
+                              style: pw.TextStyle(fontSize: 20, font: fontBold),
+                              textAlign: pw.TextAlign.center,
+                              textDirection: pw.TextDirection.rtl,
+                            ),
+                          ),
+                          pw.Expanded(
+                            child: pw.Text(
+                              settings.principalName,
+                              style: pw.TextStyle(fontSize: 16, font: fontBold),
+                              textAlign: pw.TextAlign.left,
+                              textDirection: pw.TextDirection.rtl,
+                            ),
+                          ),
+                        ],
+                      ),
                       pw.SizedBox(height: 20),
                       ...chunk.map((c) => _buildClassroomTable(
                           c, lessons, settings, font, fontBold, autoScale, format)),

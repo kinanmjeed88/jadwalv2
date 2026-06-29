@@ -23,4 +23,13 @@ class AppSettings {
 
   /// If true, the table auto-scales to fit the page during export
   bool exportAutoScale = true;
+
+  /// Principal name
+  String principalName = "";
+
+  /// Custom Page Width
+  double? customPageWidth;
+
+  /// Custom Page Height
+  double? customPageHeight;
 }

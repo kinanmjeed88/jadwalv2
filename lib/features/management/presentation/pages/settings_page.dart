@@ -41,6 +41,9 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
   late String _exportOrientation;
   late bool _exportAutoScale;
   late String _schoolName;
+  late String _principalName;
+  double? _customPageWidth;
+  double? _customPageHeight;
 
   @override
   void initState() {
@@ -51,6 +54,9 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     _exportOrientation = widget.settings.exportOrientation;
     _exportAutoScale = widget.settings.exportAutoScale;
     _schoolName = widget.settings.schoolName;
+    _principalName = widget.settings.principalName;
+    _customPageWidth = widget.settings.customPageWidth;
+    _customPageHeight = widget.settings.customPageHeight;
   }
 
   void _saveSettings() {
@@ -58,11 +64,14 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
       _formKey.currentState!.save();
       final newSettings = widget.settings
         ..schoolName = _schoolName
+        ..principalName = _principalName
         ..periodsPerDay = _periodsPerDay
         ..daysPerWeek = _daysPerWeek
         ..exportPageSize = _exportPageSize
         ..exportOrientation = _exportOrientation
-        ..exportAutoScale = _exportAutoScale;
+        ..exportAutoScale = _exportAutoScale
+        ..customPageWidth = _customPageWidth
+        ..customPageHeight = _customPageHeight;
 
       ref.read(settingsNotifierProvider.notifier).saveSettings(newSettings);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -173,6 +182,14 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
+                      initialValue: _principalName,
+                      decoration: const InputDecoration(
+                          labelText: 'اسم المدير',
+                          border: OutlineInputBorder()),
+                      onSaved: (val) => _principalName = val ?? '',
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
                       initialValue: _periodsPerDay.toString(),
                       decoration: const InputDecoration(
                           labelText: 'عدد الدروس في اليوم',
@@ -228,6 +245,34 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                           setState(() => _exportPageSize = newValue!),
                       onSaved: (val) => _exportPageSize = val!,
                     ),
+                    if (_exportPageSize == 'Custom') ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              initialValue: _customPageWidth?.toString() ?? '',
+                              decoration: const InputDecoration(
+                                  labelText: 'عرض الصفحة (cm)',
+                                  border: OutlineInputBorder()),
+                              keyboardType: TextInputType.number,
+                              onSaved: (val) => _customPageWidth = double.tryParse(val ?? ''),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              initialValue: _customPageHeight?.toString() ?? '',
+                              decoration: const InputDecoration(
+                                  labelText: 'طول الصفحة (cm)',
+                                  border: OutlineInputBorder()),
+                              keyboardType: TextInputType.number,
+                              onSaved: (val) => _customPageHeight = double.tryParse(val ?? ''),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
                       initialValue: _exportOrientation,
