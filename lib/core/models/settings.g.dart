@@ -17,33 +17,48 @@ const AppSettingsSchema = CollectionSchema(
   name: r'AppSettings',
   id: -5633561779022347008,
   properties: {
-    r'daysPerWeek': PropertySchema(
+    r'customPageHeight': PropertySchema(
       id: 0,
+      name: r'customPageHeight',
+      type: IsarType.double,
+    ),
+    r'customPageWidth': PropertySchema(
+      id: 1,
+      name: r'customPageWidth',
+      type: IsarType.double,
+    ),
+    r'daysPerWeek': PropertySchema(
+      id: 2,
       name: r'daysPerWeek',
       type: IsarType.long,
     ),
     r'exportAutoScale': PropertySchema(
-      id: 1,
+      id: 3,
       name: r'exportAutoScale',
       type: IsarType.bool,
     ),
     r'exportOrientation': PropertySchema(
-      id: 2,
+      id: 4,
       name: r'exportOrientation',
       type: IsarType.string,
     ),
     r'exportPageSize': PropertySchema(
-      id: 3,
+      id: 5,
       name: r'exportPageSize',
       type: IsarType.string,
     ),
     r'periodsPerDay': PropertySchema(
-      id: 4,
+      id: 6,
       name: r'periodsPerDay',
       type: IsarType.long,
     ),
+    r'principalName': PropertySchema(
+      id: 7,
+      name: r'principalName',
+      type: IsarType.string,
+    ),
     r'schoolName': PropertySchema(
-      id: 5,
+      id: 8,
       name: r'schoolName',
       type: IsarType.string,
     )
@@ -70,6 +85,7 @@ int _appSettingsEstimateSize(
   var bytesCount = offsets.last;
   bytesCount += 3 + object.exportOrientation.length * 3;
   bytesCount += 3 + object.exportPageSize.length * 3;
+  bytesCount += 3 + object.principalName.length * 3;
   bytesCount += 3 + object.schoolName.length * 3;
   return bytesCount;
 }
@@ -80,12 +96,15 @@ void _appSettingsSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeLong(offsets[0], object.daysPerWeek);
-  writer.writeBool(offsets[1], object.exportAutoScale);
-  writer.writeString(offsets[2], object.exportOrientation);
-  writer.writeString(offsets[3], object.exportPageSize);
-  writer.writeLong(offsets[4], object.periodsPerDay);
-  writer.writeString(offsets[5], object.schoolName);
+  writer.writeDouble(offsets[0], object.customPageHeight);
+  writer.writeDouble(offsets[1], object.customPageWidth);
+  writer.writeLong(offsets[2], object.daysPerWeek);
+  writer.writeBool(offsets[3], object.exportAutoScale);
+  writer.writeString(offsets[4], object.exportOrientation);
+  writer.writeString(offsets[5], object.exportPageSize);
+  writer.writeLong(offsets[6], object.periodsPerDay);
+  writer.writeString(offsets[7], object.principalName);
+  writer.writeString(offsets[8], object.schoolName);
 }
 
 AppSettings _appSettingsDeserialize(
@@ -95,13 +114,16 @@ AppSettings _appSettingsDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = AppSettings();
-  object.daysPerWeek = reader.readLong(offsets[0]);
-  object.exportAutoScale = reader.readBool(offsets[1]);
-  object.exportOrientation = reader.readString(offsets[2]);
-  object.exportPageSize = reader.readString(offsets[3]);
+  object.customPageHeight = reader.readDoubleOrNull(offsets[0]);
+  object.customPageWidth = reader.readDoubleOrNull(offsets[1]);
+  object.daysPerWeek = reader.readLong(offsets[2]);
+  object.exportAutoScale = reader.readBool(offsets[3]);
+  object.exportOrientation = reader.readString(offsets[4]);
+  object.exportPageSize = reader.readString(offsets[5]);
   object.id = id;
-  object.periodsPerDay = reader.readLong(offsets[4]);
-  object.schoolName = reader.readString(offsets[5]);
+  object.periodsPerDay = reader.readLong(offsets[6]);
+  object.principalName = reader.readString(offsets[7]);
+  object.schoolName = reader.readString(offsets[8]);
   return object;
 }
 
@@ -113,16 +135,22 @@ P _appSettingsDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readLong(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 1:
-      return (reader.readBool(offset)) as P;
+      return (reader.readDoubleOrNull(offset)) as P;
     case 2:
-      return (reader.readString(offset)) as P;
-    case 3:
-      return (reader.readString(offset)) as P;
-    case 4:
       return (reader.readLong(offset)) as P;
+    case 3:
+      return (reader.readBool(offset)) as P;
+    case 4:
+      return (reader.readString(offset)) as P;
     case 5:
+      return (reader.readString(offset)) as P;
+    case 6:
+      return (reader.readLong(offset)) as P;
+    case 7:
+      return (reader.readString(offset)) as P;
+    case 8:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -222,6 +250,174 @@ extension AppSettingsQueryWhere
 
 extension AppSettingsQueryFilter
     on QueryBuilder<AppSettings, AppSettings, QFilterCondition> {
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageHeightIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'customPageHeight',
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageHeightIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'customPageHeight',
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageHeightEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'customPageHeight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageHeightGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'customPageHeight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageHeightLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'customPageHeight',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageHeightBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'customPageHeight',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageWidthIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'customPageWidth',
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageWidthIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'customPageWidth',
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageWidthEqualTo(
+    double? value, {
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'customPageWidth',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageWidthGreaterThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'customPageWidth',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageWidthLessThan(
+    double? value, {
+    bool include = false,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'customPageWidth',
+        value: value,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      customPageWidthBetween(
+    double? lower,
+    double? upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    double epsilon = Query.epsilon,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'customPageWidth',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        epsilon: epsilon,
+      ));
+    });
+  }
+
   QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
       daysPerWeekEqualTo(int value) {
     return QueryBuilder.apply(this, (query) {
@@ -670,6 +866,142 @@ extension AppSettingsQueryFilter
   }
 
   QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      principalNameEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'principalName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      principalNameGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'principalName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      principalNameLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'principalName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      principalNameBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'principalName',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      principalNameStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'principalName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      principalNameEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'principalName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      principalNameContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'principalName',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      principalNameMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'principalName',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      principalNameIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'principalName',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
+      principalNameIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'principalName',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterFilterCondition>
       schoolNameEqualTo(
     String value, {
     bool caseSensitive = true,
@@ -814,6 +1146,33 @@ extension AppSettingsQueryLinks
 
 extension AppSettingsQuerySortBy
     on QueryBuilder<AppSettings, AppSettings, QSortBy> {
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      sortByCustomPageHeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'customPageHeight', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      sortByCustomPageHeightDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'customPageHeight', Sort.desc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy> sortByCustomPageWidth() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'customPageWidth', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      sortByCustomPageWidthDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'customPageWidth', Sort.desc);
+    });
+  }
+
   QueryBuilder<AppSettings, AppSettings, QAfterSortBy> sortByDaysPerWeek() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'daysPerWeek', Sort.asc);
@@ -879,6 +1238,19 @@ extension AppSettingsQuerySortBy
     });
   }
 
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy> sortByPrincipalName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'principalName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      sortByPrincipalNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'principalName', Sort.desc);
+    });
+  }
+
   QueryBuilder<AppSettings, AppSettings, QAfterSortBy> sortBySchoolName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'schoolName', Sort.asc);
@@ -894,6 +1266,33 @@ extension AppSettingsQuerySortBy
 
 extension AppSettingsQuerySortThenBy
     on QueryBuilder<AppSettings, AppSettings, QSortThenBy> {
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      thenByCustomPageHeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'customPageHeight', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      thenByCustomPageHeightDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'customPageHeight', Sort.desc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy> thenByCustomPageWidth() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'customPageWidth', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      thenByCustomPageWidthDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'customPageWidth', Sort.desc);
+    });
+  }
+
   QueryBuilder<AppSettings, AppSettings, QAfterSortBy> thenByDaysPerWeek() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'daysPerWeek', Sort.asc);
@@ -971,6 +1370,19 @@ extension AppSettingsQuerySortThenBy
     });
   }
 
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy> thenByPrincipalName() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'principalName', Sort.asc);
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QAfterSortBy>
+      thenByPrincipalNameDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'principalName', Sort.desc);
+    });
+  }
+
   QueryBuilder<AppSettings, AppSettings, QAfterSortBy> thenBySchoolName() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'schoolName', Sort.asc);
@@ -986,6 +1398,20 @@ extension AppSettingsQuerySortThenBy
 
 extension AppSettingsQueryWhereDistinct
     on QueryBuilder<AppSettings, AppSettings, QDistinct> {
+  QueryBuilder<AppSettings, AppSettings, QDistinct>
+      distinctByCustomPageHeight() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'customPageHeight');
+    });
+  }
+
+  QueryBuilder<AppSettings, AppSettings, QDistinct>
+      distinctByCustomPageWidth() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'customPageWidth');
+    });
+  }
+
   QueryBuilder<AppSettings, AppSettings, QDistinct> distinctByDaysPerWeek() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'daysPerWeek');
@@ -1021,6 +1447,14 @@ extension AppSettingsQueryWhereDistinct
     });
   }
 
+  QueryBuilder<AppSettings, AppSettings, QDistinct> distinctByPrincipalName(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'principalName',
+          caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<AppSettings, AppSettings, QDistinct> distinctBySchoolName(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -1034,6 +1468,20 @@ extension AppSettingsQueryProperty
   QueryBuilder<AppSettings, int, QQueryOperations> idProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'id');
+    });
+  }
+
+  QueryBuilder<AppSettings, double?, QQueryOperations>
+      customPageHeightProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'customPageHeight');
+    });
+  }
+
+  QueryBuilder<AppSettings, double?, QQueryOperations>
+      customPageWidthProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'customPageWidth');
     });
   }
 
@@ -1065,6 +1513,12 @@ extension AppSettingsQueryProperty
   QueryBuilder<AppSettings, int, QQueryOperations> periodsPerDayProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'periodsPerDay');
+    });
+  }
+
+  QueryBuilder<AppSettings, String, QQueryOperations> principalNameProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'principalName');
     });
   }
 

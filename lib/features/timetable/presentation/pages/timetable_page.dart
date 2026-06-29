@@ -26,6 +26,7 @@ class TimetablePage extends ConsumerStatefulWidget {
 
 class _TimetablePageState extends ConsumerState<TimetablePage> {
   final Map<int, GlobalKey> _classroomKeys = {};
+  double _zoomLevel = 1.0;
 
   Future<void> _exportToPdf() async {
     try {
@@ -174,12 +175,31 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('حدث خطأ: $e')),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          ref.read(timetableNotifierProvider.notifier).generateTimetable();
-        },
-        label: const Text('توليد الجدول'),
-        icon: const Icon(Icons.autorenew),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: "btn_zoom_in",
+            onPressed: () => setState(() => _zoomLevel += 0.1),
+            child: const Icon(Icons.zoom_in),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: "btn_zoom_out",
+            onPressed: () => setState(() => _zoomLevel = (_zoomLevel - 0.1).clamp(0.5, 3.0)),
+            child: const Icon(Icons.zoom_out),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton.extended(
+            heroTag: "btn_generate",
+            onPressed: () {
+              ref.read(timetableNotifierProvider.notifier).generateTimetable();
+            },
+            label: const Text('توليد الجدول'),
+            icon: const Icon(Icons.autorenew),
+          ),
+        ],
       ),
     );
   }
@@ -289,15 +309,24 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       }
     }
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    return InteractiveViewer(
+      boundaryMargin: const EdgeInsets.all(20.0),
+      minScale: 0.1,
+      maxScale: 5.0,
+      scaleEnabled: true,
+      panEnabled: true,
       child: SingleChildScrollView(
-        child: RepaintBoundary(
-          key: _classroomKeys[masterKeyId],
-          child: Container(
-            color: Colors.white,
-            padding: const EdgeInsets.all(16.0),
-            child: DataTable(
+        scrollDirection: Axis.horizontal,
+        child: SingleChildScrollView(
+          child: RepaintBoundary(
+            key: _classroomKeys[masterKeyId],
+            child: Transform.scale(
+              scale: _zoomLevel,
+              alignment: Alignment.topLeft,
+              child: Container(
+                color: Colors.white,
+                padding: const EdgeInsets.all(16.0),
+                child: DataTable(
               border: TableBorder.all(color: Colors.grey.shade300),
               headingRowColor: WidgetStateProperty.all(Colors.teal.shade100),
               columnSpacing: 8.0,
@@ -311,7 +340,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 for (var classroom in classrooms)
                   DataColumn(label: Text(classroom.name, style: const TextStyle(fontWeight: FontWeight.bold))),
               ],
-              rows: rows,
+                  rows: rows,
+                ),
+              ),
             ),
           ),
         ),
