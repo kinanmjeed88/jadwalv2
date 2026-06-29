@@ -116,6 +116,17 @@ class PdfExportUseCase {
                       pw.SizedBox(height: 20),
                       ...chunk.map((c) => _buildClassroomTable(
                           c, lessons, settings, font, fontBold, autoScale, format)),
+                      pw.Spacer(),
+                      pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.end,
+                        children: [
+                          pw.Text(
+                            'مدير المدرسة / ${settings.principalName}',
+                            style: pw.TextStyle(fontSize: 16, font: fontBold),
+                            textDirection: pw.TextDirection.rtl,
+                          ),
+                        ]
+                      )
                     ],
                   ),
                 ),
@@ -161,19 +172,7 @@ class PdfExportUseCase {
         .where((l) => l.classroom.value?.id == classroom.id && !l.isUnassigned)
         .toList();
 
-    return pw.Container(
-        margin: const pw.EdgeInsets.only(bottom: 20),
-        child: pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text('الشعبة: ${classroom.name}',
-                  style: pw.TextStyle(
-                      fontSize: 18,
-                      font: fontBold,
-                      fontWeight: pw.FontWeight.bold),
-                  textDirection: pw.TextDirection.rtl),
-              pw.SizedBox(height: 10),
-              pw.Table(
+    pw.Widget tableWidget = pw.Table(
                   border: pw.TableBorder.all(),
                   columnWidths: columnWidths,
                   children: [
@@ -217,7 +216,28 @@ class PdfExportUseCase {
                         for (int d = 0; d < displayDays.length; d++)
                           _buildCell(classLessons, d, p, font, fontBold, baseFontSize),
                       ])
-                  ])
+                  ]);
+
+    if (autoScale) {
+      tableWidget = pw.FittedBox(
+        fit: pw.BoxFit.scaleDown,
+        child: tableWidget,
+      );
+    }
+
+    return pw.Container(
+        margin: const pw.EdgeInsets.only(bottom: 20),
+        child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('الشعبة: ${classroom.name}',
+                  style: pw.TextStyle(
+                      fontSize: 18,
+                      font: fontBold,
+                      fontWeight: pw.FontWeight.bold),
+                  textDirection: pw.TextDirection.rtl),
+              pw.SizedBox(height: 10),
+              tableWidget
             ]));
   }
 
