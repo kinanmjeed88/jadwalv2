@@ -8,6 +8,12 @@ import '../../../../core/models/classroom.dart';
 import '../../../../core/models/settings.dart';
 
 class PdfExportUseCase {
+  String getAcademicYear() {
+    final now = DateTime.now();
+    int startYear = now.month >= 9 ? now.year : now.year - 1;
+    return '$startYear/${startYear + 1}';
+  }
+
   String _shape(String text) {
     if (text.isEmpty) return text;
     final reshaper = ArabicReshaper();
@@ -59,6 +65,21 @@ class PdfExportUseCase {
       }
     }
 
+    // Determine layout constraints
+    int maxCapacity = 6; // Default A4
+    if (settings.exportPageSize == 'A3') maxCapacity = 10;
+
+    // If the total classrooms in the school is less than maxCapacity, use the actual number
+    int totalClassroomsCount = classrooms.length;
+    if (totalClassroomsCount < maxCapacity) {
+      maxCapacity = totalClassroomsCount;
+    }
+
+    if (settings.exportOrientation == 'Landscape' && settings.exportPageSize != 'Custom') {
+       gradesPerPage = gradeNames.length; // Fit all in one page for Landscape if possible
+       maxCapacity = totalClassroomsCount; // In landscape, we show all classrooms, so scale width based on total
+    }
+
     // Split grades into chunks (Atomic Grouping)
     for (int i = 0; i < gradeNames.length; i += gradesPerPage) {
       final chunkGrades = gradeNames.sublist(
@@ -100,35 +121,43 @@ class PdfExportUseCase {
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
                         pw.Expanded(
+                          flex: 15,
                           child: pw.Text(
                             _shape(settings.schoolName),
                             style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
+                            textAlign: pw.TextAlign.right,
                             textDirection: pw.TextDirection.rtl,
                           ),
                         ),
                         pw.Expanded(
-                          flex: 2,
-                          child: pw.Text(
-                            _shape('جدول الدروس الأسبوعي'),
-                            style: pw.TextStyle(fontSize: 18, font: font, fontWeight: pw.FontWeight.bold),
-                            textAlign: pw.TextAlign.center,
-                            textDirection: pw.TextDirection.rtl,
+                          flex: 20,
+                          child: pw.Column(
+                            children: [
+                              pw.Text(
+                                _shape('جدول الدروس الأسبوعي'),
+                                style: pw.TextStyle(fontSize: 18, font: font, fontWeight: pw.FontWeight.bold),
+                                textAlign: pw.TextAlign.center,
+                                textDirection: pw.TextDirection.rtl,
+                              ),
+                              pw.Text(
+                                _shape('العام الدراسي: ${getAcademicYear()}'),
+                                style: pw.TextStyle(fontSize: 12, font: font),
+                                textAlign: pw.TextAlign.center,
+                                textDirection: pw.TextDirection.rtl,
+                              ),
+                            ]
                           ),
                         ),
                         pw.Expanded(
-                          child: pw.Text(
-                            _shape('المشرف'), // Prevent duplicating principal name here
-                            style: pw.TextStyle(fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
-                            textAlign: pw.TextAlign.left,
-                            textDirection: pw.TextDirection.rtl,
-                          ),
+                          flex: 15,
+                          child: pw.SizedBox(), // Left empty for balance
                         ),
                       ],
                     ),
                     pw.SizedBox(height: 15),
                     // Master Table
                     pw.Expanded(
-                      child: _buildMasterTable(chunkClassrooms, lessons, settings, font, format),
+                      child: _buildMasterTable(chunkClassrooms, lessons, settings, font, format, maxCapacity),
                     ),
                     pw.SizedBox(height: 10),
                     // Footer / Principal
@@ -159,7 +188,8 @@ class PdfExportUseCase {
       List<Lesson> allLessons,
       AppSettings settings,
       pw.Font font,
-      PdfPageFormat format) {
+      PdfPageFormat format,
+      int maxCapacity) {
     final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
     final displayDays = days.take(settings.daysPerWeek).toList();
     final int periodsPerDay = settings.periodsPerDay;
@@ -168,8 +198,19 @@ class PdfExportUseCase {
     // margins are 20 on each side (total 40)
     final double availableWidth = format.availableWidth - 40;
 
-    // Proportions: Day (0.8), Period (0.6), Classrooms (1.0 each)
-    final double totalProportions = 0.8 + 0.6 + classrooms.length;
+    // Use maxCapacity or actual length, whichever is greater (to avoid overflow, but typically classrooms <= maxCapacity in portrait)
+    // Actually, user wants unitWidth to be calculated strictly using maxCapacity or total classrooms if total < maxCapacity.
+    // Wait, the instructions say:
+    // "For A4 Portrait, maxCapacity = 6. For A3 Portrait, maxCapacity = 10."
+    // "If the total classrooms in the school is less than maxCapacity, use the actual number of classrooms."
+    // "For Landscape orientation... adjust maxCols to the total classrooms."
+    int columnsToFit = classrooms.length;
+    if (settings.exportOrientation != 'Landscape') {
+      columnsToFit = maxCapacity; // Enforce maxCapacity for fixed cell sizes in Portrait chunks
+    }
+
+    // Proportions: Day (0.8), Period (0.6), Classrooms (1.0 each up to columnsToFit)
+    final double totalProportions = 0.8 + 0.6 + columnsToFit;
     final double unitWidth = availableWidth / totalProportions;
 
     final Map<int, pw.TableColumnWidth> columnWidths = {
