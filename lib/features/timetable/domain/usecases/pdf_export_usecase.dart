@@ -159,7 +159,22 @@ class PdfExportUseCase {
                         ),
                         pw.Expanded(
                           flex: 15,
-                          child: pw.SizedBox(), // Left empty for balance
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.center,
+                            children: [
+                              pw.Text(
+                                _shape('توقيع المدير'),
+                                style: pw.TextStyle(
+                                  fontSize: 14,
+                                  font: font,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                                textAlign: pw.TextAlign.center,
+                                textDirection: pw.TextDirection.rtl,
+                              ),
+                              pw.SizedBox(height: 30), // Empty space for handwritten signature
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -251,14 +266,18 @@ class PdfExportUseCase {
 
     // Optimize lesson lookup
     final Map<String, Lesson> lessonMap = {};
+    int lessonsToRenderCount = 0;
     for (final l in allLessons) {
       if (!l.isUnassigned) {
         final cId = l.classroom.value?.id;
         if (cId != null) {
           lessonMap['${cId}_${l.dayIndex}_${l.periodIndex}'] = l;
+          lessonsToRenderCount++;
         }
       }
     }
+
+    print("Total lessons to render in this master table: $lessonsToRenderCount");
 
     final dataRows = <pw.TableRow>[];
 
@@ -269,17 +288,17 @@ class PdfExportUseCase {
         // Day cell (only on first period)
         if (p == 0) {
           cells.add(
-            pw.Padding(
-              padding: const pw.EdgeInsets.all(2),
-              child: pw.Center(
-                child: pw.Text(
-                  _shape(displayDays[d]),
-                  style: pw.TextStyle(
-                      font: font,
-                      fontSize: baseFontSize,
-                      fontWeight: pw.FontWeight.bold),
-                  textDirection: pw.TextDirection.rtl,
-                ),
+            pw.Container(
+              alignment: pw.Alignment.center,
+              padding: const pw.EdgeInsets.all(4),
+              child: pw.Text(
+                _shape(displayDays[d]),
+                style: pw.TextStyle(
+                    font: font,
+                    fontSize: baseFontSize,
+                    fontWeight: pw.FontWeight.bold),
+                textDirection: pw.TextDirection.rtl,
+                textAlign: pw.TextAlign.center,
               ),
             ),
           );
@@ -289,16 +308,16 @@ class PdfExportUseCase {
 
         // Period
         cells.add(
-          pw.Padding(
-            padding: const pw.EdgeInsets.all(2),
-            child: pw.Center(
-              child: pw.Text(
-                (p + 1).toString(),
-                style: pw.TextStyle(
-                    font: font,
-                    fontSize: baseFontSize,
-                    fontWeight: pw.FontWeight.bold),
-              ),
+          pw.Container(
+            alignment: pw.Alignment.center,
+            padding: const pw.EdgeInsets.all(4),
+            child: pw.Text(
+              (p + 1).toString(),
+              style: pw.TextStyle(
+                  font: font,
+                  fontSize: baseFontSize,
+                  fontWeight: pw.FontWeight.bold),
+              textAlign: pw.TextAlign.center,
             ),
           ),
         );
@@ -308,10 +327,12 @@ class PdfExportUseCase {
           final lesson = lessonMap['${c.id}_${d}_${p}'];
           if (lesson != null) {
             cells.add(
-              pw.Padding(
-                padding: const pw.EdgeInsets.all(2),
+              pw.Container(
+                alignment: pw.Alignment.center,
+                padding: const pw.EdgeInsets.all(4),
                 child: pw.Column(
                   mainAxisAlignment: pw.MainAxisAlignment.center,
+                  crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
                       _shape(lesson.subject.value?.name ?? ''),
@@ -340,7 +361,7 @@ class PdfExportUseCase {
           }
         }
 
-        // Background color alternating
+        // Background color alternating (Zebra Striping)
         final bgColor = p % 2 == 0 ? PdfColors.grey50 : PdfColors.white;
         dataRows.add(pw.TableRow(
           decoration: pw.BoxDecoration(color: bgColor),
@@ -362,16 +383,15 @@ class PdfExportUseCase {
   }
 
   pw.Widget _buildCellHeader(String text, pw.Font font, double fontSize) {
-    return pw.Padding(
+    return pw.Container(
+      alignment: pw.Alignment.center,
       padding: const pw.EdgeInsets.all(4),
-      child: pw.Center(
-        child: pw.Text(
-          _shape(text),
-          style: pw.TextStyle(
-              font: font, fontSize: fontSize, fontWeight: pw.FontWeight.bold),
-          textDirection: pw.TextDirection.rtl,
-          textAlign: pw.TextAlign.center,
-        ),
+      child: pw.Text(
+        _shape(text),
+        style: pw.TextStyle(
+            font: font, fontSize: fontSize, fontWeight: pw.FontWeight.bold),
+        textDirection: pw.TextDirection.rtl,
+        textAlign: pw.TextAlign.center,
       ),
     );
   }
