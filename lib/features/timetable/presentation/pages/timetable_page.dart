@@ -32,12 +32,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       final isar = await ref.read(isarDatabaseProvider.future);
       final lessons = await isar.lessons.where().findAll();
 
-      // Eager loading for IsarLinks
-      await isar.txn(() async {
+      // Eager loading for IsarLinks using synchronous transaction for peak performance
+      isar.txnSync(() {
         for (var lesson in lessons) {
-          await lesson.classroom.load();
-          await lesson.subject.load();
-          await lesson.teacher.load();
+          lesson.classroom.loadSync();
+          lesson.subject.loadSync();
+          lesson.teacher.loadSync();
         }
       });
 
@@ -48,8 +48,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           : (AppSettings()..periodsPerDay = 7);
 
       final pdfUsecase = PdfExportUseCase();
-      final pdfBytes = await pdfUsecase.generateTimetablePdf(
-          lessons, classRooms, settings);
+      final pdfBytes =
+          await pdfUsecase.generateTimetablePdf(lessons, classRooms, settings);
 
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'حفظ ملف PDF',
@@ -84,12 +84,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       final isar = await ref.read(isarDatabaseProvider.future);
       final lessons = await isar.lessons.where().findAll();
 
-      // Eager loading for IsarLinks
-      await isar.txn(() async {
+      // Eager loading for IsarLinks using synchronous transaction for peak performance
+      isar.txnSync(() {
         for (var lesson in lessons) {
-          await lesson.classroom.load();
-          await lesson.subject.load();
-          await lesson.teacher.load();
+          lesson.classroom.loadSync();
+          lesson.subject.loadSync();
+          lesson.teacher.loadSync();
         }
       });
 
@@ -100,8 +100,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           : (AppSettings()..periodsPerDay = 7);
 
       final pdfUsecase = PdfExportUseCase();
-      final pdfBytes = await pdfUsecase.generateTimetablePdf(
-          lessons, classRooms, settings);
+      final pdfBytes =
+          await pdfUsecase.generateTimetablePdf(lessons, classRooms, settings);
 
       final tempDir = await getTemporaryDirectory();
       final imageFiles = <XFile>[];
@@ -141,7 +141,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   @override
   Widget build(BuildContext context) {
     final lessonsAsync = ref.watch(timetableNotifierProvider);
-    final settingsAsync = ref.watch(isarDatabaseProvider).whenData((isar) async {
+    final settingsAsync =
+        ref.watch(isarDatabaseProvider).whenData((isar) async {
       final settingsList = await isar.appSettings.where().findAll();
       return settingsList.isNotEmpty
           ? settingsList.first
@@ -173,7 +174,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final settings = snapshot.data ?? (AppSettings()..periodsPerDay = 7);
+                final settings =
+                    snapshot.data ?? (AppSettings()..periodsPerDay = 7);
                 return _buildTimetableGrid(context, lessons, settings);
               },
             ),
@@ -196,7 +198,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           const SizedBox(height: 8),
           FloatingActionButton(
             heroTag: "btn_zoom_out",
-            onPressed: () => setState(() => _zoomLevel = (_zoomLevel - 0.1).clamp(0.5, 3.0)),
+            onPressed: () =>
+                setState(() => _zoomLevel = (_zoomLevel - 0.1).clamp(0.5, 3.0)),
             child: const Icon(Icons.zoom_out),
           ),
           const SizedBox(height: 8),
@@ -213,7 +216,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-  Widget _buildTimetableGrid(BuildContext context, List<Lesson> lessons, AppSettings settings) {
+  Widget _buildTimetableGrid(
+      BuildContext context, List<Lesson> lessons, AppSettings settings) {
     final assigned = lessons.where((l) => !l.isUnassigned).toList();
     final unassigned = lessons.where((l) => l.isUnassigned).toList();
 
@@ -223,15 +227,19 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         uniqueClassrooms[lesson.classroom.value!.id] = lesson.classroom.value!;
       }
     }
-    final classrooms = uniqueClassrooms.values.toList()..sort((a, b) => a.id.compareTo(b.id));
+    final classrooms = uniqueClassrooms.values.toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
 
     if (classrooms.isEmpty && unassigned.isNotEmpty) {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Center(child: Text('جميع الدروس المضافة لم يتم جدولتها بعد. اضغط توليد.')),
+          const Center(
+              child:
+                  Text('جميع الدروس المضافة لم يتم جدولتها بعد. اضغط توليد.')),
           const SizedBox(height: 16),
-          Text('(${unassigned.length} حصة بانتظار التوزيع)', style: const TextStyle(color: Colors.red)),
+          Text('(${unassigned.length} حصة بانتظار التوزيع)',
+              style: const TextStyle(color: Colors.red)),
         ],
       );
     }
@@ -244,7 +252,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             padding: const EdgeInsets.all(16.0),
             child: Text(
               settings.schoolName,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.teal),
+              style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal),
               textAlign: TextAlign.center,
             ),
           ),
@@ -252,8 +263,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           Container(
             color: Colors.red.shade100,
             padding: const EdgeInsets.all(8.0),
-            child: Text('يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
-                style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+            child: Text(
+                'يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
+                style: const TextStyle(
+                    color: Colors.red, fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center),
           ),
         Expanded(
@@ -263,7 +276,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-  Widget _buildMasterGrid(List<Lesson> assignedLessons, List<Classroom> classrooms, AppSettings settings) {
+  Widget _buildMasterGrid(List<Lesson> assignedLessons,
+      List<Classroom> classrooms, AppSettings settings) {
     if (classrooms.isEmpty) {
       return const Center(child: Text('لا يوجد بيانات لعرضها.'));
     }
@@ -286,33 +300,36 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           // This cell would ideally span vertically, but DataTable does not support rowspans.
           // We can simulate it by showing the text only on the first row, or center it, etc.
           // For a true Master Grid in flutter DataTable, we just place the day on the first cell.
-          cells.add(DataCell(
-            Container(
-              alignment: Alignment.center,
-              child: Text(displayDays[d], style: const TextStyle(fontWeight: FontWeight.bold)),
-            )
-          ));
+          cells.add(DataCell(Container(
+            alignment: Alignment.center,
+            child: Text(displayDays[d],
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+          )));
         } else {
           cells.add(DataCell(const SizedBox.shrink()));
         }
 
         // Sequence column
-        cells.add(DataCell(
-          Container(
-            alignment: Alignment.center,
-            child: Text((p + 1).toString(), style: const TextStyle(fontWeight: FontWeight.bold)),
-          )
-        ));
+        cells.add(DataCell(Container(
+          alignment: Alignment.center,
+          child: Text((p + 1).toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold)),
+        )));
 
         // Classrooms columns
         for (var classroom in classrooms) {
-          cells.add(DataCell(
-             _buildCell(assignedLessons.where((l) => l.classroom.value?.id == classroom.id).toList(), d, p)
-          ));
+          cells.add(DataCell(_buildCell(
+              assignedLessons
+                  .where((l) => l.classroom.value?.id == classroom.id)
+                  .toList(),
+              d,
+              p)));
         }
 
         rows.add(DataRow(
-          color: p % 2 == 0 ? WidgetStateProperty.all(Colors.grey.shade50) : WidgetStateProperty.all(Colors.white),
+          color: p % 2 == 0
+              ? WidgetStateProperty.all(Colors.grey.shade50)
+              : WidgetStateProperty.all(Colors.white),
           cells: cells,
         ));
       }
@@ -336,19 +353,27 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 color: Colors.white,
                 padding: const EdgeInsets.all(16.0),
                 child: DataTable(
-              border: TableBorder.all(color: Colors.grey.shade300),
-              headingRowColor: WidgetStateProperty.all(Colors.teal.shade100),
-              columnSpacing: 8.0,
-              horizontalMargin: 8.0,
-              dataRowMinHeight: 45.0,
-              dataRowMaxHeight: 60.0,
-              headingRowHeight: 45.0,
-              columns: [
-                const DataColumn(label: Text('اليوم', style: TextStyle(fontWeight: FontWeight.bold))),
-                const DataColumn(label: Text('الدرس', style: TextStyle(fontWeight: FontWeight.bold))),
-                for (var classroom in classrooms)
-                  DataColumn(label: Text(classroom.name, style: const TextStyle(fontWeight: FontWeight.bold))),
-              ],
+                  border: TableBorder.all(color: Colors.grey.shade300),
+                  headingRowColor:
+                      WidgetStateProperty.all(Colors.teal.shade100),
+                  columnSpacing: 8.0,
+                  horizontalMargin: 8.0,
+                  dataRowMinHeight: 45.0,
+                  dataRowMaxHeight: 60.0,
+                  headingRowHeight: 45.0,
+                  columns: [
+                    const DataColumn(
+                        label: Text('اليوم',
+                            style: TextStyle(fontWeight: FontWeight.bold))),
+                    const DataColumn(
+                        label: Text('الدرس',
+                            style: TextStyle(fontWeight: FontWeight.bold))),
+                    for (var classroom in classrooms)
+                      DataColumn(
+                          label: Text(classroom.name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.bold))),
+                  ],
                   rows: rows,
                 ),
               ),
@@ -360,7 +385,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   }
 
   Widget _buildCell(List<Lesson> classLessons, int dayIndex, int periodIndex) {
-    final lesson = classLessons.where((l) => l.dayIndex == dayIndex && l.periodIndex == periodIndex).firstOrNull;
+    final lesson = classLessons
+        .where((l) => l.dayIndex == dayIndex && l.periodIndex == periodIndex)
+        .firstOrNull;
 
     if (lesson == null) {
       return const SizedBox(width: 80, height: 40);
@@ -373,7 +400,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       },
       onAcceptWithDetails: (details) async {
         final incoming = details.data;
-        final (success, errorMessage) = await ref.read(timetableNotifierProvider.notifier).swapLessons(incoming, lesson);
+        final (success, errorMessage) = await ref
+            .read(timetableNotifierProvider.notifier)
+            .swapLessons(incoming, lesson);
 
         if (!success && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -393,23 +422,32 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             child: Container(
               color: Colors.teal.withValues(alpha: 0.8),
               padding: const EdgeInsets.all(8),
-              child: Text(subjectName, style: const TextStyle(color: Colors.white)),
+              child: Text(subjectName,
+                  style: const TextStyle(color: Colors.white)),
             ),
           ),
-          childWhenDragging: Container(color: Colors.grey.shade200, width: 80, height: 40),
+          childWhenDragging:
+              Container(color: Colors.grey.shade200, width: 80, height: 40),
           child: Container(
             width: 80, // slightly narrower
             height: 40, // slightly shorter
             decoration: BoxDecoration(
-              color: candidateData.isNotEmpty ? Colors.teal.shade100 : Colors.transparent,
+              color: candidateData.isNotEmpty
+                  ? Colors.teal.shade100
+                  : Colors.transparent,
             ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(subjectName,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 12),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis),
                 Text(teacherName,
-                    style: const TextStyle(fontSize: 10, color: Colors.grey), textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
+                    style: const TextStyle(fontSize: 10, color: Colors.grey),
+                    textAlign: TextAlign.center,
+                    overflow: TextOverflow.ellipsis),
               ],
             ),
           ),
