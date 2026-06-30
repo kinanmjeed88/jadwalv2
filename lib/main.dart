@@ -19,9 +19,7 @@ class JadwalApp extends StatelessWidget {
     return MaterialApp(
       title: 'جدول',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.lightTheme.copyWith(
-        textTheme: GoogleFonts.cairoTextTheme(Theme.of(context).textTheme),
-      ),
+      theme: AppTheme.lightTheme,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
