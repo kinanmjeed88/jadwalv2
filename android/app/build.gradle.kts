@@ -39,42 +39,44 @@ android {
     signingConfigs {
         val keystorePropertiesFile = rootProject.file("key.properties")
         val keystoreProperties = Properties()
+        var hasValidPropertiesFile = false
 
-        // 1. Try to load from Environment Variables
+        // 1. Try to load from key.properties first
+        if (keystorePropertiesFile.exists()) {
+            keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+            val storeFileProp = keystoreProperties["storeFile"] as String?
+            val storePasswordProp = keystoreProperties["storePassword"] as String?
+            val keyAliasProp = keystoreProperties["keyAlias"] as String?
+            val keyPasswordProp = keystoreProperties["keyPassword"] as String?
+
+            if (!storeFileProp.isNullOrBlank() && !storePasswordProp.isNullOrBlank() && !keyAliasProp.isNullOrBlank() && !keyPasswordProp.isNullOrBlank()) {
+                hasValidPropertiesFile = true
+            }
+        }
+
+        // 2. Try to load from Environment Variables as fallback
         val envStoreFile = System.getenv("STORE_FILE")
         val envStorePassword = System.getenv("STORE_PASSWORD")
         val envKeyAlias = System.getenv("KEY_ALIAS")
         val envKeyPassword = System.getenv("KEY_PASSWORD")
 
-        val hasEnvVars = envStoreFile != null && envStorePassword != null && envKeyAlias != null && envKeyPassword != null
-
-        // 2. Try to load from key.properties
-        val hasPropertiesFile = keystorePropertiesFile.exists()
-
-        if (hasPropertiesFile) {
-            keystoreProperties.load(FileInputStream(keystorePropertiesFile))
-        }
+        val hasValidEnvVars = !envStoreFile.isNullOrBlank() && !envStorePassword.isNullOrBlank() && !envKeyAlias.isNullOrBlank() && !envKeyPassword.isNullOrBlank()
 
         create("release") {
-            if (hasEnvVars) {
-                storeFile = file(envStoreFile!!)
-                storePassword = envStorePassword
-                keyAlias = envKeyAlias
-                keyPassword = envKeyPassword
-            } else if (hasPropertiesFile) {
+            if (hasValidPropertiesFile) {
                 storeFile = file(keystoreProperties["storeFile"] as String)
                 storePassword = keystoreProperties["storePassword"] as String
                 keyAlias = keystoreProperties["keyAlias"] as String
                 keyPassword = keystoreProperties["keyPassword"] as String
+            } else if (hasValidEnvVars) {
+                storeFile = file(envStoreFile!!)
+                storePassword = envStorePassword!!
+                keyAlias = envKeyAlias!!
+                keyPassword = envKeyPassword!!
             } else {
-                // If it's a release build and we don't have keys, we must fail.
-                // We check if the task graph includes 'assembleRelease' or 'bundleRelease'
-                // But during configuration phase, tasks might not be fully populated.
-                // A simpler way is to just throw when the storeFile is accessed, but we can't easily do that.
-                // Gradle tasks are available in gradle.startParameter.taskNames
                 val isReleaseBuild = gradle.startParameter.taskNames.any { it.contains("Release", ignoreCase = true) }
                 if (isReleaseBuild) {
-                    throw GradleException("Release signing config requires either Environment Variables (STORE_FILE, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD) or android/key.properties file to exist.")
+                    throw GradleException("Release signing config requires either a valid android/key.properties file or Environment Variables (STORE_FILE, STORE_PASSWORD, KEY_ALIAS, KEY_PASSWORD).")
                 }
             }
         }
