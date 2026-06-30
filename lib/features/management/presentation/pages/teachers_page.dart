@@ -30,12 +30,14 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
                 children: [
                   IconButton(
                     icon: const Icon(Icons.edit, color: Colors.blue),
+                    tooltip: 'تعديل',
                     onPressed: () {
                       _showAddTeacherDialog(context, ref, teacher: teacher);
                     },
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
+                    tooltip: 'حذف',
                     onPressed: () {
                       ref
                           .read(teachersNotifierProvider.notifier)
@@ -52,6 +54,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddTeacherDialog(context, ref),
+        tooltip: 'إضافة',
         child: const Icon(Icons.add),
       ),
     );

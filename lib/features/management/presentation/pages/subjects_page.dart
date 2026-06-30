@@ -30,6 +30,7 @@ class SubjectsPage extends ConsumerWidget {
                       'الدروس الأسبوعية: ' + subject.lessonsPerWeek.toString()),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
+                    tooltip: 'حذف',
                     onPressed: () => _confirmDelete(context, ref, subject),
                   ),
                   onTap: () => _showAddOrEditDialog(context, ref, subject),
@@ -43,6 +44,7 @@ class SubjectsPage extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddOrEditDialog(context, ref, null),
+        tooltip: 'إضافة',
         child: const Icon(Icons.add),
       ),
     );
