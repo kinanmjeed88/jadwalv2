@@ -230,6 +230,16 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     final classrooms = uniqueClassrooms.values.toList()
       ..sort((a, b) => a.id.compareTo(b.id));
 
+    // ⚡ Bolt Optimization: O(n) pass to build a composite map for O(1) lookups
+    // Replaces O(d * p * c * n) rendering complexity with O(d * p * c)
+    final Map<String, Lesson> lessonMap = {};
+    for (var lesson in assigned) {
+      final cId = lesson.classroom.value?.id;
+      if (cId != null) {
+        lessonMap['${cId}_${lesson.dayIndex}_${lesson.periodIndex}'] = lesson;
+      }
+    }
+
     if (classrooms.isEmpty && unassigned.isNotEmpty) {
       return Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -270,14 +280,14 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 textAlign: TextAlign.center),
           ),
         Expanded(
-          child: _buildMasterGrid(assigned, classrooms, settings),
+          child: _buildMasterGrid(assigned, classrooms, settings, lessonMap),
         ),
       ],
     );
   }
 
-  Widget _buildMasterGrid(List<Lesson> assignedLessons,
-      List<Classroom> classrooms, AppSettings settings) {
+  Widget _buildMasterGrid(List<Lesson> assigned, List<Classroom> classrooms,
+      AppSettings settings, Map<String, Lesson> lessonMap) {
     if (classrooms.isEmpty) {
       return const Center(child: Text('لا يوجد بيانات لعرضها.'));
     }
@@ -318,12 +328,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
         // Classrooms columns
         for (var classroom in classrooms) {
-          cells.add(DataCell(_buildCell(
-              assignedLessons
-                  .where((l) => l.classroom.value?.id == classroom.id)
-                  .toList(),
-              d,
-              p)));
+          final lesson = lessonMap['${classroom.id}_${d}_${p}'];
+          cells.add(DataCell(_buildCell(lesson)));
         }
 
         rows.add(DataRow(
@@ -384,11 +390,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-  Widget _buildCell(List<Lesson> classLessons, int dayIndex, int periodIndex) {
-    final lesson = classLessons
-        .where((l) => l.dayIndex == dayIndex && l.periodIndex == periodIndex)
-        .firstOrNull;
-
+  Widget _buildCell(Lesson? lesson) {
     if (lesson == null) {
       return const SizedBox(width: 80, height: 40);
     }
