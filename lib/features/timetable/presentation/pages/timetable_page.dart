@@ -35,9 +35,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       // Eager loading for IsarLinks
       await isar.txn(() async {
         for (var lesson in lessons) {
-          await lesson.classroom.load();
-          await lesson.subject.load();
-          await lesson.teacher.load();
+          lesson.classroom.loadSync();
+          lesson.subject.loadSync();
+          lesson.teacher.loadSync();
         }
       });
 
@@ -87,9 +87,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       // Eager loading for IsarLinks
       await isar.txn(() async {
         for (var lesson in lessons) {
-          await lesson.classroom.load();
-          await lesson.subject.load();
-          await lesson.teacher.load();
+          lesson.classroom.loadSync();
+          lesson.subject.loadSync();
+          lesson.teacher.loadSync();
         }
       });
 
