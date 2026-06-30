@@ -31,12 +31,12 @@ class TimetableNotifier extends _$TimetableNotifier {
       newLessons.add(lesson);
     }
 
-    await isar.writeTxn(() async {
-      await isar.lessons.putAll(newLessons);
+    isar.writeTxnSync(() {
+      isar.lessons.putAllSync(newLessons);
       for (var l in newLessons) {
-        await l.classroom.save();
-        await l.subject.save();
-        await l.teacher.save();
+        l.classroom.saveSync();
+        l.subject.saveSync();
+        l.teacher.saveSync();
       }
     });
 
@@ -46,28 +46,33 @@ class TimetableNotifier extends _$TimetableNotifier {
   Future<void> deleteAssignment(int classroomId, int subjectId) async {
     final isar = await ref.read(isarDatabaseProvider.future);
     final allLessons = await isar.lessons.where().findAll();
-    final toDelete = allLessons.where((l) =>
-        l.classroom.value?.id == classroomId &&
-        l.subject.value?.id == subjectId).toList();
+    final toDelete = allLessons
+        .where((l) =>
+            l.classroom.value?.id == classroomId &&
+            l.subject.value?.id == subjectId)
+        .toList();
 
-    await isar.writeTxn(() async {
-      await isar.lessons.deleteAll(toDelete.map((e) => e.id).toList());
+    isar.writeTxnSync(() {
+      isar.lessons.deleteAllSync(toDelete.map((e) => e.id).toList());
     });
     state = AsyncValue.data(await isar.lessons.where().findAll());
   }
 
-  Future<void> updateAssignment(int classroomId, int subjectId, Teacher newTeacher) async {
+  Future<void> updateAssignment(
+      int classroomId, int subjectId, Teacher newTeacher) async {
     final isar = await ref.read(isarDatabaseProvider.future);
     final allLessons = await isar.lessons.where().findAll();
-    final toUpdate = allLessons.where((l) =>
-        l.classroom.value?.id == classroomId &&
-        l.subject.value?.id == subjectId).toList();
+    final toUpdate = allLessons
+        .where((l) =>
+            l.classroom.value?.id == classroomId &&
+            l.subject.value?.id == subjectId)
+        .toList();
 
-    await isar.writeTxn(() async {
+    isar.writeTxnSync(() {
       for (var lesson in toUpdate) {
         lesson.teacher.value = newTeacher;
-        await isar.lessons.put(lesson);
-        await lesson.teacher.save();
+        isar.lessons.putSync(lesson);
+        lesson.teacher.saveSync();
       }
     });
     state = AsyncValue.data(await isar.lessons.where().findAll());
@@ -102,12 +107,12 @@ class TimetableNotifier extends _$TimetableNotifier {
 
       // Ensure that we save the entire modified pool (even those unplaced/unscheduled)
       // Since generator modifies existingLessons in-place and returns it.
-      await isar.writeTxn(() async {
-        await isar.lessons.putAll(existingLessons);
+      isar.writeTxnSync(() {
+        isar.lessons.putAllSync(existingLessons);
         for (var lesson in existingLessons) {
-          await lesson.teacher.save();
-          await lesson.subject.save();
-          await lesson.classroom.save();
+          lesson.teacher.saveSync();
+          lesson.subject.saveSync();
+          lesson.classroom.saveSync();
         }
       });
 
@@ -185,7 +190,7 @@ class TimetableNotifier extends _$TimetableNotifier {
     }
 
     // Perform swap
-    await isar.writeTxn(() async {
+    isar.writeTxnSync(() {
       final tempDay = lesson1.dayIndex;
       final tempPeriod = lesson1.periodIndex;
 
@@ -195,7 +200,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       lesson2.dayIndex = tempDay;
       lesson2.periodIndex = tempPeriod;
 
-      await isar.lessons.putAll([lesson1, lesson2]);
+      isar.lessons.putAllSync([lesson1, lesson2]);
     });
 
     state = AsyncValue.data(await isar.lessons.where().findAll());
