@@ -43,7 +43,20 @@ jobs:
     - name: Generate App Icons
       run: flutter pub run flutter_launcher_icons
 
-    - name: Build APK
+    # الخطوة المدمجة لفك تشفير المفتاح
+    - name: Decode Keystore
+      env:
+        STORE_FILE_BASE64: ${{ secrets.STORE_FILE_BASE64 }}
+      run: |
+        echo $STORE_FILE_BASE64 | base64 --decode > $RUNNER_TEMP/upload-keystore.jks
+
+    # خطوة البناء الموقعة باستخدام المتغيرات
+    - name: Build Android Release
+      env:
+        STORE_FILE: ${{ runner.temp }}/upload-keystore.jks
+        STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
       run: flutter build apk --release --android-skip-build-dependency-validation
 
     - name: Upload APK
