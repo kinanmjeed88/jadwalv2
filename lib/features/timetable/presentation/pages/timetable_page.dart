@@ -349,46 +349,54 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       maxScale: 5.0,
       scaleEnabled: true,
       panEnabled: true,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: SingleChildScrollView(
-          child: RepaintBoundary(
-            key: _classroomKeys[masterKeyId],
-            child: Transform.scale(
-              scale: _zoomLevel,
-              alignment: Alignment.topLeft,
-              child: Container(
-                color: Colors.white,
-                padding: const EdgeInsets.all(16.0),
-                child: DataTable(
-                  border: TableBorder.all(color: Colors.grey.shade300),
-                  headingRowColor:
-                      WidgetStateProperty.all(Colors.teal.shade100),
-                  columnSpacing: 8.0,
-                  horizontalMargin: 8.0,
-                  dataRowMinHeight: 45.0,
-                  dataRowMaxHeight: 60.0,
-                  headingRowHeight: 45.0,
-                  columns: [
-                    const DataColumn(
-                        label: Text('اليوم',
-                            style: TextStyle(fontWeight: FontWeight.bold))),
-                    const DataColumn(
-                        label: Text('الدرس',
-                            style: TextStyle(fontWeight: FontWeight.bold))),
-                    for (var classroom in classrooms)
-                      DataColumn(
-                          label: Text(classroom.name,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold))),
-                  ],
-                  rows: rows,
+      child: LayoutBuilder(builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: RepaintBoundary(
+                key: _classroomKeys[masterKeyId],
+                child: Transform.scale(
+                  scale: _zoomLevel,
+                  alignment: Alignment.topRight,
+                  child: Container(
+                    color: Colors.white,
+                    padding: const EdgeInsets.all(16.0),
+                    child: Directionality(
+                      textDirection: TextDirection.rtl,
+                      child: DataTable(
+                        border: TableBorder.all(color: Colors.grey.shade400),
+                        headingRowColor:
+                            WidgetStateProperty.all(Colors.teal.shade100),
+                        columnSpacing: 8.0,
+                        horizontalMargin: 8.0,
+                        dataRowMinHeight: 45.0,
+                        dataRowMaxHeight: 60.0,
+                        headingRowHeight: 45.0,
+                        columns: [
+                          const DataColumn(
+                              label: Text('اليوم',
+                                  style: TextStyle(fontWeight: FontWeight.bold))),
+                          const DataColumn(
+                              label: Text('الدرس',
+                                  style: TextStyle(fontWeight: FontWeight.bold))),
+                          for (var classroom in classrooms)
+                            DataColumn(
+                                label: Text(classroom.name,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold))),
+                        ],
+                        rows: rows,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
 
