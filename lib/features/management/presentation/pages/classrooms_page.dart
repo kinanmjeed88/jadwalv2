@@ -28,6 +28,7 @@ class ClassroomsPage extends ConsumerWidget {
                   subtitle: Text('المرحلة: ' + classroom.grade),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
+                    tooltip: 'حذف',
                     onPressed: () => _confirmDelete(context, ref, classroom),
                   ),
                   onTap: () => _showAddOrEditDialog(context, ref, classroom),
@@ -41,6 +42,7 @@ class ClassroomsPage extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddOrEditDialog(context, ref, null),
+        tooltip: 'إضافة',
         child: const Icon(Icons.add),
       ),
     );

@@ -263,12 +263,14 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                                 const SizedBox(width: 8),
                                 IconButton(
                                   icon: const Icon(Icons.edit, color: Colors.blue),
+                                  tooltip: 'تعديل',
                                   onPressed: () {
                                     _showEditAssignmentDialog(context, subjectLesson);
                                   },
                                 ),
                                 IconButton(
                                   icon: const Icon(Icons.delete, color: Colors.red),
+                                  tooltip: 'حذف',
                                   onPressed: () {
                                     if (subjectLesson.classroom.value != null && subjectLesson.subject.value != null) {
                                       ref.read(timetableNotifierProvider.notifier).deleteAssignment(

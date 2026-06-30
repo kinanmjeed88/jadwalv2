@@ -193,6 +193,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           FloatingActionButton(
             heroTag: "btn_zoom_in",
             onPressed: () => setState(() => _zoomLevel += 0.1),
+            tooltip: 'تكبير',
             child: const Icon(Icons.zoom_in),
           ),
           const SizedBox(height: 8),
@@ -200,6 +201,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             heroTag: "btn_zoom_out",
             onPressed: () =>
                 setState(() => _zoomLevel = (_zoomLevel - 0.1).clamp(0.5, 3.0)),
+            tooltip: 'تصغير',
             child: const Icon(Icons.zoom_out),
           ),
           const SizedBox(height: 8),
