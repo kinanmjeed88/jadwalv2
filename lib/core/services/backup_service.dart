@@ -96,6 +96,7 @@ class BackupService {
         await _isar.appSettings.putAll(newSettings);
       }
 
+      final Map<int, Teacher> teacherMap = {};
       if (data.containsKey('teachers')) {
         final List<dynamic> teachersList = data['teachers'];
         final newTeachers = teachersList
@@ -108,8 +109,12 @@ class BackupService {
               ..unavailableDays = List<int>.from(t['unavailableDays'] ?? []))
             .toList();
         await _isar.teachers.putAll(newTeachers);
+        for (final t in newTeachers) {
+          teacherMap[t.id] = t;
+        }
       }
 
+      final Map<int, Subject> subjectMap = {};
       if (data.containsKey('subjects')) {
         final List<dynamic> subjectsList = data['subjects'];
         final newSubjects = subjectsList
@@ -121,8 +126,12 @@ class BackupService {
               ..allowedPeriods = List<int>.from(s['allowedPeriods'] ?? []))
             .toList();
         await _isar.subjects.putAll(newSubjects);
+        for (final s in newSubjects) {
+          subjectMap[s.id] = s;
+        }
       }
 
+      final Map<int, Classroom> classroomMap = {};
       if (data.containsKey('classrooms')) {
         final List<dynamic> classroomsList = data['classrooms'];
         final newClassrooms = classroomsList
@@ -132,6 +141,9 @@ class BackupService {
               ..grade = c['grade'])
             .toList();
         await _isar.classrooms.putAll(newClassrooms);
+        for (final c in newClassrooms) {
+          classroomMap[c.id] = c;
+        }
       }
 
       if (data.containsKey('lessons')) {
@@ -142,26 +154,40 @@ class BackupService {
               ..dayIndex = l['dayIndex']
               ..periodIndex = l['periodIndex'])
             .toList();
-        await _isar.lessons.putAll(newLessons);
 
-        // Map relationships
+        // Map relationships using in-memory maps
         for (var i = 0; i < lessonsList.length; i++) {
           final lMap = lessonsList[i];
           final l = newLessons[i];
 
           if (lMap['teacherId'] != null) {
-            final t = await _isar.teachers.get(lMap['teacherId']);
-            if (t != null) l.teacher.value = t;
+            final tId = lMap['teacherId'] as int;
+            if (teacherMap.containsKey(tId)) {
+              l.teacher.value = teacherMap[tId];
+            }
           }
           if (lMap['subjectId'] != null) {
-            final s = await _isar.subjects.get(lMap['subjectId']);
-            if (s != null) l.subject.value = s;
+            final sId = lMap['subjectId'] as int;
+            if (subjectMap.containsKey(sId)) {
+              l.subject.value = subjectMap[sId];
+            }
           }
           if (lMap['classroomId'] != null) {
-            final c = await _isar.classrooms.get(lMap['classroomId']);
-            if (c != null) l.classroom.value = c;
+            final cId = lMap['classroomId'] as int;
+            if (classroomMap.containsKey(cId)) {
+              l.classroom.value = classroomMap[cId];
+            }
           }
+        }
 
+        // Put all objects in one batch call to avoid individual save() iterations
+        await _isar.lessons.putAll(newLessons);
+
+        // Ensure IsarLinks are explicitly flushed to DB after putAll,
+        // using the transaction's existing scope without sequential individual awaits
+        // Isar 3.x implicitly saves linked objects if they are assigned before putAll IF there are cascading configurations.
+        // If not, we have to save them sequentially per Isar's limitations unless putAll saves them.
+        for (final l in newLessons) {
           await l.teacher.save();
           await l.subject.save();
           await l.classroom.save();
