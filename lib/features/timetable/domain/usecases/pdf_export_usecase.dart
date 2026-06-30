@@ -119,12 +119,14 @@ class PdfExportUseCase {
                   bold: font,
                 ),
                 child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
+                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                   children: [
                     // Header
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
+                    pw.Directionality(
+                      textDirection: pw.TextDirection.rtl,
+                      child: pw.Row(
+                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                        children: [
                         pw.Expanded(
                           flex: 15,
                           child: pw.Text(
@@ -172,11 +174,12 @@ class PdfExportUseCase {
                                 textAlign: pw.TextAlign.center,
                                 textDirection: pw.TextDirection.rtl,
                               ),
-                              pw.SizedBox(height: 30), // Empty space for handwritten signature
-                            ],
+                                pw.SizedBox(height: 30), // Empty space for handwritten signature
+                              ],
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     pw.SizedBox(height: 15),
                     // Master Table
@@ -371,7 +374,7 @@ class PdfExportUseCase {
     }
 
     final table = pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey300),
+      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
       columnWidths: columnWidths,
       children: [
         ...headerRows,
