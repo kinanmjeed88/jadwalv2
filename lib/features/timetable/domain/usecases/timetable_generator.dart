@@ -1,15 +1,13 @@
-import '../../../../core/models/teacher.dart';
-import '../../../../core/models/subject.dart';
-import '../../../../core/models/classroom.dart';
-import '../../../../core/models/lesson.dart';
-import '../../../../core/models/settings.dart';
+import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
+import '../models/timetable_dto.dart';
 
 class TimetableGenerator {
-  final List<Teacher> teachers;
-  final List<Subject> subjects;
-  final List<Classroom> classrooms;
-  final AppSettings settings;
-  final List<Lesson> existingLessons;
+  final List<TeacherDto> teachers;
+  final List<SubjectDto> subjects;
+  final List<ClassroomDto> classrooms;
+  final AppSettingsDto settings;
+  final List<LessonDto> existingLessons;
+  late final Stopwatch _stopwatch;
 
   TimetableGenerator({
     required this.teachers,
@@ -20,19 +18,19 @@ class TimetableGenerator {
   });
 
   /// Generates the timetable and returns a list of lessons.
-  List<Lesson> generate() {
+  List<LessonDto> generate() {
+    _stopwatch = Stopwatch()..start();
+
     int maxDays = settings.daysPerWeek;
     int maxPeriods = settings.periodsPerDay;
 
     // Use existing lessons as the pool.
-    List<Lesson> pool = List.from(existingLessons);
-    List<Lesson> unpinnedLessons = [];
-    List<Lesson> pinnedLessons = [];
+    List<LessonDto> pool = List.from(existingLessons);
+    List<LessonDto> unpinnedLessons = [];
+    List<LessonDto> pinnedLessons = [];
 
     // Separate pinned and unpinned lessons. Also reset unpinned ones.
     for (var l in pool) {
-      // Assuming we will add isPinned to Lesson. If not present yet, assume false.
-      // We will add it later, but we need to support it here.
       if (l.isPinned && l.dayIndex != null && l.periodIndex != null) {
         pinnedLessons.add(l);
       } else {
@@ -51,69 +49,76 @@ class TimetableGenerator {
       return scoreA.compareTo(scoreB);
     });
 
-    List<Lesson> currentAssignment = List.from(pinnedLessons);
+    List<LessonDto> currentAssignment = List.from(pinnedLessons);
 
     bool success = _backtrack(unpinnedLessons, 0, currentAssignment, maxDays, maxPeriods);
+
+    _stopwatch.stop();
 
     if (success) {
       return currentAssignment;
     } else {
-      // If we couldn't place all, return what we have (some will be unassigned).
-      return pool;
+      // If we couldn't place all and it didn't timeout, it means it's unsolvable.
+      throw UnsolvableTimetableException();
     }
   }
 
-  int _calculateConstraintScore(Lesson lesson, int maxDays, int maxPeriods) {
+  int _calculateConstraintScore(LessonDto lesson, int maxDays, int maxPeriods) {
     int score = maxDays * maxPeriods;
 
     // Teacher unavailable days
-    if (lesson.teacher.value != null) {
-      score -= (lesson.teacher.value!.unavailableDays.length * maxPeriods).toInt();
+    if (lesson.teacher != null) {
+      score -= (lesson.teacher!.unavailableDays.length * maxPeriods).toInt();
     }
 
     // Subject allowed periods
-    if (lesson.subject.value != null && lesson.subject.value!.allowedPeriods.isNotEmpty) {
-      int restrictedPeriods = maxPeriods - lesson.subject.value!.allowedPeriods.where((p) => p < maxPeriods).length;
+    if (lesson.subject != null && lesson.subject!.allowedPeriods.isNotEmpty) {
+      int restrictedPeriods = maxPeriods - lesson.subject!.allowedPeriods.where((p) => p < maxPeriods).length;
       score -= (maxDays * restrictedPeriods).toInt();
     }
 
     // Teacher allowed periods
-    if (lesson.teacher.value != null && lesson.teacher.value!.allowedPeriods.isNotEmpty) {
-      int restrictedPeriods = maxPeriods - lesson.teacher.value!.allowedPeriods.where((p) => p < maxPeriods).length;
+    if (lesson.teacher != null && lesson.teacher!.allowedPeriods.isNotEmpty) {
+      int restrictedPeriods = maxPeriods - lesson.teacher!.allowedPeriods.where((p) => p < maxPeriods).length;
       score -= (maxDays * restrictedPeriods).toInt();
     }
 
     // Teacher max lessons per week constraint
-    if (lesson.teacher.value != null) {
+    if (lesson.teacher != null) {
       // If teacher has low maxLessonsPerWeek relative to what they teach, they are restricted
-      score += (lesson.teacher.value!.maxLessonsPerWeek).toInt();
+      score += (lesson.teacher!.maxLessonsPerWeek).toInt();
     }
 
     return score;
   }
 
-  bool _backtrack(List<Lesson> unpinnedLessons, int index, List<Lesson> currentAssignment, int maxDays, int maxPeriods) {
+  bool _backtrack(List<LessonDto> unpinnedLessons, int index, List<LessonDto> currentAssignment, int maxDays, int maxPeriods) {
+    // Failsafe: Timeout after 10 seconds
+    if (_stopwatch.elapsedMilliseconds > 10000) {
+      throw UnsolvableTimetableException();
+    }
+
     if (index >= unpinnedLessons.length) {
       return true; // All lessons placed
     }
 
-    Lesson lesson = unpinnedLessons[index];
+    LessonDto lesson = unpinnedLessons[index];
 
     List<int> periodOrder = List.generate(maxPeriods, (i) => i);
-    if (lesson.subject.value?.preferEarlyPeriods ?? false) {
+    if (lesson.subject?.preferEarlyPeriods ?? false) {
       periodOrder = [0, 1, 2, 3, 4, 5, 6, 7].where((p) => p < maxPeriods).toList();
     }
 
-    if (lesson.subject.value != null && lesson.subject.value!.allowedPeriods.isNotEmpty) {
-      periodOrder = periodOrder.where((p) => lesson.subject.value!.allowedPeriods.contains(p)).toList();
+    if (lesson.subject != null && lesson.subject!.allowedPeriods.isNotEmpty) {
+      periodOrder = periodOrder.where((p) => lesson.subject!.allowedPeriods.contains(p)).toList();
     }
 
-    if (lesson.teacher.value != null && lesson.teacher.value!.allowedPeriods.isNotEmpty) {
-      periodOrder = periodOrder.where((p) => lesson.teacher.value!.allowedPeriods.contains(p)).toList();
+    if (lesson.teacher != null && lesson.teacher!.allowedPeriods.isNotEmpty) {
+      periodOrder = periodOrder.where((p) => lesson.teacher!.allowedPeriods.contains(p)).toList();
     }
 
     for (int day = 0; day < maxDays; day++) {
-      if (lesson.teacher.value != null && lesson.teacher.value!.unavailableDays.contains(day)) {
+      if (lesson.teacher != null && lesson.teacher!.unavailableDays.contains(day)) {
         continue;
       }
 
@@ -138,35 +143,35 @@ class TimetableGenerator {
     return false; // Could not place this lesson
   }
 
-  bool _isValidPlacement(Lesson lesson, int day, int period, List<Lesson> currentAssignment) {
+  bool _isValidPlacement(LessonDto lesson, int day, int period, List<LessonDto> currentAssignment) {
     // 1. Teacher conflict (same period)
-    bool teacherConflict = lesson.teacher.value != null && currentAssignment.any((l) =>
-        l.teacher.value?.id == lesson.teacher.value?.id &&
+    bool teacherConflict = lesson.teacher != null && currentAssignment.any((l) =>
+        l.teacher?.id == lesson.teacher?.id &&
         l.dayIndex == day &&
         l.periodIndex == period);
     if (teacherConflict) return false;
 
     // 2. Classroom conflict (same period)
     bool classroomConflict = currentAssignment.any((l) =>
-        l.classroom.value?.id == lesson.classroom.value?.id &&
+        l.classroom?.id == lesson.classroom?.id &&
         l.dayIndex == day &&
         l.periodIndex == period);
     if (classroomConflict) return false;
 
     // 3. Teacher daily limit
-    if (lesson.teacher.value != null) {
+    if (lesson.teacher != null) {
       int teacherLessonsToday = currentAssignment.where((l) =>
-          l.teacher.value?.id == lesson.teacher.value?.id &&
+          l.teacher?.id == lesson.teacher?.id &&
           l.dayIndex == day).length;
-      if (teacherLessonsToday >= lesson.teacher.value!.maxLessonsPerDay) {
+      if (teacherLessonsToday >= lesson.teacher!.maxLessonsPerDay) {
         return false;
       }
     }
 
     // 4. Same subject on the same day for a classroom
     bool subjectAlreadyOnDay = currentAssignment.any((l) =>
-        l.classroom.value?.id == lesson.classroom.value?.id &&
-        l.subject.value?.id == lesson.subject.value?.id &&
+        l.classroom?.id == lesson.classroom?.id &&
+        l.subject?.id == lesson.subject?.id &&
         l.dayIndex == day);
     if (subjectAlreadyOnDay) return false;
 
