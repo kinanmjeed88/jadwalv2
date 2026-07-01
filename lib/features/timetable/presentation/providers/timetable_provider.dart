@@ -1,5 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:isar/isar.dart';
+import 'dart:isolate';
 import '../../../../core/providers/database_provider.dart';
 import '../../../../core/models/teacher.dart';
 import '../../../../core/models/subject.dart';
@@ -7,6 +8,8 @@ import '../../../../core/models/classroom.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
 import '../../domain/usecases/timetable_generator.dart';
+import '../../domain/models/timetable_dto.dart';
+import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
 
 part 'timetable_provider.g.dart';
 
@@ -113,15 +116,39 @@ class TimetableNotifier extends _$TimetableNotifier {
       // Clear existing schedule assignments by resetting indexes
       final existingLessons = await isar.lessons.where().findAll();
 
-      final generator = TimetableGenerator(
-        teachers: teachers,
-        subjects: subjects,
-        classrooms: classrooms,
-        settings: settings,
-        existingLessons: existingLessons,
-      );
+      // Map Isar to DTOs
+      final teachersMap = {for (var t in teachers) t.id: TeacherDto.fromIsar(t)};
+      final subjectsMap = {for (var s in subjects) s.id: SubjectDto.fromIsar(s)};
+      final classroomsMap = {for (var c in classrooms) c.id: ClassroomDto.fromIsar(c)};
 
-      generator.generate();
+      final existingLessonsDto = existingLessons
+          .map((l) => LessonDto.fromIsar(l, teachersMap, subjectsMap, classroomsMap))
+          .toList();
+
+      final settingsDto = AppSettingsDto.fromIsar(settings);
+
+      final teachersDtoList = teachersMap.values.toList();
+      final subjectsDtoList = subjectsMap.values.toList();
+      final classroomsDtoList = classroomsMap.values.toList();
+
+      // Run Generator in an Isolate
+      final resultDtos = await Isolate.run(() {
+        final generator = TimetableGenerator(
+          teachers: teachersDtoList,
+          subjects: subjectsDtoList,
+          classrooms: classroomsDtoList,
+          settings: settingsDto,
+          existingLessons: existingLessonsDto,
+        );
+        return generator.generate();
+      });
+
+      // Map DTOs back to existingLessons
+      for (var lessonDto in resultDtos) {
+        final lesson = existingLessons.firstWhere((l) => l.id == lessonDto.id);
+        lesson.dayIndex = lessonDto.dayIndex;
+        lesson.periodIndex = lessonDto.periodIndex;
+      }
 
       // Ensure that we save the entire modified pool (even those unplaced/unscheduled)
       // Since generator modifies existingLessons in-place and returns it.
@@ -135,6 +162,8 @@ class TimetableNotifier extends _$TimetableNotifier {
       });
 
       state = AsyncValue.data(existingLessons);
+    } on UnsolvableTimetableException catch (e) {
+      state = AsyncValue.error(e.message, StackTrace.current);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
