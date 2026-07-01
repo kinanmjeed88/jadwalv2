@@ -1,6 +1,7 @@
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -30,15 +31,16 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   Future<void> _exportToPdf() async {
     try {
       final isar = await ref.read(isarDatabaseProvider.future);
-      final lessons = await isar.lessons.where().findAll();
 
-      // Eager loading for IsarLinks using synchronous transaction for peak performance
-      isar.txnSync(() {
-        for (var lesson in lessons) {
+      // Load and guarantee all links are resolved within a single transaction
+      final List<Lesson> lessons = isar.txnSync(() {
+        final all = isar.lessons.where().findAllSync();
+        for (var lesson in all) {
           lesson.classroom.loadSync();
           lesson.subject.loadSync();
           lesson.teacher.loadSync();
         }
+        return all;
       });
 
       final classRooms = await isar.collection<Classroom>().where().findAll();
@@ -81,56 +83,38 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
   Future<void> _exportToImage() async {
     try {
-      final isar = await ref.read(isarDatabaseProvider.future);
-      final lessons = await isar.lessons.where().findAll();
+      final boundary = _classroomKeys[0]?.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
 
-      // Eager loading for IsarLinks using synchronous transaction for peak performance
-      isar.txnSync(() {
-        for (var lesson in lessons) {
-          lesson.classroom.loadSync();
-          lesson.subject.loadSync();
-          lesson.teacher.loadSync();
-        }
-      });
+      if (boundary == null) throw 'تعذر العثور على منطقة الجدول لالتقاطها';
 
-      final classRooms = await isar.collection<Classroom>().where().findAll();
-      final settingsList = await isar.appSettings.where().findAll();
-      final settings = settingsList.isNotEmpty
-          ? settingsList.first
-          : (AppSettings()..periodsPerDay = 7);
+      // Build the image with high pixel ratio for 300DPI-like quality
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
 
-      final pdfUsecase = PdfExportUseCase();
-      final pdfBytes =
-          await pdfUsecase.generateTimetablePdf(lessons, classRooms, settings);
+      if (byteData == null) throw 'فشل في تحويل الجدول إلى بيانات صورة';
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
 
       final tempDir = await getTemporaryDirectory();
-      final imageFiles = <XFile>[];
+      final file = File('${tempDir.path}/timetable_export.png');
+      await file.writeAsBytes(pngBytes);
 
-      int pageIndex = 1;
-      await for (final page in Printing.raster(pdfBytes, dpi: 300)) {
-        final imageBytes = await page.toPng();
-        final file = File('${tempDir.path}/timetable_page_$pageIndex.png');
-        await file.writeAsBytes(imageBytes);
-        imageFiles.add(XFile(file.path));
-        pageIndex++;
-      }
-
-      if (imageFiles.isNotEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('تم تجهيز الصور بنجاح، جاري المشاركة...'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        }
-        await Share.shareXFiles(imageFiles, text: 'جدول الدروس');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم التقاط الجدول بنجاح، جاري المشاركة...'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await Share.shareXFiles([XFile(file.path)], text: 'جدول الدروس (صورة)');
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('حدث خطأ أثناء التصدير: $e'),
+            content: Text('حدث خطأ أثناء تصدير الصورة: $e'),
             backgroundColor: Colors.red,
           ),
         );
@@ -353,10 +337,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: SingleChildScrollView(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: constraints.maxWidth),
-              child: RepaintBoundary(
-                key: _classroomKeys[masterKeyId],
+            child: RepaintBoundary(
+              key: _classroomKeys[masterKeyId],
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
                 child: Transform.scale(
                   scale: _zoomLevel,
                   alignment: Alignment.topRight,
