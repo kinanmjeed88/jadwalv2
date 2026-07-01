@@ -131,17 +131,14 @@ class TimetableNotifier extends _$TimetableNotifier {
       final subjectsDtoList = subjectsMap.values.toList();
       final classroomsDtoList = classroomsMap.values.toList();
 
-      // Run Generator in an Isolate
-      final resultDtos = await Isolate.run(() {
-        final generator = TimetableGenerator(
-          teachers: teachersDtoList,
-          subjects: subjectsDtoList,
-          classrooms: classroomsDtoList,
-          settings: settingsDto,
-          existingLessons: existingLessonsDto,
-        );
-        return generator.generate();
-      });
+      // Run Generator in an Isolate using a top-level function to avoid capturing `this`
+      final resultDtos = await Isolate.run(() => _generateInIsolate(
+        teachersDtoList,
+        subjectsDtoList,
+        classroomsDtoList,
+        settingsDto,
+        existingLessonsDto,
+      ));
 
       // Map DTOs back to existingLessons
       for (var lessonDto in resultDtos) {
@@ -345,4 +342,22 @@ class TimetableNotifier extends _$TimetableNotifier {
     state = AsyncValue.data(await isar.lessons.where().findAll());
     return (true, null);
   }
+}
+
+/// A top-level function that strictly accepts DTOs, isolating memory.
+List<LessonDto> _generateInIsolate(
+  List<TeacherDto> teachers,
+  List<SubjectDto> subjects,
+  List<ClassroomDto> classrooms,
+  AppSettingsDto settings,
+  List<LessonDto> existingLessons,
+) {
+  final generator = TimetableGenerator(
+    teachers: teachers,
+    subjects: subjects,
+    classrooms: classrooms,
+    settings: settings,
+    existingLessons: existingLessons,
+  );
+  return generator.generate();
 }
