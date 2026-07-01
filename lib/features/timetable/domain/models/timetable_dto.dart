@@ -27,8 +27,8 @@ class TeacherDto {
       name: teacher.name,
       maxLessonsPerDay: teacher.maxLessonsPerDay,
       maxLessonsPerWeek: teacher.maxLessonsPerWeek,
-      unavailableDays: List.from(teacher.unavailableDays),
-      allowedPeriods: List.from(teacher.allowedPeriods),
+      unavailableDays: teacher.unavailableDays.map((e) => e).toList(),
+      allowedPeriods: teacher.allowedPeriods.map((e) => e).toList(),
     );
   }
 }
@@ -54,7 +54,7 @@ class SubjectDto {
       name: subject.name,
       lessonsPerWeek: subject.lessonsPerWeek,
       preferEarlyPeriods: subject.preferEarlyPeriods,
-      allowedPeriods: List.from(subject.allowedPeriods),
+      allowedPeriods: subject.allowedPeriods.map((e) => e).toList(),
     );
   }
 }
