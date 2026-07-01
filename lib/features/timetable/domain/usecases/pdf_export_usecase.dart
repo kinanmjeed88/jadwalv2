@@ -21,10 +21,7 @@ class PdfExportUseCase {
     final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
-    PdfPageFormat format = PdfPageFormat.a4;
-    if (settings.exportOrientation == 'Landscape') {
-      format = format.landscape;
-    }
+    PdfPageFormat format = PdfPageFormat.a4.landscape;
 
     final Map<String, Lesson> lessonMap = {};
     for (final l in lessons) {
@@ -38,7 +35,7 @@ class PdfExportUseCase {
 
     for (var teacher in teachers) {
       doc.addPage(
-        pw.Page(
+        pw.MultiPage(
           pageFormat: format,
           textDirection: pw.TextDirection.rtl,
           margin: const pw.EdgeInsets.all(20),
@@ -46,18 +43,13 @@ class PdfExportUseCase {
             base: font,
             bold: font,
           ),
+          header: (pw.Context context) => _buildHeader(settings, font, subtitle: 'جدول المدرس: ${teacher.name}'),
+          footer: (pw.Context context) => _buildFooter(settings, font, context),
           build: (pw.Context context) {
-            return pw.Column(
-              children: [
-                _buildHeader(settings, font),
-                pw.SizedBox(height: 10),
-                pw.Text('جدول المدرس: ${teacher.name}', style: pw.TextStyle(font: font, fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                pw.SizedBox(height: 15),
-                _buildTeacherTable(teacher, lessonMap, settings, font, format.availableWidth - 40),
-                pw.Spacer(),
-                _buildFooter(settings, font),
-              ]
-            );
+            return [
+              pw.SizedBox(height: 15),
+              _buildTeacherTable(teacher, lessonMap, settings, font, format.availableWidth - 40),
+            ];
           },
         ),
       );
@@ -89,6 +81,7 @@ class PdfExportUseCase {
     // Header Row
     rows.add(
       pw.TableRow(
+        repeat: true,
         decoration: const pw.BoxDecoration(color: PdfColors.teal100),
         children: [
           _buildCell('اليوم / الحصة', font, 12, isHeader: true),
@@ -155,31 +148,7 @@ class PdfExportUseCase {
     // Sort classrooms by id to keep consistent order
     classrooms.sort((a, b) => a.id.compareTo(b.id));
 
-    PdfPageFormat format;
-    switch (settings.exportPageSize) {
-      case 'A3':
-        format = PdfPageFormat.a3;
-        break;
-      case 'Custom':
-        final double width =
-            (settings.customPageWidth ?? 21.0) * PdfPageFormat.cm;
-        final double height =
-            (settings.customPageHeight ?? 29.7) * PdfPageFormat.cm;
-        format = PdfPageFormat(width, height);
-        break;
-      case 'A4':
-      default:
-        format = PdfPageFormat.a4;
-        break;
-    }
-
-    if (settings.exportPageSize != 'Custom') {
-      if (settings.exportOrientation == 'Landscape') {
-        format = format.landscape;
-      } else {
-        format = format.portrait;
-      }
-    }
+    PdfPageFormat format = PdfPageFormat.a3.landscape;
 
     // Determine layout constraints
     final double margins = 40.0; // 20 each side
@@ -229,7 +198,7 @@ class PdfExportUseCase {
             bold: font,
           ),
           header: (pw.Context context) => _buildHeader(settings, font),
-          footer: (pw.Context context) => _buildFooter(settings, font),
+          footer: (pw.Context context) => _buildFooter(settings, font, context),
           build: (pw.Context context) {
             return [
               pw.SizedBox(height: 15),
@@ -243,14 +212,14 @@ class PdfExportUseCase {
     return doc.save();
   }
 
-  pw.Widget _buildHeader(AppSettings settings, pw.Font font) {
+  pw.Widget _buildHeader(AppSettings settings, pw.Font font, {String? subtitle}) {
     return pw.Directionality(
       textDirection: pw.TextDirection.rtl,
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Expanded(
-            flex: 15,
+            flex: 1,
             child: pw.Text(
               settings.schoolName,
               style: pw.TextStyle(
@@ -259,7 +228,7 @@ class PdfExportUseCase {
             ),
           ),
           pw.Expanded(
-            flex: 20,
+            flex: 2,
             child: pw.Column(children: [
               pw.Text(
                 'جدول الدروس الأسبوعي',
@@ -267,6 +236,16 @@ class PdfExportUseCase {
                     fontSize: 18, font: font, fontWeight: pw.FontWeight.bold),
                 textAlign: pw.TextAlign.center,
               ),
+              if (subtitle != null) ...[
+                pw.SizedBox(height: 4),
+                pw.Text(
+                  subtitle,
+                  style: pw.TextStyle(
+                      fontSize: 16, font: font, fontWeight: pw.FontWeight.bold),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ],
+              pw.SizedBox(height: 4),
               pw.Text(
                 'العام الدراسي: ${getAcademicYear()}',
                 style: pw.TextStyle(fontSize: 12, font: font),
@@ -275,36 +254,22 @@ class PdfExportUseCase {
             ]),
           ),
           pw.Expanded(
-            flex: 15,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                pw.Text(
-                  'توقيع المدير',
-                  style: pw.TextStyle(
-                    fontSize: 14,
-                    font: font,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                  textAlign: pw.TextAlign.center,
-                ),
-                pw.SizedBox(height: 20),
-              ],
-            ),
+            flex: 1,
+            child: pw.SizedBox(),
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _buildFooter(AppSettings settings, pw.Font font) {
+  pw.Widget _buildFooter(AppSettings settings, pw.Font font, pw.Context context) {
     return pw.Container(
-        alignment: pw.Alignment.centerLeft,
+        alignment: pw.Alignment.center,
         padding: const pw.EdgeInsets.only(top: 10),
         child: pw.Text(
-          'مدير المدرسة / ${settings.principalName}',
+          'صفحة ${context.pageNumber} من ${context.pagesCount}',
           style: pw.TextStyle(
-              fontSize: 12, font: font, fontWeight: pw.FontWeight.bold),
+              fontSize: 12, font: font, fontWeight: pw.FontWeight.normal),
           textDirection: pw.TextDirection.rtl,
         ));
   }

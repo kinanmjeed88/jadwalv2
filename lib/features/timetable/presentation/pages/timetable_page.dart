@@ -27,6 +27,7 @@ class TimetablePage extends ConsumerStatefulWidget {
 
 class _TimetablePageState extends ConsumerState<TimetablePage> {
   final Map<int, GlobalKey> _classroomKeys = {};
+  final GlobalKey _exportKey = GlobalKey();
   double _zoomLevel = 1.0;
 
   Future<void> _exportTeacherPdf() async {
@@ -136,13 +137,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
   Future<void> _exportToImage() async {
     try {
-      final boundary = _classroomKeys[0]?.currentContext?.findRenderObject()
+      final boundary = _exportKey.currentContext?.findRenderObject()
           as RenderRepaintBoundary?;
 
       if (boundary == null) throw 'تعذر العثور على منطقة الجدول لالتقاطها';
 
       // Build the image with high pixel ratio for 300DPI-like quality
-      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
       final ByteData? byteData =
           await image.toByteData(format: ui.ImageByteFormat.png);
 
@@ -207,26 +208,59 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           ),
         ],
       ),
-      body: lessonsAsync.when(
-        data: (lessons) {
-          return settingsAsync.when(
-            data: (settingsFuture) => FutureBuilder<AppSettings>(
-              future: settingsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final settings =
-                    snapshot.data ?? (AppSettings()..periodsPerDay = 7);
-                return _buildTimetableGrid(context, lessons, settings);
-              },
-            ),
+      body: Stack(
+        children: [
+          lessonsAsync.when(
+            data: (lessons) {
+              return settingsAsync.when(
+                data: (settingsFuture) => FutureBuilder<AppSettings>(
+                  future: settingsFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final settings =
+                        snapshot.data ?? (AppSettings()..periodsPerDay = 7);
+                    return _buildTimetableGrid(context, lessons, settings);
+                  },
+                ),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, st) => Center(child: Text('خطأ في جلب الإعدادات: $e')),
+              );
+            },
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, st) => Center(child: Text('خطأ في جلب الإعدادات: $e')),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('حدث خطأ: $e')),
+            error: (e, st) => Center(child: Text('حدث خطأ: $e')),
+          ),
+
+          // Off-screen export widget that is painted but invisible and unconstrained
+          lessonsAsync.maybeWhen(
+            data: (lessons) => settingsAsync.maybeWhen(
+              data: (settingsFuture) => FutureBuilder<AppSettings>(
+                future: settingsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox.shrink();
+                  }
+                  final settings =
+                      snapshot.data ?? (AppSettings()..periodsPerDay = 7);
+                  return Positioned(
+                    top: -10000,
+                    left: -10000,
+                    child: OverflowBox(
+                      minWidth: 0,
+                      maxWidth: double.infinity,
+                      minHeight: 0,
+                      maxHeight: double.infinity,
+                      child: _buildExportGrid(lessons, settings),
+                    ),
+                  );
+                },
+              ),
+              orElse: () => const SizedBox.shrink(),
+            ),
+            orElse: () => const SizedBox.shrink(),
+          ),
+        ],
       ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
@@ -256,6 +290,180 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             icon: const Icon(Icons.autorenew),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildExportGrid(List<Lesson> lessons, AppSettings settings) {
+    final assigned = lessons.where((l) => !l.isUnassigned).toList();
+
+    final uniqueClassrooms = <int, Classroom>{};
+    for (var lesson in assigned) {
+      if (lesson.classroom.value != null) {
+        uniqueClassrooms[lesson.classroom.value!.id] = lesson.classroom.value!;
+      }
+    }
+    final classrooms = uniqueClassrooms.values.toList()
+      ..sort((a, b) => a.id.compareTo(b.id));
+
+    final Map<String, Lesson> lessonMap = {};
+    for (var lesson in assigned) {
+      final cId = lesson.classroom.value?.id;
+      if (cId != null) {
+        lessonMap['${cId}_${lesson.dayIndex}_${lesson.periodIndex}'] = lesson;
+      }
+    }
+
+    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+    final displayDays = days.take(settings.daysPerWeek).toList();
+
+    List<DataRow> rows = [];
+    for (int d = 0; d < displayDays.length; d++) {
+      for (int p = 0; p < settings.periodsPerDay; p++) {
+        List<DataCell> cells = [];
+
+        if (p == 0) {
+          cells.add(DataCell(Container(
+            alignment: Alignment.center,
+            child: Text(displayDays[d],
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          )));
+        } else {
+          cells.add(DataCell(const SizedBox.shrink()));
+        }
+
+        cells.add(DataCell(Container(
+          alignment: Alignment.center,
+          child: Text((p + 1).toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        )));
+
+        for (var classroom in classrooms) {
+          final lesson = lessonMap['${classroom.id}_${d}_${p}'];
+          if (lesson != null) {
+            cells.add(DataCell(Container(
+              alignment: Alignment.center,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(lesson.subject.value?.name ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  Text(lesson.teacher.value?.name ?? '', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                ],
+              ),
+            )));
+          } else {
+            cells.add(DataCell(const SizedBox.shrink()));
+          }
+        }
+
+        rows.add(DataRow(
+          color: p % 2 == 0
+              ? WidgetStateProperty.all(Colors.grey.shade50)
+              : WidgetStateProperty.all(Colors.white),
+          cells: cells,
+        ));
+      }
+    }
+
+    final now = DateTime.now();
+    int startYear = now.month >= 9 ? now.year : now.year - 1;
+    final academicYear = '$startYear/${startYear + 1}';
+
+    // Set A3 landscape roughly equivalent dimensions
+    // 420mm x 297mm -> approx 1600 x 1120 pixels
+    double exportWidth = 1600.0;
+    // We can allow the height to grow based on the content
+
+    // Scale column spacing based on number of columns to fit
+    double colSpacing = 16.0;
+    if (classrooms.length > 8) colSpacing = 8.0;
+    if (classrooms.length > 12) colSpacing = 4.0;
+
+    return RepaintBoundary(
+      key: _exportKey,
+      child: Container(
+        width: exportWidth,
+        color: Colors.white,
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Directionality(
+              textDirection: TextDirection.rtl,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Text(
+                      settings.schoolName,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Column(children: [
+                      const Text(
+                        'جدول الدروس الأسبوعي',
+                        style: TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'العام الدراسي: $academicYear',
+                        style: const TextStyle(fontSize: 16, color: Colors.black87),
+                        textAlign: TextAlign.center,
+                      ),
+                    ]),
+                  ),
+                  const Expanded(
+                    flex: 1,
+                    child: SizedBox(),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Directionality(
+              textDirection: TextDirection.rtl,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.black26),
+                ),
+                child: DataTable(
+                  border: TableBorder.all(color: Colors.black26),
+                  headingRowColor: WidgetStateProperty.all(Colors.grey.shade200),
+                  columnSpacing: colSpacing,
+                  horizontalMargin: 8.0,
+                  dataRowMinHeight: 60.0,
+                  dataRowMaxHeight: 70.0,
+                  headingRowHeight: 50.0,
+                  columns: [
+                    const DataColumn(
+                        label: Expanded(child: Text('اليوم',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+                    const DataColumn(
+                        label: Expanded(child: Text('الدرس',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+                    for (var classroom in classrooms)
+                      DataColumn(
+                          label: Expanded(child: Text(classroom.name,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+                  ],
+                  rows: rows,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
