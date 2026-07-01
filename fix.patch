@@ -1,0 +1,12 @@
+--- lib/features/timetable/domain/usecases/timetable_generator.dart
++++ lib/features/timetable/domain/usecases/timetable_generator.dart
+@@ -73,7 +73,7 @@
+   }
+
+-  int _calculateConstraintScore(Lesson lesson, int maxDays, int maxPeriods) {
+-    int score = maxDays * maxPeriods;
++  double _calculateConstraintScore(Lesson lesson, int maxDays, int maxPeriods) {
++    double score = (maxDays * maxPeriods).toDouble();
+
+     // Teacher unavailable days
+     if (lesson.teacher.value != null) {

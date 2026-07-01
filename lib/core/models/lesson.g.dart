@@ -22,13 +22,18 @@ const LessonSchema = CollectionSchema(
       name: r'dayIndex',
       type: IsarType.long,
     ),
-    r'isUnassigned': PropertySchema(
+    r'isPinned': PropertySchema(
       id: 1,
+      name: r'isPinned',
+      type: IsarType.bool,
+    ),
+    r'isUnassigned': PropertySchema(
+      id: 2,
       name: r'isUnassigned',
       type: IsarType.bool,
     ),
     r'periodIndex': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'periodIndex',
       type: IsarType.long,
     )
@@ -82,8 +87,9 @@ void _lessonSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeLong(offsets[0], object.dayIndex);
-  writer.writeBool(offsets[1], object.isUnassigned);
-  writer.writeLong(offsets[2], object.periodIndex);
+  writer.writeBool(offsets[1], object.isPinned);
+  writer.writeBool(offsets[2], object.isUnassigned);
+  writer.writeLong(offsets[3], object.periodIndex);
 }
 
 Lesson _lessonDeserialize(
@@ -95,7 +101,8 @@ Lesson _lessonDeserialize(
   final object = Lesson();
   object.dayIndex = reader.readLongOrNull(offsets[0]);
   object.id = id;
-  object.periodIndex = reader.readLongOrNull(offsets[2]);
+  object.isPinned = reader.readBool(offsets[1]);
+  object.periodIndex = reader.readLongOrNull(offsets[3]);
   return object;
 }
 
@@ -111,6 +118,8 @@ P _lessonDeserializeProp<P>(
     case 1:
       return (reader.readBool(offset)) as P;
     case 2:
+      return (reader.readBool(offset)) as P;
+    case 3:
       return (reader.readLongOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -330,6 +339,16 @@ extension LessonQueryFilter on QueryBuilder<Lesson, Lesson, QFilterCondition> {
     });
   }
 
+  QueryBuilder<Lesson, Lesson, QAfterFilterCondition> isPinnedEqualTo(
+      bool value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'isPinned',
+        value: value,
+      ));
+    });
+  }
+
   QueryBuilder<Lesson, Lesson, QAfterFilterCondition> isUnassignedEqualTo(
       bool value) {
     return QueryBuilder.apply(this, (query) {
@@ -466,6 +485,18 @@ extension LessonQuerySortBy on QueryBuilder<Lesson, Lesson, QSortBy> {
     });
   }
 
+  QueryBuilder<Lesson, Lesson, QAfterSortBy> sortByIsPinned() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isPinned', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Lesson, Lesson, QAfterSortBy> sortByIsPinnedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isPinned', Sort.desc);
+    });
+  }
+
   QueryBuilder<Lesson, Lesson, QAfterSortBy> sortByIsUnassigned() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isUnassigned', Sort.asc);
@@ -516,6 +547,18 @@ extension LessonQuerySortThenBy on QueryBuilder<Lesson, Lesson, QSortThenBy> {
     });
   }
 
+  QueryBuilder<Lesson, Lesson, QAfterSortBy> thenByIsPinned() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isPinned', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Lesson, Lesson, QAfterSortBy> thenByIsPinnedDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'isPinned', Sort.desc);
+    });
+  }
+
   QueryBuilder<Lesson, Lesson, QAfterSortBy> thenByIsUnassigned() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'isUnassigned', Sort.asc);
@@ -548,6 +591,12 @@ extension LessonQueryWhereDistinct on QueryBuilder<Lesson, Lesson, QDistinct> {
     });
   }
 
+  QueryBuilder<Lesson, Lesson, QDistinct> distinctByIsPinned() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'isPinned');
+    });
+  }
+
   QueryBuilder<Lesson, Lesson, QDistinct> distinctByIsUnassigned() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'isUnassigned');
@@ -571,6 +620,12 @@ extension LessonQueryProperty on QueryBuilder<Lesson, Lesson, QQueryProperty> {
   QueryBuilder<Lesson, int?, QQueryOperations> dayIndexProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'dayIndex');
+    });
+  }
+
+  QueryBuilder<Lesson, bool, QQueryOperations> isPinnedProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'isPinned');
     });
   }
 

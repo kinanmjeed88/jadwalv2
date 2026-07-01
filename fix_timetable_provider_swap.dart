@@ -1,145 +1,20 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:isar/isar.dart';
-import '../../../../core/providers/database_provider.dart';
-import '../../../../core/models/teacher.dart';
-import '../../../../core/models/subject.dart';
-import '../../../../core/models/classroom.dart';
-import '../../../../core/models/lesson.dart';
-import '../../../../core/models/settings.dart';
-import '../../domain/usecases/timetable_generator.dart';
+import 'dart:io';
 
-part 'timetable_provider.g.dart';
+void main() {
+  var file = File('lib/features/timetable/presentation/providers/timetable_provider.dart');
+  var content = file.readAsStringSync();
 
-@riverpod
-class TimetableNotifier extends _$TimetableNotifier {
-  @override
-  Future<List<Lesson>> build() async {
-    final isar = await ref.watch(isarDatabaseProvider.future);
-    return isar.lessons.where().findAll();
+  // Replace the entire swapLessons block and append moveLessonToEmpty
+  var lines = content.split('\n');
+  int startIdx = lines.indexWhere((l) => l.contains('Future<(bool, String?)> swapLessons('));
+
+  if (startIdx != -1) {
+    // Delete till end of file
+    lines.removeRange(startIdx, lines.length);
   }
 
-  Future<(bool, String?)> assignLessonsToPool(
-      Classroom classroom, Subject subject, Teacher teacher) async {
-    final isar = await ref.read(isarDatabaseProvider.future);
-
-    final allLessons = await isar.lessons.where().findAll();
-
-    // Check duplicate assignment
-    bool duplicateAssignment = allLessons.any((l) =>
-      l.classroom.value?.id == classroom.id &&
-      l.subject.value?.id == subject.id);
-
-    if (duplicateAssignment) {
-      return (false, "تم إسناد هذه المادة لهذا الصف مسبقاً");
-    }
-
-    // Check capacity overload
-    int teacherAssignedLessons = allLessons.where((l) => l.teacher.value?.id == teacher.id).length;
-    if (teacherAssignedLessons + subject.lessonsPerWeek > teacher.maxLessonsPerWeek) {
-      return (false, "لا يمكن الإسناد: سعة المدرس الأسبوعية لا تكفي");
-    }
-
-    final newLessons = <Lesson>[];
-    for (int i = 0; i < subject.lessonsPerWeek; i++) {
-      final lesson = Lesson()
-        ..classroom.value = classroom
-        ..subject.value = subject
-        ..teacher.value = teacher;
-      newLessons.add(lesson);
-    }
-
-    isar.writeTxnSync(() {
-      isar.lessons.putAllSync(newLessons);
-      for (var l in newLessons) {
-        l.classroom.saveSync();
-        l.subject.saveSync();
-        l.teacher.saveSync();
-      }
-    });
-
-    state = AsyncValue.data(await isar.lessons.where().findAll());
-    return (true, null);
-  }
-
-  Future<void> deleteAssignment(int classroomId, int subjectId) async {
-    final isar = await ref.read(isarDatabaseProvider.future);
-    final allLessons = await isar.lessons.where().findAll();
-    final toDelete = allLessons
-        .where((l) =>
-            l.classroom.value?.id == classroomId &&
-            l.subject.value?.id == subjectId)
-        .toList();
-
-    isar.writeTxnSync(() {
-      isar.lessons.deleteAllSync(toDelete.map((e) => e.id).toList());
-    });
-    state = AsyncValue.data(await isar.lessons.where().findAll());
-  }
-
-  Future<void> updateAssignment(
-      int classroomId, int subjectId, Teacher newTeacher) async {
-    final isar = await ref.read(isarDatabaseProvider.future);
-    final allLessons = await isar.lessons.where().findAll();
-    final toUpdate = allLessons
-        .where((l) =>
-            l.classroom.value?.id == classroomId &&
-            l.subject.value?.id == subjectId)
-        .toList();
-
-    isar.writeTxnSync(() {
-      for (var lesson in toUpdate) {
-        lesson.teacher.value = newTeacher;
-        isar.lessons.putSync(lesson);
-        lesson.teacher.saveSync();
-      }
-    });
-    state = AsyncValue.data(await isar.lessons.where().findAll());
-  }
-
-  Future<void> generateTimetable() async {
-    state = const AsyncValue.loading();
-
-    try {
-      final isar = await ref.read(isarDatabaseProvider.future);
-
-      final teachers = await isar.teachers.where().findAll();
-      final subjects = await isar.subjects.where().findAll();
-      final classrooms = await isar.classrooms.where().findAll();
-      final settingsList = await isar.appSettings.where().findAll();
-      final settings = settingsList.isNotEmpty
-          ? settingsList.first
-          : (AppSettings()..periodsPerDay = 7);
-
-      // Clear existing schedule assignments by resetting indexes
-      final existingLessons = await isar.lessons.where().findAll();
-
-      final generator = TimetableGenerator(
-        teachers: teachers,
-        subjects: subjects,
-        classrooms: classrooms,
-        settings: settings,
-        existingLessons: existingLessons,
-      );
-
-      generator.generate();
-
-      // Ensure that we save the entire modified pool (even those unplaced/unscheduled)
-      // Since generator modifies existingLessons in-place and returns it.
-      isar.writeTxnSync(() {
-        isar.lessons.putAllSync(existingLessons);
-        for (var lesson in existingLessons) {
-          lesson.teacher.saveSync();
-          lesson.subject.saveSync();
-          lesson.classroom.saveSync();
-        }
-      });
-
-      state = AsyncValue.data(existingLessons);
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-    }
-  }
-
+  // Append new methods
+  lines.add('''
   Future<void> togglePin(Lesson lesson) async {
     final isar = await ref.read(isarDatabaseProvider.future);
     isar.writeTxnSync(() {
@@ -264,7 +139,7 @@ class TimetableNotifier extends _$TimetableNotifier {
         false) {
       return (
         false,
-        "المدرس (${lesson1.teacher.value?.name}) مفرغ في هذا اليوم"
+        "المدرس (\${lesson1.teacher.value?.name}) مفرغ في هذا اليوم"
       );
     }
 
@@ -272,7 +147,7 @@ class TimetableNotifier extends _$TimetableNotifier {
         false) {
       return (
         false,
-        "المدرس (${lesson2.teacher.value?.name}) مفرغ في هذا اليوم"
+        "المدرس (\${lesson2.teacher.value?.name}) مفرغ في هذا اليوم"
       );
     }
 
@@ -316,4 +191,8 @@ class TimetableNotifier extends _$TimetableNotifier {
     state = AsyncValue.data(await isar.lessons.where().findAll());
     return (true, null);
   }
+}
+''');
+
+  file.writeAsStringSync(lines.join('\n'));
 }
