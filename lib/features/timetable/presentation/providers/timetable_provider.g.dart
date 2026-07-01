@@ -6,7 +6,7 @@ part of 'timetable_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$timetableNotifierHash() => r'475d6e43a5f398e1f39c71a924b0f452c0412739';
+String _$timetableNotifierHash() => r'7cfa5f05fa638236a8a940b0ba4cd3ee3cc6fee4';
 
 /// See also [TimetableNotifier].
 @ProviderFor(TimetableNotifier)
