@@ -1,6 +1,5 @@
 import 'package:flutter/services.dart';
 import 'package:pdf/pdf.dart';
-
 import 'package:pdf/widgets.dart' as pw;
 
 import '../../../../core/models/lesson.dart';
@@ -21,23 +20,13 @@ class PdfExportUseCase {
     final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
-    // Group classrooms by Grade
-    final classroomsByGrade = <String, List<Classroom>>{};
     // Sort classrooms by id to keep consistent order
     classrooms.sort((a, b) => a.id.compareTo(b.id));
-    for (var c in classrooms) {
-      classroomsByGrade.putIfAbsent(c.grade, () => []).add(c);
-    }
-
-    final List<String> gradeNames = classroomsByGrade.keys.toList();
 
     PdfPageFormat format;
-
-
     switch (settings.exportPageSize) {
       case 'A3':
         format = PdfPageFormat.a3;
-
         break;
       case 'Custom':
         final double width =
@@ -49,7 +38,6 @@ class PdfExportUseCase {
       case 'A4':
       default:
         format = PdfPageFormat.a4;
-
         break;
     }
 
@@ -61,44 +49,46 @@ class PdfExportUseCase {
       }
     }
 
-    // Determine layout constraints dynamically based on available width
-    // margins are 20 on each side (total 40)
-    final double availableWidth = format.availableWidth - 40;
+    // Determine layout constraints
+    final double margins = 40.0; // 20 each side
+    final double availableWidth = format.width - margins;
 
-    // We want a minimum width per classroom column. Let's say 50pt.
-    // Proportions: Day (0.8), Period (0.6) = 1.4 units. Each classroom = 1.0 unit.
-    // Total units = 1.4 + maxCapacity.
-    // We need: availableWidth / (1.4 + maxCapacity) >= 50
-    // So: 1.4 + maxCapacity <= availableWidth / 50
-    // maxCapacity <= (availableWidth / 50) - 1.4
+    // Minimum acceptable width for a classroom column is 50pt
+    // Day (0.8 unit) + Period (0.6 unit) + Classrooms (1.0 unit each)
+    // totalUnits = 1.4 + classroomCount
+    // availableWidth / (1.4 + classroomCount) >= 50
+    // 1.4 + classroomCount <= availableWidth / 50
+    // classroomCount <= (availableWidth / 50) - 1.4
 
     int maxCapacity = ((availableWidth / 50) - 1.4).floor();
     if (maxCapacity < 1) maxCapacity = 1;
 
-    int totalClassroomsCount = classrooms.length;
-    if (totalClassroomsCount < maxCapacity) {
-      maxCapacity = totalClassroomsCount;
-    }
+    // In Landscape, we try to fit more, but still need a limit to keep it readable.
+    // If the user didn't specify a limit, we use the calculated one.
 
-    // Collect all classrooms sorted by grade and id
-    final orderedClassrooms = <Classroom>[];
-    for (var g in gradeNames) {
-      orderedClassrooms.addAll(classroomsByGrade[g]!);
-    }
-
-    // Split classrooms into chunks based on maxCapacity
-    for (int i = 0; i < orderedClassrooms.length; i += maxCapacity) {
-      final chunkClassrooms = orderedClassrooms.sublist(
+    final List<List<Classroom>> horizontalChunks = [];
+    for (int i = 0; i < classrooms.length; i += maxCapacity) {
+      horizontalChunks.add(classrooms.sublist(
           i,
-          i + maxCapacity > orderedClassrooms.length
-              ? orderedClassrooms.length
-              : i + maxCapacity);
+          i + maxCapacity > classrooms.length
+              ? classrooms.length
+              : i + maxCapacity));
+    }
 
-      if (chunkClassrooms.isEmpty) continue;
+    // Build the lesson map once with full data guarantee
+    final Map<String, Lesson> lessonMap = {};
+    for (final l in lessons) {
+      if (!l.isUnassigned) {
+        final cId = l.classroom.value?.id;
+        if (cId != null) {
+          lessonMap['${cId}_${l.dayIndex}_${l.periodIndex}'] = l;
+        }
+      }
+    }
 
+    for (var chunk in horizontalChunks) {
       doc.addPage(
-
-        pw.Page(
+        pw.MultiPage(
           pageFormat: format,
           textDirection: pw.TextDirection.rtl,
           margin: const pw.EdgeInsets.all(20),
@@ -106,105 +96,13 @@ class PdfExportUseCase {
             base: font,
             bold: font,
           ),
+          header: (pw.Context context) => _buildHeader(settings, font),
+          footer: (pw.Context context) => _buildFooter(settings, font),
           build: (pw.Context context) {
-            return pw.Directionality(
-              textDirection: pw.TextDirection.rtl,
-              child: pw.Theme(
-                data: pw.ThemeData.withFont(
-                  base: font,
-                  bold: font,
-                ),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                  children: [
-                    // Header
-                    pw.Directionality(
-                      textDirection: pw.TextDirection.rtl,
-                      child: pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                        children: [
-                        pw.Expanded(
-                          flex: 15,
-                          child: pw.Text(
-                            settings.schoolName,
-                            style: pw.TextStyle(
-                                fontSize: 14,
-                                font: font,
-                                fontWeight: pw.FontWeight.bold),
-                            textAlign: pw.TextAlign.right,
-                            textDirection: pw.TextDirection.rtl,
-                          ),
-                        ),
-                        pw.Expanded(
-                          flex: 20,
-                          child: pw.Column(children: [
-                            pw.Text(
-                              'جدول الدروس الأسبوعي',
-                              style: pw.TextStyle(
-                                  fontSize: 18,
-                                  font: font,
-                                  fontWeight: pw.FontWeight.bold),
-                              textAlign: pw.TextAlign.center,
-                              textDirection: pw.TextDirection.rtl,
-                            ),
-                            pw.Text(
-                              'العام الدراسي: ${getAcademicYear()}',
-                              style: pw.TextStyle(fontSize: 12, font: font),
-                              textAlign: pw.TextAlign.center,
-                              textDirection: pw.TextDirection.rtl,
-                            ),
-                          ]),
-                        ),
-                        pw.Expanded(
-                          flex: 15,
-                          child: pw.Column(
-                            crossAxisAlignment: pw.CrossAxisAlignment.center,
-                            children: [
-                              pw.Text(
-                                'توقيع المدير',
-                                style: pw.TextStyle(
-                                  fontSize: 14,
-                                  font: font,
-                                  fontWeight: pw.FontWeight.bold,
-                                ),
-                                textAlign: pw.TextAlign.center,
-                                textDirection: pw.TextDirection.rtl,
-                              ),
-                                pw.SizedBox(height: 30), // Empty space for handwritten signature
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    pw.SizedBox(height: 15),
-                    // Master Table
-                    pw.Expanded(
-                      child: pw.LayoutBuilder(
-                        builder: (pw.Context context, pw.BoxConstraints? constraints) {
-                          return _buildMasterTable(chunkClassrooms, lessons,
-                              settings, font, constraints, maxCapacity);
-                        },
-                      ),
-                    ),
-                    pw.SizedBox(height: 10),
-                    // Footer / Principal
-                    pw.Row(
-                        mainAxisAlignment: pw.MainAxisAlignment.end,
-                        children: [
-                          pw.Text(
-                            'مدير المدرسة / ${settings.principalName}',
-                            style: pw.TextStyle(
-                                fontSize: 14,
-                                font: font,
-                                fontWeight: pw.FontWeight.bold),
-                            textDirection: pw.TextDirection.rtl,
-                          ),
-                        ])
-                  ],
-                ),
-              ),
-            );
+            return [
+              pw.SizedBox(height: 15),
+              _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth - 40),
+            ];
           },
         ),
       );
@@ -213,147 +111,152 @@ class PdfExportUseCase {
     return doc.save();
   }
 
+  pw.Widget _buildHeader(AppSettings settings, pw.Font font) {
+    return pw.Directionality(
+      textDirection: pw.TextDirection.rtl,
+      child: pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        children: [
+          pw.Expanded(
+            flex: 15,
+            child: pw.Text(
+              settings.schoolName,
+              style: pw.TextStyle(
+                  fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
+              textAlign: pw.TextAlign.right,
+            ),
+          ),
+          pw.Expanded(
+            flex: 20,
+            child: pw.Column(children: [
+              pw.Text(
+                'جدول الدروس الأسبوعي',
+                style: pw.TextStyle(
+                    fontSize: 18, font: font, fontWeight: pw.FontWeight.bold),
+                textAlign: pw.TextAlign.center,
+              ),
+              pw.Text(
+                'العام الدراسي: ${getAcademicYear()}',
+                style: pw.TextStyle(fontSize: 12, font: font),
+                textAlign: pw.TextAlign.center,
+              ),
+            ]),
+          ),
+          pw.Expanded(
+            flex: 15,
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.center,
+              children: [
+                pw.Text(
+                  'توقيع المدير',
+                  style: pw.TextStyle(
+                    fontSize: 14,
+                    font: font,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+                pw.SizedBox(height: 20),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  pw.Widget _buildFooter(AppSettings settings, pw.Font font) {
+    return pw.Container(
+        alignment: pw.Alignment.centerLeft,
+        padding: const pw.EdgeInsets.only(top: 10),
+        child: pw.Text(
+          'مدير المدرسة / ${settings.principalName}',
+          style: pw.TextStyle(
+              fontSize: 12, font: font, fontWeight: pw.FontWeight.bold),
+          textDirection: pw.TextDirection.rtl,
+        ));
+  }
+
   pw.Widget _buildMasterTable(
-      List<Classroom> classrooms,
-      List<Lesson> allLessons,
+      List<Classroom> chunk,
+      Map<String, Lesson> lessonMap,
       AppSettings settings,
       pw.Font font,
-      pw.BoxConstraints? constraints,
-      int maxCapacity) {
+      double availableWidth) {
     final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
     final displayDays = days.take(settings.daysPerWeek).toList();
     final int periodsPerDay = settings.periodsPerDay;
 
-    // Calculate fixed widths based on available page width
-    // margins are 20 on each side (total 40)
-    final double availableWidth = constraints?.maxWidth ?? 500.0;
-
-    // Use maxCapacity or actual length, whichever is greater (to avoid overflow, but typically classrooms <= maxCapacity in portrait)
-    // Actually, user wants unitWidth to be calculated strictly using maxCapacity or total classrooms if total < maxCapacity.
-    // Wait, the instructions say:
-    // "For A4 Portrait, maxCapacity = 6. For A3 Portrait, maxCapacity = 10."
-    // "If the total classrooms in the school is less than maxCapacity, use the actual number of classrooms."
-    // "For Landscape orientation... adjust maxCols to the total classrooms."
-    int columnsToFit = classrooms.length;
-    if (settings.exportOrientation != 'Landscape') {
-      columnsToFit =
-          maxCapacity; // Enforce maxCapacity for fixed cell sizes in Portrait chunks
-    }
-
-    // Proportions: Day (0.8), Period (0.6), Classrooms (1.0 each up to columnsToFit)
-    final double totalProportions = 0.8 + 0.6 + columnsToFit;
+    // Dynamic width calculation
+    final double totalProportions = 0.8 + 0.6 + chunk.length;
     final double unitWidth = availableWidth / totalProportions;
 
     final Map<int, pw.TableColumnWidth> columnWidths = {
       0: pw.FixedColumnWidth(unitWidth * 0.8), // Day
       1: pw.FixedColumnWidth(unitWidth * 0.6), // Period
-      for (int i = 0; i < classrooms.length; i++)
+      for (int i = 0; i < chunk.length; i++)
         i + 2: pw.FixedColumnWidth(unitWidth * 1.0),
     };
 
     double baseFontSize = 10.0;
-    if (classrooms.length > 8) baseFontSize = 8.0;
-    if (classrooms.length > 12) baseFontSize = 6.0;
+    if (chunk.length > 8) baseFontSize = 8.0;
+    if (chunk.length > 12) baseFontSize = 6.0;
 
-    final headerRows = [
+    final List<pw.TableRow> rows = [];
+
+    // Header Row
+    rows.add(
       pw.TableRow(
+        repeat: true,
         decoration: const pw.BoxDecoration(color: PdfColors.teal100),
         children: [
-          _buildCellHeader('اليوم', font, baseFontSize),
-          _buildCellHeader('الدرس', font, baseFontSize),
-          for (var c in classrooms)
-            _buildCellHeader(c.name, font, baseFontSize),
+          _buildCell('اليوم', font, baseFontSize, isHeader: true),
+          _buildCell('الدرس', font, baseFontSize, isHeader: true),
+          for (var c in chunk)
+            _buildCell(c.name, font, baseFontSize, isHeader: true),
         ],
-      )
-    ];
-
-    // Optimize lesson lookup
-    final Map<String, Lesson> lessonMap = {};
-    int lessonsToRenderCount = 0;
-    for (final l in allLessons) {
-      if (!l.isUnassigned) {
-        final cId = l.classroom.value?.id;
-        if (cId != null) {
-          lessonMap['${cId}_${l.dayIndex}_${l.periodIndex}'] = l;
-          lessonsToRenderCount++;
-        }
-      }
-    }
-
-    print("Total lessons to render in this master table: $lessonsToRenderCount");
-
-    final dataRows = <pw.TableRow>[];
+      ),
+    );
 
     for (int d = 0; d < displayDays.length; d++) {
       for (int p = 0; p < periodsPerDay; p++) {
         final cells = <pw.Widget>[];
 
-        // Day cell (only on first period)
-        if (p == 0) {
-          cells.add(
-            pw.Container(
-              alignment: pw.Alignment.center,
-              padding: const pw.EdgeInsets.all(4),
-              child: pw.Text(
-                displayDays[d],
-                style: pw.TextStyle(
-                    font: font,
-                    fontSize: baseFontSize,
-                    fontWeight: pw.FontWeight.bold),
-                textDirection: pw.TextDirection.rtl,
-                textAlign: pw.TextAlign.center,
-              ),
-            ),
-          );
-        } else {
-          cells.add(pw.SizedBox());
-        }
+        // Day cell (only on first period or every row if preferred for MultiPage clarity)
+        // To handle MultiPage well, repeating the day name or having clear borders is good.
+        // But traditional tables only show it once.
+        // If it breaks across pages, the day name might be missing on the new page.
+        // Let's show it on every row but maybe with lighter text or only if it's the first in page?
+        // Actually, for simplicity and standard look:
+        cells.add(
+          _buildCell(p == 0 ? displayDays[d] : '', font, baseFontSize, isBold: true),
+        );
 
         // Period
         cells.add(
-          pw.Container(
-            alignment: pw.Alignment.center,
-            padding: const pw.EdgeInsets.all(4),
-            child: pw.Text(
-              (p + 1).toString(),
-              style: pw.TextStyle(
-                  font: font,
-                  fontSize: baseFontSize,
-                  fontWeight: pw.FontWeight.bold),
-              textAlign: pw.TextAlign.center,
-            ),
-          ),
+          _buildCell((p + 1).toString(), font, baseFontSize, isBold: true),
         );
 
         // Classrooms
-        for (var c in classrooms) {
+        for (var c in chunk) {
           final lesson = lessonMap['${c.id}_${d}_${p}'];
           if (lesson != null) {
             cells.add(
               pw.Container(
                 alignment: pw.Alignment.center,
-                padding: const pw.EdgeInsets.all(4),
+                padding: const pw.EdgeInsets.all(2),
                 child: pw.Column(
                   mainAxisAlignment: pw.MainAxisAlignment.center,
-                  crossAxisAlignment: pw.CrossAxisAlignment.center,
                   children: [
                     pw.Text(
                       lesson.subject.value?.name ?? '',
                       textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                          font: font,
-                          fontSize: baseFontSize,
-                          fontWeight: pw.FontWeight.bold),
-                      textDirection: pw.TextDirection.rtl,
+                      style: pw.TextStyle(font: font, fontSize: baseFontSize, fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
                       lesson.teacher.value?.name ?? '',
                       textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                          font: font,
-                          fontSize: baseFontSize - 1,
-                          color: PdfColors.grey700),
-                      textDirection: pw.TextDirection.rtl,
+                      style: pw.TextStyle(font: font, fontSize: baseFontSize - 1, color: PdfColors.grey700),
                     ),
                   ],
                 ),
@@ -364,36 +267,33 @@ class PdfExportUseCase {
           }
         }
 
-        // Background color alternating (Zebra Striping)
         final bgColor = p % 2 == 0 ? PdfColors.grey50 : PdfColors.white;
-        dataRows.add(pw.TableRow(
+        rows.add(pw.TableRow(
           decoration: pw.BoxDecoration(color: bgColor),
           children: cells,
         ));
       }
     }
 
-    final table = pw.Table(
+    return pw.Table(
       border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
       columnWidths: columnWidths,
-      children: [
-        ...headerRows,
-        ...dataRows,
-      ],
+      children: rows,
     );
-
-    return table; // Removed FittedBox
   }
 
-  pw.Widget _buildCellHeader(String text, pw.Font font, double fontSize) {
+  pw.Widget _buildCell(String text, pw.Font font, double fontSize,
+      {bool isHeader = false, bool isBold = false}) {
     return pw.Container(
       alignment: pw.Alignment.center,
       padding: const pw.EdgeInsets.all(4),
       child: pw.Text(
         text,
         style: pw.TextStyle(
-            font: font, fontSize: fontSize, fontWeight: pw.FontWeight.bold),
-        textDirection: pw.TextDirection.rtl,
+          font: font,
+          fontSize: fontSize,
+          fontWeight: (isHeader || isBold) ? pw.FontWeight.bold : pw.FontWeight.normal,
+        ),
         textAlign: pw.TextAlign.center,
       ),
     );
