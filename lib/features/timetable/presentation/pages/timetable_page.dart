@@ -2,13 +2,13 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'dart:ui' as ui;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:isar/isar.dart';
-import 'package:printing/printing.dart';
 
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
