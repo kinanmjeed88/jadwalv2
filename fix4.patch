@@ -1,0 +1,36 @@
+--- lib/features/timetable/domain/usecases/timetable_generator.dart
++++ lib/features/timetable/domain/usecases/timetable_generator.dart
+@@ -71,2 +71,2 @@
+
+-  double _calculateConstraintScore(Lesson lesson, int maxDays, int maxPeriods) {
+-    double score = (maxDays * maxPeriods).toDouble();
++  int _calculateConstraintScore(Lesson lesson, int maxDays, int maxPeriods) {
++    int score = maxDays * maxPeriods;
+
+     // Teacher unavailable days
+     if (lesson.teacher.value != null) {
+       score -= lesson.teacher.value!.unavailableDays.length * maxPeriods;
+     }
+
+     // Subject allowed periods
+     if (lesson.subject.value != null && lesson.subject.value!.allowedPeriods.isNotEmpty) {
+       int restrictedPeriods = maxPeriods - lesson.subject.value!.allowedPeriods.where((p) => p < maxPeriods).length;
+-      score -= (maxDays * restrictedPeriods).toDouble();
++      score -= maxDays * restrictedPeriods;
+     }
+
+     // Teacher allowed periods
+     if (lesson.teacher.value != null && lesson.teacher.value!.allowedPeriods.isNotEmpty) {
+       int restrictedPeriods = maxPeriods - lesson.teacher.value!.allowedPeriods.where((p) => p < maxPeriods).length;
+-      score -= (maxDays * restrictedPeriods).toDouble();
++      score -= maxDays * restrictedPeriods;
+     }
+
+     // Teacher max lessons per week constraint
+     if (lesson.teacher.value != null) {
+       // If teacher has low maxLessonsPerWeek relative to what they teach, they are restricted
+       score += lesson.teacher.value!.maxLessonsPerWeek;
+     }
+
+     return score;
+   }

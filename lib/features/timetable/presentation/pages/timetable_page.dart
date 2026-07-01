@@ -13,6 +13,7 @@ import 'package:isar/isar.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
 import '../../../../core/models/classroom.dart';
+import '../../../../core/models/teacher.dart';
 import '../../../../core/providers/database_provider.dart';
 import '../../domain/usecases/pdf_export_usecase.dart';
 import '../providers/timetable_provider.dart';
@@ -27,6 +28,58 @@ class TimetablePage extends ConsumerStatefulWidget {
 class _TimetablePageState extends ConsumerState<TimetablePage> {
   final Map<int, GlobalKey> _classroomKeys = {};
   double _zoomLevel = 1.0;
+
+  Future<void> _exportTeacherPdf() async {
+    try {
+      final isar = await ref.read(isarDatabaseProvider.future);
+
+      final List<Lesson> lessons = isar.txnSync(() {
+        final all = isar.lessons.where().findAllSync();
+        for (var lesson in all) {
+          lesson.classroom.loadSync();
+          lesson.subject.loadSync();
+          lesson.teacher.loadSync();
+        }
+        return all;
+      });
+
+      final teachers = await isar.collection<Teacher>().where().findAll();
+      final settingsList = await isar.appSettings.where().findAll();
+      final settings = settingsList.isNotEmpty
+          ? settingsList.first
+          : (AppSettings()..periodsPerDay = 7);
+
+      final pdfUsecase = PdfExportUseCase();
+      final pdfBytes =
+          await pdfUsecase.generateTeacherTimetablePdf(lessons, teachers, settings);
+
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'حفظ ملف PDF',
+        fileName: 'teachers_timetable.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        bytes: pdfBytes,
+      );
+
+      if (outputFile != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم حفظ الملف بنجاح: $outputFile'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('حدث خطأ أثناء التصدير: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
 
   Future<void> _exportToPdf() async {
     try {
@@ -139,8 +192,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         actions: [
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'تصدير كـ PDF',
+            tooltip: 'تصدير جدول الفصول كـ PDF',
             onPressed: _exportToPdf,
+          ),
+          IconButton(
+            icon: const Icon(Icons.person_pin_circle),
+            tooltip: 'تصدير جدول المدرسين كـ PDF',
+            onPressed: _exportTeacherPdf,
           ),
           IconButton(
             icon: const Icon(Icons.image),
@@ -315,7 +373,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         // Classrooms columns
         for (var classroom in classrooms) {
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
-          cells.add(DataCell(_buildCell(lesson)));
+          cells.add(DataCell(_buildCell(lesson, classroom, d, p)));
         }
 
         rows.add(DataRow(
@@ -384,15 +442,55 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-  Widget _buildCell(Lesson? lesson) {
+  Widget _buildCell(Lesson? lesson, Classroom classroom, int dayIndex, int periodIndex) {
     if (lesson == null) {
-      return const SizedBox(width: 80, height: 40);
+      return DragTarget<Lesson>(
+        onWillAcceptWithDetails: (details) {
+          final incoming = details.data;
+
+          if (incoming.isPinned) return false;
+
+          // Basic constraint checks for visual feedback without full async DB read
+          // 1. Same subject already has this period allowed
+          if (incoming.subject.value != null && incoming.subject.value!.allowedPeriods.isNotEmpty && !incoming.subject.value!.allowedPeriods.contains(periodIndex)) return false;
+          // 2. Teacher unavailable days
+          if (incoming.teacher.value != null && incoming.teacher.value!.unavailableDays.contains(dayIndex)) return false;
+
+          return true;
+        },
+        onAcceptWithDetails: (details) async {
+          final incoming = details.data;
+          final (success, errorMessage) = await ref
+              .read(timetableNotifierProvider.notifier)
+              .moveLessonToEmpty(incoming, dayIndex, periodIndex);
+
+          if (!success && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(errorMessage ?? 'حدث خطأ أثناء النقل'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        },
+        builder: (context, candidateData, rejectedData) {
+          return Container(
+            width: 80,
+            height: 40,
+            decoration: BoxDecoration(
+              color: candidateData.isNotEmpty
+                  ? Colors.green.withValues(alpha: 0.3)
+                  : (rejectedData.isNotEmpty ? Colors.red.withValues(alpha: 0.3) : Colors.transparent),
+            ),
+          );
+        },
+      );
     }
 
     return DragTarget<Lesson>(
       onWillAcceptWithDetails: (details) {
         final incoming = details.data;
-        return incoming.id != lesson.id;
+        return incoming.id != lesson.id && !lesson.isPinned;
       },
       onAcceptWithDetails: (details) async {
         final incoming = details.data;
@@ -424,27 +522,45 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           ),
           childWhenDragging:
               Container(color: Colors.grey.shade200, width: 80, height: 40),
-          child: Container(
-            width: 80, // slightly narrower
-            height: 40, // slightly shorter
-            decoration: BoxDecoration(
-              color: candidateData.isNotEmpty
-                  ? Colors.teal.shade100
-                  : Colors.transparent,
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(subjectName,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 12),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis),
-                Text(teacherName,
-                    style: const TextStyle(fontSize: 10, color: Colors.grey),
-                    textAlign: TextAlign.center,
-                    overflow: TextOverflow.ellipsis),
-              ],
+          child: InkWell(
+            onLongPress: () {
+              ref.read(timetableNotifierProvider.notifier).togglePin(lesson);
+            },
+            child: Container(
+              width: 80,
+              height: 40,
+              decoration: BoxDecoration(
+                color: lesson.isPinned
+                    ? Colors.orange.shade100
+                    : (candidateData.isNotEmpty ? Colors.red.shade100 : Colors.teal.shade50), // Show invalid by default on hover, valid handled elsewhere
+                border: lesson.isPinned ? Border.all(color: Colors.orange, width: 2) : null,
+              ),
+              child: Stack(
+                children: [
+                  Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(subjectName,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 12),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis),
+                        Text(teacherName,
+                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis),
+                      ],
+                    ),
+                  ),
+                  if (lesson.isPinned)
+                    const Positioned(
+                      top: 0,
+                      left: 0,
+                      child: Icon(Icons.lock, size: 12, color: Colors.orange),
+                    ),
+                ],
+              ),
             ),
           ),
         );

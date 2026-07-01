@@ -1,0 +1,28 @@
+--- lib/features/timetable/domain/usecases/timetable_generator.dart
++++ lib/features/timetable/domain/usecases/timetable_generator.dart
+@@ -52,6 +52,6 @@
+     unpinnedLessons.sort((a, b) {
+-      double scoreA = _calculateConstraintScore(a, maxDays, maxPeriods);
+-      double scoreB = _calculateConstraintScore(b, maxDays, maxPeriods);
++      int scoreA = _calculateConstraintScore(a, maxDays, maxPeriods);
++      int scoreB = _calculateConstraintScore(b, maxDays, maxPeriods);
+       // Lower score means fewer remaining values -> harder to place.
+       return scoreA.compareTo(scoreB);
+     });
+@@ -71,4 +71,4 @@
+
+-  double _calculateConstraintScore(Lesson lesson, int maxDays, int maxPeriods) {
+-    double score = (maxDays * maxPeriods).toDouble();
++  int _calculateConstraintScore(Lesson lesson, int maxDays, int maxPeriods) {
++    int score = maxDays * maxPeriods;
+
+@@ -80,3 +80,3 @@
+       int restrictedPeriods = maxPeriods - lesson.subject.value!.allowedPeriods.where((p) => p < maxPeriods).length;
+-      score -= (maxDays * restrictedPeriods).toDouble();
++      score -= maxDays * restrictedPeriods;
+     }
+@@ -86,3 +86,3 @@
+       int restrictedPeriods = maxPeriods - lesson.teacher.value!.allowedPeriods.where((p) => p < maxPeriods).length;
+-      score -= (maxDays * restrictedPeriods).toDouble();
++      score -= maxDays * restrictedPeriods;
+     }

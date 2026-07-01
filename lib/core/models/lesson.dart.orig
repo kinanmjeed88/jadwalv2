@@ -21,9 +21,6 @@ class Lesson {
   /// If null, the lesson is unassigned
   int? periodIndex;
 
-  /// True if the user manually pinned this lesson, making it immovable by the auto-generator
-  bool isPinned = false;
-
   /// True if the lesson could not be assigned by the algorithm
   bool get isUnassigned => dayIndex == null || periodIndex == null;
 }

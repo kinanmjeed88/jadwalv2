@@ -33,7 +33,12 @@ class TimetableGenerator {
     for (var l in pool) {
       // Assuming we will add isPinned to Lesson. If not present yet, assume false.
       // We will add it later, but we need to support it here.
-      if (l.isPinned && l.dayIndex != null && l.periodIndex != null) {
+      bool isPinned = false;
+      try {
+        isPinned = (l as dynamic).isPinned ?? false;
+      } catch (_) {}
+
+      if (isPinned && l.dayIndex != null && l.periodIndex != null) {
         pinnedLessons.add(l);
       } else {
         l.dayIndex = null;
@@ -45,8 +50,8 @@ class TimetableGenerator {
     // Sort unpinned lessons using Minimum Remaining Values (MRV) heuristic.
     // Hard-to-place lessons first.
     unpinnedLessons.sort((a, b) {
-      int scoreA = _calculateConstraintScore(a, maxDays, maxPeriods);
-      int scoreB = _calculateConstraintScore(b, maxDays, maxPeriods);
+      double scoreA = _calculateConstraintScore(a, maxDays, maxPeriods);
+      double scoreB = _calculateConstraintScore(b, maxDays, maxPeriods);
       // Lower score means fewer remaining values -> harder to place.
       return scoreA.compareTo(scoreB);
     });
@@ -63,30 +68,30 @@ class TimetableGenerator {
     }
   }
 
-  int _calculateConstraintScore(Lesson lesson, int maxDays, int maxPeriods) {
-    int score = maxDays * maxPeriods;
+  double _calculateConstraintScore(Lesson lesson, int maxDays, int maxPeriods) {
+    double score = (maxDays * maxPeriods).toDouble();
 
     // Teacher unavailable days
     if (lesson.teacher.value != null) {
-      score -= (lesson.teacher.value!.unavailableDays.length * maxPeriods).toInt();
+      score -= lesson.teacher.value!.unavailableDays.length * maxPeriods;
     }
 
     // Subject allowed periods
     if (lesson.subject.value != null && lesson.subject.value!.allowedPeriods.isNotEmpty) {
       int restrictedPeriods = maxPeriods - lesson.subject.value!.allowedPeriods.where((p) => p < maxPeriods).length;
-      score -= (maxDays * restrictedPeriods).toInt();
+      score -= (maxDays * restrictedPeriods).toDouble();
     }
 
     // Teacher allowed periods
     if (lesson.teacher.value != null && lesson.teacher.value!.allowedPeriods.isNotEmpty) {
       int restrictedPeriods = maxPeriods - lesson.teacher.value!.allowedPeriods.where((p) => p < maxPeriods).length;
-      score -= (maxDays * restrictedPeriods).toInt();
+      score -= (maxDays * restrictedPeriods).toDouble();
     }
 
     // Teacher max lessons per week constraint
     if (lesson.teacher.value != null) {
       // If teacher has low maxLessonsPerWeek relative to what they teach, they are restricted
-      score += (lesson.teacher.value!.maxLessonsPerWeek).toInt();
+      score += lesson.teacher.value!.maxLessonsPerWeek;
     }
 
     return score;
