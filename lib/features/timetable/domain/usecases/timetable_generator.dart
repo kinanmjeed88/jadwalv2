@@ -58,8 +58,17 @@ class TimetableGenerator {
     if (success) {
       return currentAssignment;
     } else {
-      // If we couldn't place all and it didn't timeout, it means it's unsolvable.
-      throw UnsolvableTimetableException();
+      // Fallback: If we couldn't place all, add unassigned ones with null values.
+      List<LessonDto> fallbackAssignment = List.from(currentAssignment);
+      for (var unpinned in unpinnedLessons) {
+        if (!fallbackAssignment.any((assigned) => assigned.id == unpinned.id)) {
+          unpinned.dayIndex = null;
+          unpinned.periodIndex = null;
+          unpinned.teacher = null;
+          fallbackAssignment.add(unpinned);
+        }
+      }
+      return fallbackAssignment;
     }
   }
 
@@ -95,7 +104,7 @@ class TimetableGenerator {
   bool _backtrack(List<LessonDto> unpinnedLessons, int index, List<LessonDto> currentAssignment, int maxDays, int maxPeriods) {
     // Failsafe: Timeout after 10 seconds
     if (_stopwatch.elapsedMilliseconds > 10000) {
-      throw UnsolvableTimetableException();
+      throw UnsolvableTimetableException('انتهى الوقت (Timeout) المخصص لحل الجدول. يرجى تخفيف القيود.');
     }
 
     if (index >= unpinnedLessons.length) {

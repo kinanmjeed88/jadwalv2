@@ -326,7 +326,7 @@ class PdfExportUseCase {
         // Let's show it on every row but maybe with lighter text or only if it's the first in page?
         // Actually, for simplicity and standard look:
         cells.add(
-          _buildCell(p == 0 ? displayDays[d] : '', font, baseFontSize, isBold: true),
+          _buildCell(displayDays[d], font, baseFontSize, isBold: true),
         );
 
         // Period
