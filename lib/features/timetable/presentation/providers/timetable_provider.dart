@@ -141,7 +141,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       );
 
       // Run Generator in an Isolate using a top-level function to avoid capturing `this`
-      final resultDtos = await Isolate.run(() => _generateInIsolate(payload));
+      final resultDtos = await _spawnIsolateAndGenerate(payload);
 
       // Map DTOs back to existingLessons
       for (var lessonDto in resultDtos) {
@@ -361,6 +361,11 @@ class GenerationPayload {
     required this.settings,
     required this.existingLessons,
   });
+}
+
+Future<List<LessonDto>> _spawnIsolateAndGenerate(GenerationPayload payload) async {
+  // هذه الدالة موجودة في Top-Level، لذا لا يوجد هنا 'this' ولا 'isar' ليلتقطه الـ Closure!
+  return await Isolate.run(() => _generateInIsolate(payload));
 }
 
 /// A top-level function that strictly accepts DTOs, isolating memory.
