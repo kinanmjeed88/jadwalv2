@@ -256,14 +256,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                   return Positioned(
                     top: -10000,
                     left: -10000,
-                    child: IgnorePointer(
-                      child: OverflowBox(
-                        minWidth: 0,
-                        maxWidth: double.infinity,
-                        minHeight: 0,
-                        maxHeight: double.infinity,
-                        child: _buildExportGrid(lessons, classrooms, settings),
-                      ),
+                    child: OverflowBox(
+                      minWidth: 0,
+                      maxWidth: double.infinity,
+                      minHeight: 0,
+                      maxHeight: double.infinity,
+                      child: _buildExportGrid(lessons, classrooms, settings),
                     ),
                   );
                 },
