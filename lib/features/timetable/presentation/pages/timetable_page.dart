@@ -610,13 +610,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           child: Directionality(
             textDirection: TextDirection.rtl,
             child: DataTable(
-              border: TableBorder.all(color: Colors.grey.shade400),
+              border: TableBorder.all(color: Colors.grey.shade700, width: 1.5),
               headingRowColor:
                   WidgetStateProperty.all(Colors.teal.shade100),
-              columnSpacing: 8.0,
-              horizontalMargin: 8.0,
-              dataRowMinHeight: 45.0,
-              dataRowMaxHeight: 60.0,
+              columnSpacing: 4.0,
+              horizontalMargin: 4.0,
+              dataRowMinHeight: 35.0,
+              dataRowMaxHeight: 45.0,
               headingRowHeight: 45.0,
               columns: [
                 const DataColumn(
@@ -672,8 +672,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         },
         builder: (context, candidateData, rejectedData) {
           return Container(
-            width: 80,
-            height: 40,
+            width: 70,
+            height: 35,
             decoration: BoxDecoration(
               color: candidateData.isNotEmpty
                   ? Colors.green.withValues(alpha: 0.3)
@@ -706,7 +706,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       },
       builder: (context, candidateData, rejectedData) {
         final subjectName = lesson.subject.value?.name ?? 'غير محدد';
-        final teacherName = lesson.teacher.value?.name ?? 'غير محدد';
+        final teacherName = lesson.teacher.value?.name != null ? lesson.teacher.value!.name.split(' ').first : 'غير محدد';
         return Draggable<Lesson>(
           data: lesson,
           feedback: Material(
@@ -718,14 +718,14 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             ),
           ),
           childWhenDragging:
-              Container(color: Colors.grey.shade200, width: 80, height: 40),
+              Container(color: Colors.grey.shade200, width: 70, height: 35),
           child: InkWell(
             onLongPress: () {
               ref.read(timetableNotifierProvider.notifier).togglePin(lesson);
             },
             child: Container(
-              width: 80,
-              height: 40,
+              width: 70,
+              height: 35,
               decoration: BoxDecoration(
                 color: lesson.isPinned
                     ? Colors.orange.shade100

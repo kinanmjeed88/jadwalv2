@@ -95,7 +95,7 @@ class AppSettingsDto {
 
 class LessonDto {
   final int id;
-  final TeacherDto? teacher;
+  TeacherDto? teacher;
   final SubjectDto? subject;
   final ClassroomDto? classroom;
   int? dayIndex;
