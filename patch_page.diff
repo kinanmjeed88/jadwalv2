@@ -1,0 +1,22 @@
+--- ./lib/features/timetable/presentation/pages/timetable_page.dart
++++ ./lib/features/timetable/presentation/pages/timetable_page.dart
+@@ -250,11 +250,13 @@
+                   return Positioned(
+                     top: -10000,
+                     left: -10000,
+-                    child: OverflowBox(
+-                      minWidth: 0,
+-                      maxWidth: double.infinity,
+-                      minHeight: 0,
+-                      maxHeight: double.infinity,
+-                      child: _buildExportGrid(lessons, classrooms, settings),
++                    child: IgnorePointer(
++                      child: OverflowBox(
++                        minWidth: 0,
++                        maxWidth: double.infinity,
++                        minHeight: 0,
++                        maxHeight: double.infinity,
++                        child: _buildExportGrid(lessons, classrooms, settings),
++                      ),
+                     ),
+                   );

@@ -131,14 +131,17 @@ class TimetableNotifier extends _$TimetableNotifier {
       final subjectsDtoList = subjectsMap.values.toList();
       final classroomsDtoList = classroomsMap.values.toList();
 
+      // Create payload to avoid capturing anything from lexical scope
+      final payload = GenerationPayload(
+        teachers: teachersDtoList,
+        subjects: subjectsDtoList,
+        classrooms: classroomsDtoList,
+        settings: settingsDto,
+        existingLessons: existingLessonsDto,
+      );
+
       // Run Generator in an Isolate using a top-level function to avoid capturing `this`
-      final resultDtos = await Isolate.run(() => _generateInIsolate(
-        teachersDtoList,
-        subjectsDtoList,
-        classroomsDtoList,
-        settingsDto,
-        existingLessonsDto,
-      ));
+      final resultDtos = await Isolate.run(() => _generateInIsolate(payload));
 
       // Map DTOs back to existingLessons
       for (var lessonDto in resultDtos) {
@@ -344,20 +347,30 @@ class TimetableNotifier extends _$TimetableNotifier {
   }
 }
 
+class GenerationPayload {
+  final List<TeacherDto> teachers;
+  final List<SubjectDto> subjects;
+  final List<ClassroomDto> classrooms;
+  final AppSettingsDto settings;
+  final List<LessonDto> existingLessons;
+
+  const GenerationPayload({
+    required this.teachers,
+    required this.subjects,
+    required this.classrooms,
+    required this.settings,
+    required this.existingLessons,
+  });
+}
+
 /// A top-level function that strictly accepts DTOs, isolating memory.
-List<LessonDto> _generateInIsolate(
-  List<TeacherDto> teachers,
-  List<SubjectDto> subjects,
-  List<ClassroomDto> classrooms,
-  AppSettingsDto settings,
-  List<LessonDto> existingLessons,
-) {
+List<LessonDto> _generateInIsolate(GenerationPayload payload) {
   final generator = TimetableGenerator(
-    teachers: teachers,
-    subjects: subjects,
-    classrooms: classrooms,
-    settings: settings,
-    existingLessons: existingLessons,
+    teachers: payload.teachers,
+    subjects: payload.subjects,
+    classrooms: payload.classrooms,
+    settings: payload.settings,
+    existingLessons: payload.existingLessons,
   );
   return generator.generate();
 }
