@@ -28,7 +28,7 @@ class TimetablePage extends ConsumerStatefulWidget {
 class _TimetablePageState extends ConsumerState<TimetablePage> {
   final Map<int, GlobalKey> _classroomKeys = {};
   final GlobalKey _exportKey = GlobalKey();
-  double _zoomLevel = 1.0;
+  final TransformationController _transformationController = TransformationController();
 
   Future<void> _exportTeacherPdf() async {
     try {
@@ -179,13 +179,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   @override
   Widget build(BuildContext context) {
     final lessonsAsync = ref.watch(timetableNotifierProvider);
-    final settingsAsync =
-        ref.watch(isarDatabaseProvider).whenData((isar) async {
-      final settingsList = await isar.appSettings.where().findAll();
-      return settingsList.isNotEmpty
-          ? settingsList.first
-          : (AppSettings()..periodsPerDay = 7);
-    });
+    final isarAsync = ref.watch(isarDatabaseProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -212,16 +206,24 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         children: [
           lessonsAsync.when(
             data: (lessons) {
-              return settingsAsync.when(
-                data: (settingsFuture) => FutureBuilder<AppSettings>(
-                  future: settingsFuture,
-                  builder: (context, snapshot) {
+              return isarAsync.when(
+                data: (isar) => FutureBuilder(
+                  future: Future.wait([
+                    isar.appSettings.where().findAll(),
+                    isar.classrooms.where().findAll(),
+                  ]),
+                  builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
-                    final settings =
-                        snapshot.data ?? (AppSettings()..periodsPerDay = 7);
-                    return _buildTimetableGrid(context, lessons, settings);
+                    final settingsList = snapshot.data?[0] as List<AppSettings>?;
+                    final settings = (settingsList != null && settingsList.isNotEmpty)
+                        ? settingsList.first
+                        : (AppSettings()..periodsPerDay = 7);
+                    final classrooms = (snapshot.data?[1] as List<Classroom>? ?? [])
+                        ..sort((a, b) => a.id.compareTo(b.id));
+
+                    return _buildTimetableGrid(context, lessons, classrooms, settings);
                   },
                 ),
                 loading: () => const Center(child: CircularProgressIndicator()),
@@ -234,15 +236,23 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
           // Off-screen export widget that is painted but invisible and unconstrained
           lessonsAsync.maybeWhen(
-            data: (lessons) => settingsAsync.maybeWhen(
-              data: (settingsFuture) => FutureBuilder<AppSettings>(
-                future: settingsFuture,
-                builder: (context, snapshot) {
+            data: (lessons) => isarAsync.maybeWhen(
+              data: (isar) => FutureBuilder(
+                future: Future.wait([
+                  isar.appSettings.where().findAll(),
+                  isar.classrooms.where().findAll(),
+                ]),
+                builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const SizedBox.shrink();
                   }
-                  final settings =
-                      snapshot.data ?? (AppSettings()..periodsPerDay = 7);
+                  final settingsList = snapshot.data?[0] as List<AppSettings>?;
+                  final settings = (settingsList != null && settingsList.isNotEmpty)
+                      ? settingsList.first
+                      : (AppSettings()..periodsPerDay = 7);
+                  final classrooms = (snapshot.data?[1] as List<Classroom>? ?? [])
+                      ..sort((a, b) => a.id.compareTo(b.id));
+
                   return Positioned(
                     top: -10000,
                     left: -10000,
@@ -251,7 +261,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                       maxWidth: double.infinity,
                       minHeight: 0,
                       maxHeight: double.infinity,
-                      child: _buildExportGrid(lessons, settings),
+                      child: _buildExportGrid(lessons, classrooms, settings),
                     ),
                   );
                 },
@@ -268,15 +278,22 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         children: [
           FloatingActionButton(
             heroTag: "btn_zoom_in",
-            onPressed: () => setState(() => _zoomLevel += 0.1),
+            onPressed: () {
+              final currentScale = _transformationController.value.getMaxScaleOnAxis();
+              final newScale = (currentScale + 0.1).clamp(0.1, 5.0);
+              _transformationController.value = Matrix4.identity()..scale(newScale);
+            },
             tooltip: 'تكبير',
             child: const Icon(Icons.zoom_in),
           ),
           const SizedBox(height: 8),
           FloatingActionButton(
             heroTag: "btn_zoom_out",
-            onPressed: () =>
-                setState(() => _zoomLevel = (_zoomLevel - 0.1).clamp(0.5, 3.0)),
+            onPressed: () {
+              final currentScale = _transformationController.value.getMaxScaleOnAxis();
+              final newScale = (currentScale - 0.1).clamp(0.1, 5.0);
+              _transformationController.value = Matrix4.identity()..scale(newScale);
+            },
             tooltip: 'تصغير',
             child: const Icon(Icons.zoom_out),
           ),
@@ -294,17 +311,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-  Widget _buildExportGrid(List<Lesson> lessons, AppSettings settings) {
+  Widget _buildExportGrid(List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) {
     final assigned = lessons.where((l) => !l.isUnassigned).toList();
-
-    final uniqueClassrooms = <int, Classroom>{};
-    for (var lesson in assigned) {
-      if (lesson.classroom.value != null) {
-        uniqueClassrooms[lesson.classroom.value!.id] = lesson.classroom.value!;
-      }
-    }
-    final classrooms = uniqueClassrooms.values.toList()
-      ..sort((a, b) => a.id.compareTo(b.id));
 
     final Map<String, Lesson> lessonMap = {};
     for (var lesson in assigned) {
@@ -469,18 +477,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   }
 
   Widget _buildTimetableGrid(
-      BuildContext context, List<Lesson> lessons, AppSettings settings) {
+      BuildContext context, List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) {
     final assigned = lessons.where((l) => !l.isUnassigned).toList();
     final unassigned = lessons.where((l) => l.isUnassigned).toList();
-
-    final uniqueClassrooms = <int, Classroom>{};
-    for (var lesson in assigned) {
-      if (lesson.classroom.value != null) {
-        uniqueClassrooms[lesson.classroom.value!.id] = lesson.classroom.value!;
-      }
-    }
-    final classrooms = uniqueClassrooms.values.toList()
-      ..sort((a, b) => a.id.compareTo(b.id));
 
     // ⚡ Bolt Optimization: O(n) pass to build a composite map for O(1) lookups
     // Replaces O(d * p * c * n) rendering complexity with O(d * p * c)
@@ -594,59 +593,47 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     }
 
     return InteractiveViewer(
-      boundaryMargin: const EdgeInsets.all(20.0),
+      boundaryMargin: const EdgeInsets.all(double.infinity),
       minScale: 0.1,
       maxScale: 5.0,
+      constrained: false,
       scaleEnabled: true,
       panEnabled: true,
-      child: LayoutBuilder(builder: (context, constraints) {
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SingleChildScrollView(
-            child: RepaintBoundary(
-              key: _classroomKeys[masterKeyId],
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minWidth: constraints.maxWidth),
-                child: Transform.scale(
-                  scale: _zoomLevel,
-                  alignment: Alignment.topRight,
-                  child: Container(
-                    color: Colors.white,
-                    padding: const EdgeInsets.all(16.0),
-                    child: Directionality(
-                      textDirection: TextDirection.rtl,
-                      child: DataTable(
-                        border: TableBorder.all(color: Colors.grey.shade400),
-                        headingRowColor:
-                            WidgetStateProperty.all(Colors.teal.shade100),
-                        columnSpacing: 8.0,
-                        horizontalMargin: 8.0,
-                        dataRowMinHeight: 45.0,
-                        dataRowMaxHeight: 60.0,
-                        headingRowHeight: 45.0,
-                        columns: [
-                          const DataColumn(
-                              label: Text('اليوم',
-                                  style: TextStyle(fontWeight: FontWeight.bold))),
-                          const DataColumn(
-                              label: Text('الدرس',
-                                  style: TextStyle(fontWeight: FontWeight.bold))),
-                          for (var classroom in classrooms)
-                            DataColumn(
-                                label: Text(classroom.name,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold))),
-                        ],
-                        rows: rows,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
+      transformationController: _transformationController,
+      child: RepaintBoundary(
+        key: _classroomKeys[masterKeyId],
+        child: Container(
+          color: Colors.white,
+          padding: const EdgeInsets.all(16.0),
+          child: Directionality(
+            textDirection: TextDirection.rtl,
+            child: DataTable(
+              border: TableBorder.all(color: Colors.grey.shade400),
+              headingRowColor:
+                  WidgetStateProperty.all(Colors.teal.shade100),
+              columnSpacing: 8.0,
+              horizontalMargin: 8.0,
+              dataRowMinHeight: 45.0,
+              dataRowMaxHeight: 60.0,
+              headingRowHeight: 45.0,
+              columns: [
+                const DataColumn(
+                    label: Text('اليوم',
+                        style: TextStyle(fontWeight: FontWeight.bold))),
+                const DataColumn(
+                    label: Text('الدرس',
+                        style: TextStyle(fontWeight: FontWeight.bold))),
+                for (var classroom in classrooms)
+                  DataColumn(
+                      label: Text(classroom.name,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold))),
+              ],
+              rows: rows,
             ),
           ),
-        );
-      }),
+        ),
+      ),
     );
   }
 
