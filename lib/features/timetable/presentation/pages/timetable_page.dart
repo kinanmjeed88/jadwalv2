@@ -356,8 +356,19 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(lesson.subject.value?.name ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text(lesson.teacher.value?.name ?? '', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                  Flexible(
+                    child: Text(lesson.subject.value?.name ?? '',
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                        textAlign: TextAlign.right,
+                        overflow: TextOverflow.ellipsis),
+                  ),
+                  const Text(' | ', style: TextStyle(fontSize: 8, color: Colors.grey)),
+                  Flexible(
+                    child: Text(lesson.teacher.value?.name.split(' ').first ?? '',
+                        style: const TextStyle(fontSize: 8, color: Colors.grey),
+                        textAlign: TextAlign.left,
+                        overflow: TextOverflow.ellipsis),
+                  ),
                 ],
               ),
             )));
@@ -601,15 +612,15 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         child: Directionality(
           textDirection: TextDirection.rtl,
           child: DataTable(
-            border: TableBorder.all(color: Colors.grey.shade700, width: 1.5),
+            border: TableBorder.all(color: Colors.black, width: 2.0),
             headingRowColor:
                 WidgetStateProperty.all(Colors.teal.shade100),
-            columnSpacing: 4.0,
-            horizontalMargin: 4.0,
+            columnSpacing: 2.0,
+            horizontalMargin: 2.0,
             dataRowMinHeight: 35.0,
             dataRowMaxHeight: 45.0,
             headingRowHeight: 45.0,
-            dividerThickness: 3.0,
+            dividerThickness: 4.0,
             columns: [
               const DataColumn(
                   label: Text('اليوم',
@@ -654,6 +665,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             constrained: false,
             scaleEnabled: true,
             panEnabled: true,
+            alignment: Alignment.center,
             transformationController: _transformationController,
             child: buildDataTable(),
           ),

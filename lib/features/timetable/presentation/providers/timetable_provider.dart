@@ -148,6 +148,9 @@ class TimetableNotifier extends _$TimetableNotifier {
         final lesson = existingLessons.firstWhere((l) => l.id == lessonDto.id);
         lesson.dayIndex = lessonDto.dayIndex;
         lesson.periodIndex = lessonDto.periodIndex;
+        if (lessonDto.teacher == null) {
+           lesson.teacher.value = null;
+        }
       }
 
       // Ensure that we save the entire modified pool (even those unplaced/unscheduled)
