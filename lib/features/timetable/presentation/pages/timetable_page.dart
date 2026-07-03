@@ -352,7 +352,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
           if (lesson != null) {
             final subjectName = lesson.subject.value?.name ?? 'غير محدد';
-            final teacherName = lesson.teacher.value?.name != null ? lesson.teacher.value!.name.split(' ').first : 'غير محدد';
+            final teacherName = lesson.teacher.value?.name?.split(' ').first ?? 'بدون معلم';
             cells.add(DataCell(
               Container(
                 alignment: Alignment.center,
@@ -788,7 +788,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       },
       builder: (context, candidateData, rejectedData) {
         final subjectName = lesson.subject.value?.name ?? 'غير محدد';
-        final teacherName = lesson.teacher.value?.name != null ? lesson.teacher.value!.name.split(' ').first : 'غير محدد';
+        final teacherName = lesson.teacher.value?.name?.split(' ').first ?? 'بدون معلم';
         return Draggable<Lesson>(
           data: lesson,
           feedback: Material(
