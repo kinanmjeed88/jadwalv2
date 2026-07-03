@@ -330,8 +330,8 @@ class PdfExportUseCase {
         children: [
           _buildCell('اليوم', font, baseFontSize, isHeader: true),
           _buildCell('الدرس', font, baseFontSize, isHeader: true),
-          for (var c in chunk)
-            _buildCell(c.name, font, baseFontSize, isHeader: true),
+          for (int c = 0; c < chunk.length; c++)
+            _buildCell(chunk[c].name, font, baseFontSize, isHeader: true, isLastInGrade: c == chunk.length - 1 || chunk[c + 1].grade != chunk[c].grade),
         ],
       ),
     );
@@ -340,15 +340,14 @@ class PdfExportUseCase {
       for (int p = 0; p < periodsPerDay; p++) {
         final cells = <pw.Widget>[];
 
-        // Day cell (only on first period or every row if preferred for MultiPage clarity)
-        // To handle MultiPage well, repeating the day name or having clear borders is good.
-        // But traditional tables only show it once.
-        // If it breaks across pages, the day name might be missing on the new page.
-        // Let's show it on every row but maybe with lighter text or only if it's the first in page?
-        // Actually, for simplicity and standard look:
-        cells.add(
-          _buildCell(displayDays[d], font, baseFontSize, isBold: true),
-        );
+        // Day cell: Only show on middle period of the day to simulate rowspan
+        if (p == periodsPerDay ~/ 2) {
+          cells.add(
+            _buildCell(displayDays[d], font, baseFontSize, isBold: true),
+          );
+        } else {
+          cells.add(pw.SizedBox());
+        }
 
         // Period
         cells.add(
@@ -356,33 +355,43 @@ class PdfExportUseCase {
         );
 
         // Classrooms
-        for (var c in chunk) {
-          final lesson = lessonMap['${c.id}_${d}_${p}'];
+        for (int c = 0; c < chunk.length; c++) {
+          final classroom = chunk[c];
+          bool isLastInGrade = c == chunk.length - 1 || chunk[c + 1].grade != classroom.grade;
+
+          final lesson = lessonMap['${classroom.id}_${d}_${p}'];
+
+          pw.Widget cellContent = pw.SizedBox();
           if (lesson != null) {
-            cells.add(
-              pw.Container(
-                alignment: pw.Alignment.center,
-                padding: const pw.EdgeInsets.all(1),
-                child: pw.Column(
-                  mainAxisAlignment: pw.MainAxisAlignment.center,
-                  children: [
-                    pw.Text(
-                      lesson.subject.value?.name ?? '',
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(font: font, fontSize: 10, fontWeight: pw.FontWeight.bold),
-                    ),
-                    pw.Text(
-                      lesson.teacher.value != null ? lesson.teacher.value!.name.split(' ').first : 'فارغ',
-                      textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey700),
-                    ),
-                  ],
+            cellContent = pw.Column(
+              mainAxisAlignment: pw.MainAxisAlignment.center,
+              children: [
+                pw.Text(
+                  lesson.subject.value?.name ?? '',
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(font: font, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                ),
+                pw.Text(
+                  lesson.teacher.value != null ? lesson.teacher.value!.name.split(' ').first : 'فارغ',
+                  textAlign: pw.TextAlign.center,
+                  style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey700),
+                ),
+              ],
+            );
+          }
+
+          cells.add(
+            pw.Container(
+              alignment: pw.Alignment.center,
+              padding: const pw.EdgeInsets.all(1),
+              decoration: pw.BoxDecoration(
+                border: pw.Border(
+                  left: isLastInGrade ? pw.BorderSide(color: PdfColors.black, width: 2.0) : pw.BorderSide.none,
                 ),
               ),
-            );
-          } else {
-            cells.add(pw.SizedBox());
-          }
+              child: cellContent,
+            ),
+          );
         }
 
         final bgColor = p % 2 == 0 ? PdfColors.grey50 : PdfColors.white;
@@ -393,18 +402,33 @@ class PdfExportUseCase {
       }
     }
 
-    return pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
-      columnWidths: columnWidths,
-      children: rows,
+    return pw.Directionality(
+      textDirection: pw.TextDirection.rtl,
+      child: pw.Table(
+        border: pw.TableBorder(
+          top: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          horizontalInside: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          verticalInside: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+        ),
+        columnWidths: columnWidths,
+        children: rows,
+      ),
     );
   }
 
   pw.Widget _buildCell(String text, pw.Font font, double fontSize,
-      {bool isHeader = false, bool isBold = false}) {
+      {bool isHeader = false, bool isBold = false, bool isLastInGrade = false}) {
     return pw.Container(
       alignment: pw.Alignment.center,
       padding: const pw.EdgeInsets.all(4),
+      decoration: pw.BoxDecoration(
+        border: pw.Border(
+          left: isLastInGrade ? pw.BorderSide(color: PdfColors.black, width: 2.0) : pw.BorderSide.none,
+        ),
+      ),
       child: pw.Text(
         text,
         style: pw.TextStyle(
