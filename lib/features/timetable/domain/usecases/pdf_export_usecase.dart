@@ -372,7 +372,7 @@ class PdfExportUseCase {
                       style: pw.TextStyle(font: font, fontSize: 10, fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
-                      lesson.teacher.value?.name?.split(' ').first ?? '',
+                      lesson.teacher.value != null ? lesson.teacher.value!.name.split(' ').first : 'فارغ',
                       textAlign: pw.TextAlign.center,
                       style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey700),
                     ),

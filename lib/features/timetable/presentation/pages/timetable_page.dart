@@ -352,7 +352,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
           if (lesson != null) {
             final subjectName = lesson.subject.value?.name ?? 'غير محدد';
-            final teacherName = lesson.teacher.value?.name?.split(' ').first ?? 'بدون معلم';
+            final teacherName = lesson.teacher.value != null ? lesson.teacher.value!.name.split(' ').first : 'فارغ';
             cells.add(DataCell(
               Container(
                 alignment: Alignment.center,
@@ -731,9 +731,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
           // Basic constraint checks for visual feedback without full async DB read
           // 1. Same subject already has this period allowed
-          if (incoming.subject.value != null && incoming.subject.value!.allowedPeriods.isNotEmpty && !incoming.subject.value!.allowedPeriods.contains(periodIndex)) return false;
+          if (incoming.subject.value != null && (incoming.subject.value?.allowedPeriods.isNotEmpty ?? false) && !(incoming.subject.value?.allowedPeriods.contains(periodIndex) ?? false)) return false;
           // 2. Teacher unavailable days
-          if (incoming.teacher.value != null && incoming.teacher.value!.unavailableDays.contains(dayIndex)) return false;
+          if (incoming.teacher.value != null && (incoming.teacher.value?.unavailableDays.contains(dayIndex) ?? false)) return false;
 
           return true;
         },
@@ -788,7 +788,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       },
       builder: (context, candidateData, rejectedData) {
         final subjectName = lesson.subject.value?.name ?? 'غير محدد';
-        final teacherName = lesson.teacher.value?.name?.split(' ').first ?? 'بدون معلم';
+        final teacherName = lesson.teacher.value != null ? lesson.teacher.value!.name.split(' ').first : 'فارغ';
         return Draggable<Lesson>(
           data: lesson,
           feedback: Material(
