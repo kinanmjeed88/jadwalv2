@@ -202,6 +202,15 @@ class TimetableNotifier extends _$TimetableNotifier {
 
     if (classroomConflict) return (false, "تعارض للصف في الوقت الجديد");
 
+    // Check same subject on same day
+    bool subjectAlreadyOnDay = allLessons.any((l) =>
+        l.id != lesson.id &&
+        l.classroom.value?.id == lesson.classroom.value?.id &&
+        l.subject.value?.id == lesson.subject.value?.id &&
+        l.dayIndex == newDay);
+
+    if (subjectAlreadyOnDay) return (false, "هذه المادة مقررة مسبقاً لهذا الصف في نفس اليوم");
+
     // Check teacher daily limit (if moving to a new day)
     if (lesson.dayIndex != newDay) {
       int teacherLessonsNewDay = allLessons.where((l) =>
@@ -286,6 +295,25 @@ class TimetableNotifier extends _$TimetableNotifier {
 
     if (lesson1ClassroomConflict || lesson2ClassroomConflict) {
       return (false, "تعارض للصف في الوقت الجديد");
+    }
+
+    // Check same subject on same day for Swap
+    bool l1SubjectConflict = allLessons.any((l) =>
+        l.id != lesson1.id &&
+        l.id != lesson2.id &&
+        l.classroom.value?.id == lesson1.classroom.value?.id &&
+        l.subject.value?.id == lesson1.subject.value?.id &&
+        l.dayIndex == lesson2.dayIndex);
+
+    bool l2SubjectConflict = allLessons.any((l) =>
+        l.id != lesson1.id &&
+        l.id != lesson2.id &&
+        l.classroom.value?.id == lesson2.classroom.value?.id &&
+        l.subject.value?.id == lesson2.subject.value?.id &&
+        l.dayIndex == lesson1.dayIndex);
+
+    if (l1SubjectConflict || l2SubjectConflict) {
+      return (false, "نقل هذه المادة سيؤدي إلى تكرارها في نفس اليوم للصف");
     }
 
     // Check teacher day off constraint

@@ -58,13 +58,34 @@ class TimetableGenerator {
     if (success) {
       return currentAssignment;
     } else {
-      // Fallback: If we couldn't place all, add unassigned ones with null values.
+      // Fallback: For unassigned lessons, attempt to place them temporally with teacher = null
       List<LessonDto> fallbackAssignment = List.from(currentAssignment);
       for (var unpinned in unpinnedLessons) {
         if (!fallbackAssignment.any((assigned) => assigned.id == unpinned.id)) {
-          unpinned.dayIndex = null;
-          unpinned.periodIndex = null;
+          // Temporarily set teacher to null to bypass teacher constraints
+
           unpinned.teacher = null;
+
+          bool placedTemporally = false;
+          // Find first available slot where classroom doesn't have a conflict
+          for (int d = 0; d < maxDays && !placedTemporally; d++) {
+            for (int p = 0; p < maxPeriods && !placedTemporally; p++) {
+              bool classroomBusy = fallbackAssignment.any((l) => l.classroom?.id == unpinned.classroom?.id && l.dayIndex == d && l.periodIndex == p);
+              bool subjectAlreadyOnDay = fallbackAssignment.any((l) => l.classroom?.id == unpinned.classroom?.id && l.subject?.id == unpinned.subject?.id && l.dayIndex == d);
+
+              if (!classroomBusy && !subjectAlreadyOnDay) {
+                unpinned.dayIndex = d;
+                unpinned.periodIndex = p;
+                placedTemporally = true;
+              }
+            }
+          }
+
+          if (!placedTemporally) {
+            unpinned.dayIndex = null;
+            unpinned.periodIndex = null;
+          }
+
           fallbackAssignment.add(unpinned);
         }
       }
