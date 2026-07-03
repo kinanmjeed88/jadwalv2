@@ -87,6 +87,7 @@ class _TeacherDialog extends ConsumerStatefulWidget {
 }
 
 class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
+  final _formKey = GlobalKey<FormState>();
   late TextEditingController nameCtrl;
   late TextEditingController specCtrl;
   late TextEditingController maxDailyCtrl;
@@ -122,26 +123,32 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
     return AlertDialog(
       title: const Text('إضافة معلم'),
       content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
+        child: Form(
+          key: _formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
                 controller: nameCtrl,
+                validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
                 decoration: const InputDecoration(
                     labelText: 'الاسم',
                     helperText: 'مثال: أ. أحمد محمد')),
-            TextField(
+              TextFormField(
                 controller: specCtrl,
+                validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
                 decoration: const InputDecoration(
                     labelText: 'الاختصاص', helperText: 'مثال: رياضيات')),
-            TextField(
+              TextFormField(
                 controller: maxDailyCtrl,
+                validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
                 decoration: const InputDecoration(
                     labelText: 'الحد الأقصى يومياً',
                     helperText: 'عدد الدروس القصوى باليوم الواحد'),
                 keyboardType: TextInputType.number),
-            TextField(
+              TextFormField(
                 controller: maxWeeklyCtrl,
+                validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
                 decoration: const InputDecoration(
                     labelText: 'الحد الأقصى أسبوعياً',
                     helperText: 'عدد الدروس القصوى بالأسبوع'),
@@ -198,8 +205,9 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
         TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('إلغاء')),
-        TextButton(
+        ElevatedButton(
           onPressed: () {
+            if (!_formKey.currentState!.validate()) return;
             final newTeacher = widget.teacher ?? Teacher();
             newTeacher
               ..name = nameCtrl.text

@@ -35,7 +35,7 @@ class PdfExportUseCase {
 
     for (var teacher in teachers) {
       doc.addPage(
-        pw.MultiPage(
+        pw.Page(
           pageFormat: format,
           textDirection: pw.TextDirection.rtl,
           margin: const pw.EdgeInsets.all(20),
@@ -43,13 +43,17 @@ class PdfExportUseCase {
             base: font,
             bold: font,
           ),
-          header: (pw.Context context) => _buildHeader(settings, font, subtitle: 'جدول المدرس: ${teacher.name}'),
-          footer: (pw.Context context) => _buildFooter(settings, font, context),
           build: (pw.Context context) {
-            return [
-              pw.SizedBox(height: 15),
-              _buildTeacherTable(teacher, lessonMap, settings, font, format.availableWidth - 40),
-            ];
+            return pw.Column(
+              children: [
+                _buildHeader(settings, font, subtitle: 'جدول المدرس: ${teacher.name}'),
+                pw.SizedBox(height: 15),
+                pw.Expanded(
+                  child: _buildTeacherTable(teacher, lessonMap, settings, font, format.availableWidth - 40),
+                ),
+                _buildFooter(settings, font, context),
+              ]
+            );
           },
         ),
       );
@@ -189,7 +193,7 @@ class PdfExportUseCase {
 
     for (var chunk in horizontalChunks) {
       doc.addPage(
-        pw.MultiPage(
+        pw.Page(
           pageFormat: format,
           textDirection: pw.TextDirection.rtl,
           margin: const pw.EdgeInsets.all(20),
@@ -197,13 +201,17 @@ class PdfExportUseCase {
             base: font,
             bold: font,
           ),
-          header: (pw.Context context) => _buildHeader(settings, font),
-          footer: (pw.Context context) => _buildFooter(settings, font, context),
           build: (pw.Context context) {
-            return [
-              pw.SizedBox(height: 15),
-              _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth - 40),
-            ];
+            return pw.Column(
+              children: [
+                _buildHeader(settings, font),
+                pw.SizedBox(height: 15),
+                pw.Expanded(
+                  child: _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth - 40),
+                ),
+                _buildFooter(settings, font, context),
+              ]
+            );
           },
         ),
       );
@@ -351,7 +359,7 @@ class PdfExportUseCase {
                       style: pw.TextStyle(font: font, fontSize: baseFontSize, fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
-                      lesson.teacher.value?.name ?? '',
+                      lesson.teacher.value?.name?.split(' ').first ?? '',
                       textAlign: pw.TextAlign.center,
                       style: pw.TextStyle(font: font, fontSize: baseFontSize - 1, color: PdfColors.grey700),
                     ),

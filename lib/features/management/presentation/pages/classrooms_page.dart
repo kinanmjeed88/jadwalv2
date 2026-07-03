@@ -119,7 +119,7 @@ class _ClassroomDialogState extends ConsumerState<_ClassroomDialog> {
               decoration: const InputDecoration(
                   labelText: 'اسم الصف/الشعبة',
                   helperText: 'مثال: الصف الأول / أ'),
-              validator: (val) => val == null || val.isEmpty ? 'مطلوب' : null,
+              validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
               onSaved: (val) => _name = val!,
             ),
             const SizedBox(height: 10),
@@ -127,7 +127,7 @@ class _ClassroomDialogState extends ConsumerState<_ClassroomDialog> {
               initialValue: _grade,
               decoration: const InputDecoration(
                   labelText: 'المرحلة الدراسية', helperText: 'مثال: المتوسطة'),
-              validator: (val) => val == null || val.isEmpty ? 'مطلوب' : null,
+              validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
               onSaved: (val) => _grade = val!,
             ),
           ],

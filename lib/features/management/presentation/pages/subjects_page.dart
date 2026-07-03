@@ -125,7 +125,7 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                 initialValue: _name,
                 decoration: const InputDecoration(
                     labelText: 'اسم المادة', helperText: 'مثال: رياضيات, علوم'),
-                validator: (val) => val == null || val.isEmpty ? 'مطلوب' : null,
+                validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
                 onSaved: (val) => _name = val!,
               ),
               const SizedBox(height: 10),
@@ -135,7 +135,7 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                     labelText: 'الدروس الأسبوعية',
                     helperText: 'عدد الدروس المطلوبة خلال الأسبوع'),
                 keyboardType: TextInputType.number,
-                validator: (val) => val == null || int.tryParse(val) == null
+                validator: (val) => val == null || val.trim().isEmpty || int.tryParse(val.trim()) == null
                     ? 'أدخل رقماً صحيحاً'
                     : null,
                 onSaved: (val) => _lessonsPerWeek = int.parse(val!),
