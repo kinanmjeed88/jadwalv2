@@ -201,6 +201,7 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
           ],
         ),
         ),
+        ),
       actions: [
         TextButton(
             onPressed: () => Navigator.pop(context),
