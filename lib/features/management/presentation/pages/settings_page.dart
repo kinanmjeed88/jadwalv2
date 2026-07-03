@@ -178,7 +178,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                       decoration: const InputDecoration(
                           labelText: 'اسم المدرسة',
                           border: OutlineInputBorder()),
-                      onSaved: (val) => _schoolName = val ?? '',
+                      validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
+                      onSaved: (val) => _schoolName = val?.trim() ?? '',
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -186,7 +187,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                       decoration: const InputDecoration(
                           labelText: 'اسم المدير',
                           border: OutlineInputBorder()),
-                      onSaved: (val) => _principalName = val ?? '',
+                      validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
+                      onSaved: (val) => _principalName = val?.trim() ?? '',
                     ),
                     const SizedBox(height: 16),
                     TextFormField(

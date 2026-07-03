@@ -351,18 +351,48 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         for (var classroom in classrooms) {
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
           if (lesson != null) {
-            cells.add(DataCell(Container(
-              alignment: Alignment.center,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(lesson.subject.value?.name ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text(lesson.teacher.value?.name ?? '', style: const TextStyle(fontSize: 12, color: Colors.black54)),
-                ],
+            final subjectName = lesson.subject.value?.name ?? 'غير محدد';
+            final teacherName = lesson.teacher.value?.name != null ? lesson.teacher.value!.name.split(' ').first : 'غير محدد';
+            cells.add(DataCell(
+              Container(
+                alignment: Alignment.center,
+                padding: const EdgeInsets.all(1.0),
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: Colors.grey.shade700, width: 2.0),
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Flexible(
+                      child: Text(subjectName,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 10),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                    Flexible(
+                      child: Text(teacherName,
+                          style: const TextStyle(fontSize: 8, color: Colors.grey),
+                          textAlign: TextAlign.center,
+                          overflow: TextOverflow.ellipsis),
+                    ),
+                  ],
+                ),
               ),
-            )));
+            ));
           } else {
-            cells.add(DataCell(const SizedBox.shrink()));
+            cells.add(DataCell(
+              Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: BorderSide(color: Colors.grey.shade700, width: 2.0),
+                  ),
+                ),
+                child: const SizedBox.expand(),
+              ),
+            ));
           }
         }
 
@@ -379,10 +409,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     int startYear = now.month >= 9 ? now.year : now.year - 1;
     final academicYear = '$startYear/${startYear + 1}';
 
-    // Set A3 landscape roughly equivalent dimensions
-    // 420mm x 297mm -> approx 1600 x 1120 pixels
-    double exportWidth = 1600.0;
-    // We can allow the height to grow based on the content
+    // Calculate the total required width based on columns instead of forcing an A3 width.
+    // Base width for Day + Period is roughly 200, each classroom needs about 80
+    double exportWidth = 200.0 + (classrooms.length * 80.0);
+    // Ensure minimum width of 1600 so small tables still look good
+    if (exportWidth < 1600.0) exportWidth = 1600.0;
 
     // Scale column spacing based on number of columns to fit
     double colSpacing = 16.0;
@@ -454,18 +485,29 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                   headingRowHeight: 50.0,
                   columns: [
                     const DataColumn(
-                        label: Expanded(child: Text('اليوم',
+                        label: Center(child: Text('اليوم',
                             textAlign: TextAlign.center,
                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
                     const DataColumn(
-                        label: Expanded(child: Text('الدرس',
+                        label: Center(child: Text('الدرس',
                             textAlign: TextAlign.center,
                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
                     for (var classroom in classrooms)
                       DataColumn(
-                          label: Expanded(child: Text(classroom.name,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+                        label: Container(
+                          decoration: BoxDecoration(
+                            border: Border(
+                              right: BorderSide(color: Colors.grey.shade700, width: 2.0),
+                            ),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                          child: Center(
+                            child: Text(classroom.name,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                          ),
+                        ),
+                      ),
                   ],
                   rows: rows,
                 ),
@@ -609,18 +651,33 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             dataRowMinHeight: 35.0,
             dataRowMaxHeight: 45.0,
             headingRowHeight: 45.0,
-            dividerThickness: 3.0,
+            dividerThickness: 4.0,
             columns: [
               const DataColumn(
-                  label: Text('اليوم',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
+                  label: Center(
+                    child: Text('اليوم',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  )),
               const DataColumn(
-                  label: Text('الدرس',
-                      style: TextStyle(fontWeight: FontWeight.bold))),
+                  label: Center(
+                    child: Text('الدرس',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                  )),
               for (var classroom in classrooms)
                 DataColumn(
-                    label: Text(classroom.name,
-                        style: const TextStyle(fontWeight: FontWeight.bold))),
+                  label: Container(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        right: BorderSide(color: Colors.grey.shade700, width: 2.0),
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                    child: Center(
+                      child: Text(classroom.name,
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                ),
             ],
             rows: rows,
           ),
@@ -654,6 +711,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             constrained: false,
             scaleEnabled: true,
             panEnabled: true,
+            alignment: Alignment.center,
             transformationController: _transformationController,
             child: buildDataTable(),
           ),
@@ -761,21 +819,20 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                   Center(
                     child: Padding(
                       padding: const EdgeInsets.all(1.0),
-                      child: Row(
+                      child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Flexible(
                             child: Text(subjectName,
                                 style: const TextStyle(
                                     fontWeight: FontWeight.bold, fontSize: 10),
-                                textAlign: TextAlign.right,
+                                textAlign: TextAlign.center,
                                 overflow: TextOverflow.ellipsis),
                           ),
-                          const Text(' | ', style: TextStyle(fontSize: 8, color: Colors.grey)),
                           Flexible(
                             child: Text(teacherName,
                                 style: const TextStyle(fontSize: 8, color: Colors.grey),
-                                textAlign: TextAlign.left,
+                                textAlign: TextAlign.center,
                                 overflow: TextOverflow.ellipsis),
                           ),
                         ],

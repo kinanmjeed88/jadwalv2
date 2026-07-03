@@ -105,7 +105,7 @@ class PdfExportUseCase {
           cells.add(
             pw.Container(
               alignment: pw.Alignment.center,
-              padding: const pw.EdgeInsets.all(2),
+              padding: const pw.EdgeInsets.all(1),
               child: pw.Column(
                 mainAxisAlignment: pw.MainAxisAlignment.center,
                 children: [
@@ -117,7 +117,7 @@ class PdfExportUseCase {
                   pw.Text(
                     lesson.classroom.value?.name ?? '',
                     textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(font: font, fontSize: 9, color: PdfColors.grey700),
+                    style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey700),
                   ),
                 ],
               ),
@@ -191,10 +191,23 @@ class PdfExportUseCase {
       }
     }
 
+    // Calculate total height needed for a full week (header + (days * periods * row_height))
+    // A standard row might be around 30pt.
+    double expectedTableHeight = (settings.daysPerWeek * settings.periodsPerDay * 30.0) + 50.0;
+    // Header and footer take about 150pt
+    double requiredTotalHeight = expectedTableHeight + 150.0;
+
+    // If the standard A3 landscape height (approx 842pt) is not enough, extend the page format vertically
+    // This ensures no day gets truncated and the whole "chunk" fits on one continuous page.
+    PdfPageFormat finalFormat = format;
+    if (requiredTotalHeight > format.availableHeight) {
+      finalFormat = format.copyWith(height: requiredTotalHeight + margins * 2);
+    }
+
     for (var chunk in horizontalChunks) {
       doc.addPage(
         pw.Page(
-          pageFormat: format,
+          pageFormat: finalFormat,
           textDirection: pw.TextDirection.rtl,
           margin: const pw.EdgeInsets.all(20),
           theme: pw.ThemeData.withFont(
@@ -207,7 +220,7 @@ class PdfExportUseCase {
                 _buildHeader(settings, font),
                 pw.SizedBox(height: 15),
                 pw.Expanded(
-                  child: _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth - 40),
+                  child: _buildMasterTable(chunk, lessonMap, settings, font, finalFormat.availableWidth - 40),
                 ),
                 _buildFooter(settings, font, context),
               ]
@@ -349,19 +362,19 @@ class PdfExportUseCase {
             cells.add(
               pw.Container(
                 alignment: pw.Alignment.center,
-                padding: const pw.EdgeInsets.all(2),
+                padding: const pw.EdgeInsets.all(1),
                 child: pw.Column(
                   mainAxisAlignment: pw.MainAxisAlignment.center,
                   children: [
                     pw.Text(
                       lesson.subject.value?.name ?? '',
                       textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(font: font, fontSize: baseFontSize, fontWeight: pw.FontWeight.bold),
+                      style: pw.TextStyle(font: font, fontSize: 10, fontWeight: pw.FontWeight.bold),
                     ),
                     pw.Text(
                       lesson.teacher.value?.name?.split(' ').first ?? '',
                       textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(font: font, fontSize: baseFontSize - 1, color: PdfColors.grey700),
+                      style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey700),
                     ),
                   ],
                 ),
