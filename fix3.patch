@@ -1,7 +1,0 @@
---- lib/features/timetable/domain/usecases/timetable_generator.dart
-+++ lib/features/timetable/domain/usecases/timetable_generator.dart
-@@ -87,3 +87,3 @@
-       int restrictedPeriods = maxPeriods - lesson.teacher.value!.allowedPeriods.where((p) => p < maxPeriods).length;
--      score -= maxDays * restrictedPeriods;
-+      score -= (maxDays * restrictedPeriods).toDouble();
-     }
