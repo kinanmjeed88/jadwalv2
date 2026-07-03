@@ -25,27 +25,18 @@ class TimetablePage extends ConsumerStatefulWidget {
   ConsumerState<TimetablePage> createState() => _TimetablePageState();
 }
 
-class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTickerProviderStateMixin {
+class _TimetablePageState extends ConsumerState<TimetablePage> {
   final Map<int, GlobalKey> _classroomKeys = {};
   final GlobalKey _exportKey = GlobalKey();
   final TransformationController _transformationController = TransformationController();
-  late AnimationController _animationController;
-  Animation<Matrix4>? _zoomAnimation;
 
   @override
   void initState() {
     super.initState();
-    _animationController = AnimationController(vsync: this, duration: const Duration(milliseconds: 200));
-    _animationController.addListener(() {
-      if (_zoomAnimation != null) {
-        _transformationController.value = _zoomAnimation!.value;
-      }
-    });
   }
 
   @override
   void dispose() {
-    _animationController.dispose();
     _transformationController.dispose();
     super.dispose();
   }
@@ -302,13 +293,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTicker
             heroTag: "btn_zoom_in",
             onPressed: () {
               final Matrix4 currentMatrix = _transformationController.value;
-              final double currentScale = currentMatrix.getMaxScaleOnAxis();
-              final double newScale = (currentScale * 1.2).clamp(0.1, 5.0);
-              final Matrix4 newMatrix = Matrix4.copy(currentMatrix)
-                ..scale(newScale / currentScale);
-
-              _zoomAnimation = Matrix4Tween(begin: currentMatrix, end: newMatrix).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeInOut));
-              _animationController.forward(from: 0.0);
+              _transformationController.value = currentMatrix * Matrix4.diagonal3Values(1.2, 1.2, 1.0);
             },
             tooltip: 'تكبير',
             child: const Icon(Icons.zoom_in),
@@ -318,13 +303,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTicker
             heroTag: "btn_zoom_out",
             onPressed: () {
               final Matrix4 currentMatrix = _transformationController.value;
-              final double currentScale = currentMatrix.getMaxScaleOnAxis();
-              final double newScale = (currentScale / 1.2).clamp(0.1, 5.0);
-              final Matrix4 newMatrix = Matrix4.copy(currentMatrix)
-                ..scale(newScale / currentScale);
-
-              _zoomAnimation = Matrix4Tween(begin: currentMatrix, end: newMatrix).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeInOut));
-              _animationController.forward(from: 0.0);
+              _transformationController.value = currentMatrix * Matrix4.diagonal3Values(1 / 1.2, 1 / 1.2, 1.0);
             },
             tooltip: 'تصغير',
             child: const Icon(Icons.zoom_out),
@@ -649,12 +628,16 @@ class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTicker
         // Classrooms columns
         for (int c = 0; c < classrooms.length; c++) {
           var classroom = classrooms[c];
+          bool isFirstInGrade = false;
+          if (c == 0 || classrooms[c - 1].grade != classroom.grade) {
+            isFirstInGrade = true;
+          }
           bool isLastInGrade = false;
           if (c == classrooms.length - 1 || classrooms[c + 1].grade != classroom.grade) {
             isLastInGrade = true;
           }
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
-          cells.add(DataCell(_buildCell(lesson, classroom, d, p, isLastInGrade)));
+          cells.add(DataCell(_buildCell(lesson, classroom, d, p, isFirstInGrade, isLastInGrade)));
         }
 
         rows.add(DataRow(
@@ -703,6 +686,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTicker
               for (int c = 0; c < classrooms.length; c++)
                 ...() {
                   var classroom = classrooms[c];
+                  bool isFirstInGrade = false;
+                  if (c == 0 || classrooms[c - 1].grade != classroom.grade) {
+                    isFirstInGrade = true;
+                  }
                   bool isLastInGrade = false;
                   if (c == classrooms.length - 1 || classrooms[c + 1].grade != classroom.grade) {
                     isLastInGrade = true;
@@ -712,6 +699,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTicker
                       label: Container(
                         decoration: BoxDecoration(
                           border: Border(
+                            right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
                             left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
                           ),
                         ),
@@ -767,7 +755,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTicker
   }
 
 
-  Widget _buildCell(Lesson? lesson, Classroom classroom, int dayIndex, int periodIndex, bool isLastInGrade) {
+  Widget _buildCell(Lesson? lesson, Classroom classroom, int dayIndex, int periodIndex, bool isFirstInGrade, bool isLastInGrade) {
     if (lesson == null) {
       return DragTarget<Lesson>(
         onWillAcceptWithDetails: (details) {
@@ -800,13 +788,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTicker
         },
         builder: (context, candidateData, rejectedData) {
           return Container(
-            width: 80,
-
             decoration: BoxDecoration(
               color: candidateData.isNotEmpty
                   ? Colors.green.withValues(alpha: 0.3)
                   : (rejectedData.isNotEmpty ? Colors.red.withValues(alpha: 0.3) : Colors.transparent),
               border: Border(
+                right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
                 left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
               ),
             ),
@@ -841,6 +828,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTicker
         return LongPressDraggable<Lesson>(
           data: lesson,
           feedback: Material(
+            color: Colors.transparent,
             child: Container(
               color: Colors.teal.withValues(alpha: 0.8),
               padding: const EdgeInsets.all(8),
@@ -849,25 +837,25 @@ class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTicker
             ),
           ),
           childWhenDragging:
-              Container(color: Colors.grey.shade200, width: 80, height: double.infinity),
+              Container(color: Colors.grey.shade200, height: double.infinity),
           child: InkWell(
             onLongPress: () {
               ref.read(timetableNotifierProvider.notifier).togglePin(lesson);
             },
             child: Container(
-              width: 80,
-
               decoration: BoxDecoration(
                 color: lesson.isPinned
                     ? Colors.orange.shade100
                     : (candidateData.isNotEmpty ? Colors.red.shade100 : Colors.teal.shade50),
                 border: Border(
+                  right: isFirstInGrade
+                    ? const BorderSide(color: Colors.black, width: 3.0)
+                    : (lesson.isPinned ? const BorderSide(color: Colors.orange, width: 2) : BorderSide.none),
                   left: isLastInGrade
                     ? const BorderSide(color: Colors.black, width: 3.0)
                     : (lesson.isPinned ? const BorderSide(color: Colors.orange, width: 2) : BorderSide.none),
                   top: lesson.isPinned ? const BorderSide(color: Colors.orange, width: 2) : BorderSide.none,
                   bottom: lesson.isPinned ? const BorderSide(color: Colors.orange, width: 2) : BorderSide.none,
-                  right: lesson.isPinned ? const BorderSide(color: Colors.orange, width: 2) : BorderSide.none,
                 ),
               ),
               child: Stack(
@@ -879,12 +867,17 @@ class _TimetablePageState extends ConsumerState<TimetablePage> with SingleTicker
                         mainAxisAlignment: MainAxisAlignment.center,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(subjectName,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                              textAlign: TextAlign.center),
-                          Text(teacherName,
-                              style: const TextStyle(fontSize: 10, color: Colors.grey),
-                              textAlign: TextAlign.center),
+                          Flexible(
+                            child: Text(subjectName,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                                textAlign: TextAlign.center),
+                          ),
+                          const SizedBox(height: 4),
+                          Flexible(
+                            child: Text(teacherName,
+                                style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                textAlign: TextAlign.center),
+                          ),
                         ],
                       ),
                     ),
