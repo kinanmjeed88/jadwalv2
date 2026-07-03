@@ -222,7 +222,7 @@ class TimetableNotifier extends _$TimetableNotifier {
           l.teacher.value?.id == lesson.teacher.value?.id &&
           l.dayIndex == newDay).length;
 
-      if (teacherLessonsNewDay >= lesson.teacher.value!.maxLessonsPerDay) {
+      if (lesson.teacher.value != null && teacherLessonsNewDay >= lesson.teacher.value!.maxLessonsPerDay) {
         return (false, "لا يمكن النقل: تجاوز الحد الأقصى للحصص اليومية للأستاذ (${lesson.teacher.value?.name})");
       }
     }
@@ -348,7 +348,7 @@ class TimetableNotifier extends _$TimetableNotifier {
             l.id != lesson1.id && l.id != lesson2.id &&
             l.teacher.value?.id == lesson1.teacher.value?.id &&
             l.dayIndex == lesson2.dayIndex).length;
-        if (l1TeacherLessonsNewDay >= lesson1.teacher.value!.maxLessonsPerDay) {
+        if (lesson1.teacher.value != null && l1TeacherLessonsNewDay >= lesson1.teacher.value!.maxLessonsPerDay) {
           return (false, "لا يمكن التبديل: سيتم تجاوز الحد الأقصى للحصص اليومية للأستاذ (${lesson1.teacher.value?.name})");
         }
       }
@@ -358,7 +358,7 @@ class TimetableNotifier extends _$TimetableNotifier {
             l.id != lesson1.id && l.id != lesson2.id &&
             l.teacher.value?.id == lesson2.teacher.value?.id &&
             l.dayIndex == lesson1.dayIndex).length;
-        if (l2TeacherLessonsNewDay >= lesson2.teacher.value!.maxLessonsPerDay) {
+        if (lesson2.teacher.value != null && l2TeacherLessonsNewDay >= lesson2.teacher.value!.maxLessonsPerDay) {
           return (false, "لا يمكن التبديل: سيتم تجاوز الحد الأقصى للحصص اليومية للأستاذ (${lesson2.teacher.value?.name})");
         }
       }
