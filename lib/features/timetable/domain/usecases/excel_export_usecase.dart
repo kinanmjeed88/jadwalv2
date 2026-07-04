@@ -25,20 +25,41 @@ class ExcelExportUseCase {
 
     int colIndex = 0;
 
-    var dayCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 0));
+    // Principal Name Row
+    var principalCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
+    principalCell.value = TextCellValue('المدير : ${settings.principalName}');
+    principalCell.cellStyle = CellStyle(
+      bold: true,
+      horizontalAlign: HorizontalAlign.Left,
+      verticalAlign: VerticalAlign.Center,
+    );
+    if (classrooms.isNotEmpty) {
+      sheet.merge(
+        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0),
+        CellIndex.indexByColumnRow(columnIndex: 1 + classrooms.length, rowIndex: 0),
+      );
+    }
+
+    var dayCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 1));
     dayCell.value = TextCellValue('اليوم');
     dayCell.cellStyle = headerStyle;
 
-    var periodCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 0));
+    var periodCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 1));
     periodCell.value = TextCellValue('الدرس');
     periodCell.cellStyle = headerStyle;
 
     for (var classroom in classrooms) {
-      var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 0));
+      var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 1));
       cell.value = TextCellValue(classroom.name);
-      cell.cellStyle = headerStyle.copyWith(
-        rightBorderVal: Border(borderStyle: BorderStyle.Medium),
-        leftBorderVal: Border(borderStyle: BorderStyle.Medium),
+      cell.cellStyle = CellStyle(
+        bold: true,
+        horizontalAlign: HorizontalAlign.Center,
+        verticalAlign: VerticalAlign.Center,
+        backgroundColorHex: ExcelColor.fromHexString('#E0F2F1'),
+        topBorder: Border(borderStyle: BorderStyle.Thin),
+        bottomBorder: Border(borderStyle: BorderStyle.Thin),
+        leftBorder: Border(borderStyle: BorderStyle.Medium),
+        rightBorder: Border(borderStyle: BorderStyle.Medium),
       );
     }
 
@@ -56,7 +77,7 @@ class ExcelExportUseCase {
       }
     }
 
-    int rowIndex = 1;
+    int rowIndex = 2;
 
     for (int d = 0; d < displayDays.length; d++) {
       int startRowOfDay = rowIndex;
@@ -93,9 +114,15 @@ class ExcelExportUseCase {
             // Simple color hash based on subject name
             String hexColor = _getSubjectColor(subjectName);
 
-            cell.cellStyle = baseStyle.copyWith(
-              backgroundColorHexVal: ExcelColor.fromHexString(hexColor),
-              textWrappingVal: TextWrapping.WrapText,
+            cell.cellStyle = CellStyle(
+              horizontalAlign: HorizontalAlign.Center,
+              verticalAlign: VerticalAlign.Center,
+              topBorder: Border(borderStyle: BorderStyle.Thin),
+              bottomBorder: Border(borderStyle: BorderStyle.Thin),
+              leftBorder: Border(borderStyle: BorderStyle.Thin),
+              rightBorder: Border(borderStyle: BorderStyle.Thin),
+              backgroundColorHex: ExcelColor.fromHexString(hexColor),
+              textWrapping: TextWrapping.WrapText,
             );
           } else {
              cell.cellStyle = baseStyle;
@@ -138,8 +165,8 @@ class ExcelExportUseCase {
           }
 
           if (pEnd > pStart) {
-            int rowStart = 1 + (d * periodsPerDay) + pStart;
-            int rowEnd = 1 + (d * periodsPerDay) + pEnd;
+            int rowStart = 2 + (d * periodsPerDay) + pStart;
+            int rowEnd = 2 + (d * periodsPerDay) + pEnd;
             sheet.merge(
               CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowStart),
               CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowEnd)
