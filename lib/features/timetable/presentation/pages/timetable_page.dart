@@ -543,9 +543,14 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                       ),
                     ]),
                   ),
-                  const Expanded(
+                  Expanded(
                     flex: 1,
-                    child: SizedBox(),
+                    child: Text(
+                      'المدير : ${settings.principalName}',
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                      textAlign: TextAlign.left,
+                    ),
                   ),
                 ],
               ),
@@ -777,16 +782,20 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           ),
         ),
         Positioned.fill(
-          child: InteractiveViewer(
-            boundaryMargin: const EdgeInsets.all(double.infinity),
-            minScale: 0.1,
-            maxScale: 5.0,
-            constrained: false,
-            scaleEnabled: true,
-            panEnabled: true,
-            alignment: Alignment.center,
-            transformationController: _transformationController,
-            child: buildDataTable(),
+          child: Container(
+            color: Colors.white,
+            child: InteractiveViewer(
+              clipBehavior: Clip.hardEdge,
+              boundaryMargin: const EdgeInsets.all(double.infinity),
+              minScale: 0.1,
+              maxScale: 5.0,
+              constrained: false,
+              scaleEnabled: true,
+              panEnabled: true,
+              alignment: Alignment.center,
+              transformationController: _transformationController,
+              child: buildDataTable(),
+            ),
           ),
         ),
       ],

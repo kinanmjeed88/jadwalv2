@@ -14,6 +14,33 @@ class PdfExportUseCase {
     return '$startYear/${startYear + 1}';
   }
 
+  PdfPageFormat _getPageFormat(AppSettings settings) {
+    PdfPageFormat format = PdfPageFormat.a4;
+    switch (settings.exportPageSize) {
+      case "A3":
+        format = PdfPageFormat.a3;
+        break;
+      case "A5":
+        format = PdfPageFormat.a5;
+        break;
+      case "Custom":
+        if (settings.customPageWidth != null && settings.customPageHeight != null) {
+          format = PdfPageFormat(settings.customPageWidth!, settings.customPageHeight!);
+        }
+        break;
+      case "A4":
+      default:
+        format = PdfPageFormat.a4;
+        break;
+    }
+    if (settings.exportOrientation == "Landscape") {
+      format = format.landscape;
+    }
+    return format;
+  }
+
+
+
   Future<Uint8List> generateTeacherTimetablePdf(List<Lesson> lessons,
       List<Teacher> teachers, AppSettings settings) async {
     final doc = pw.Document();
@@ -21,7 +48,7 @@ class PdfExportUseCase {
     final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
-    PdfPageFormat format = PdfPageFormat.a4.landscape;
+    PdfPageFormat format = _getPageFormat(settings);
 
     final Map<String, Lesson> lessonMap = {};
     for (final l in lessons) {
@@ -155,7 +182,7 @@ class PdfExportUseCase {
     // Sort classrooms by id to keep consistent order
     classrooms.sort((a, b) => a.id.compareTo(b.id));
 
-    PdfPageFormat format = PdfPageFormat.a4.landscape;
+    PdfPageFormat format = _getPageFormat(settings);
 
     // Determine layout constraints
     final double margins = 40.0; // 20 each side
@@ -210,10 +237,7 @@ class PdfExportUseCase {
                 _buildHeader(settings, font),
                 pw.SizedBox(height: 15),
                 pw.Expanded(
-                  child: pw.FittedBox(
-                    fit: pw.BoxFit.scaleDown,
-                    child: _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth - 40),
-                  ),
+                  child: _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth - 40),
                 ),
                 _buildFooter(settings, font, context),
               ]
@@ -269,7 +293,12 @@ class PdfExportUseCase {
           ),
           pw.Expanded(
             flex: 1,
-            child: pw.SizedBox(),
+            child: pw.Text(
+              'المدير : ${settings.principalName}',
+              style: pw.TextStyle(
+                  fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
+              textAlign: pw.TextAlign.left,
+            ),
           ),
         ],
       ),

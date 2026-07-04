@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:flutter/services.dart';
 import 'package:excel/excel.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/classroom.dart';
@@ -25,16 +23,20 @@ class ExcelExportUseCase {
 
     int colIndex = 0;
 
-    var dayCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 0));
+    var principalCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
+    principalCell.value = TextCellValue('المدير : ${settings.principalName}');
+    sheet.merge(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0), CellIndex.indexByColumnRow(columnIndex: classrooms.length + 1, rowIndex: 0), customValue: TextCellValue('المدير : ${settings.principalName}'));
+
+    var dayCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 1));
     dayCell.value = TextCellValue('اليوم');
     dayCell.cellStyle = headerStyle;
 
-    var periodCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 0));
+    var periodCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 1));
     periodCell.value = TextCellValue('الدرس');
     periodCell.cellStyle = headerStyle;
 
     for (var classroom in classrooms) {
-      var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 0));
+      var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 1));
       cell.value = TextCellValue(classroom.name);
       cell.cellStyle = headerStyle.copyWith(
         rightBorderVal: Border(borderStyle: BorderStyle.Medium),
@@ -56,7 +58,7 @@ class ExcelExportUseCase {
       }
     }
 
-    int rowIndex = 1;
+    int rowIndex = 2;
 
     for (int d = 0; d < displayDays.length; d++) {
       int startRowOfDay = rowIndex;
@@ -107,7 +109,8 @@ class ExcelExportUseCase {
       // Merge Day Cells
       sheet.merge(
         CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: startRowOfDay),
-        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex - 1)
+        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex - 1),
+        customValue: TextCellValue(displayDays[d]),
       );
     }
 
@@ -138,11 +141,12 @@ class ExcelExportUseCase {
           }
 
           if (pEnd > pStart) {
-            int rowStart = 1 + (d * periodsPerDay) + pStart;
-            int rowEnd = 1 + (d * periodsPerDay) + pEnd;
+            int rowStart = 2 + (d * periodsPerDay) + pStart;
+            int rowEnd = 2 + (d * periodsPerDay) + pEnd;
             sheet.merge(
               CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowStart),
-              CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowEnd)
+              CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowEnd),
+              customValue: TextCellValue('${lessonStart.subject.value?.name ?? "-"}\n${lessonStart.teacher.value?.name.split(" ").first ?? "-"}'),
             );
           }
 
