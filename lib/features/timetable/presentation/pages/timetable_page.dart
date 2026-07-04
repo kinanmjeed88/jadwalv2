@@ -321,8 +321,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           FloatingActionButton(
             heroTag: "btn_zoom_in",
             onPressed: () {
-              final Matrix4 currentMatrix = _transformationController.value;
-              _transformationController.value = currentMatrix * Matrix4.diagonal3Values(1.2, 1.2, 1.0);
+              final Matrix4 matrix = _transformationController.value.clone();
+              final double scale = 1.2;
+              matrix[0] *= scale;
+              matrix[5] *= scale;
+              _transformationController.value = matrix;
             },
             tooltip: 'تكبير',
             child: const Icon(Icons.zoom_in),
@@ -331,8 +334,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           FloatingActionButton(
             heroTag: "btn_zoom_out",
             onPressed: () {
-              final Matrix4 currentMatrix = _transformationController.value;
-              _transformationController.value = currentMatrix * Matrix4.diagonal3Values(1 / 1.2, 1 / 1.2, 1.0);
+              final Matrix4 matrix = _transformationController.value.clone();
+              final double scale = 1 / 1.2;
+              matrix[0] *= scale;
+              matrix[5] *= scale;
+              _transformationController.value = matrix;
             },
             tooltip: 'تصغير',
             child: const Icon(Icons.zoom_out),
@@ -365,80 +371,128 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
     final displayDays = days.take(settings.daysPerWeek).toList();
 
-    List<DataRow> rows = [];
+    List<TableRow> rows = [];
+
+    // Header Row
+    List<Widget> headerCells = [
+      const Center(child: Padding(padding: EdgeInsets.all(8.0), child: Text('اليوم', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+      const Center(child: Padding(padding: EdgeInsets.all(8.0), child: Text('الدرس', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+    ];
+
+    for (int c = 0; c < classrooms.length; c++) {
+      var classroom = classrooms[c];
+      bool isFirstInGrade = false;
+      if (c == 0 || classrooms[c - 1].grade != classroom.grade) {
+        isFirstInGrade = true;
+      }
+      bool isLastInGrade = false;
+      if (c == classrooms.length - 1 || classrooms[c + 1].grade != classroom.grade) {
+        isLastInGrade = true;
+      }
+      headerCells.add(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+          decoration: BoxDecoration(
+            border: Border(
+              right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+              left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+            ),
+          ),
+          child: Center(
+            child: Text(classroom.name,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+        )
+      );
+    }
+
+    rows.add(TableRow(
+      decoration: BoxDecoration(color: Colors.grey.shade200),
+      children: headerCells
+    ));
+
     for (int d = 0; d < displayDays.length; d++) {
       for (int p = 0; p < settings.periodsPerDay; p++) {
-        List<DataCell> cells = [];
+        List<Widget> cells = [];
 
         if (p == 0) {
-          cells.add(DataCell(Container(
+          cells.add(Container(
             alignment: Alignment.center,
+            padding: const EdgeInsets.all(8.0),
             child: Text(displayDays[d],
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          )));
+          ));
         } else {
-          cells.add(DataCell(const SizedBox.shrink()));
+          cells.add(const SizedBox.shrink());
         }
 
-        cells.add(DataCell(Container(
+        cells.add(Container(
           alignment: Alignment.center,
+          padding: const EdgeInsets.all(8.0),
           child: Text((p + 1).toString(),
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        )));
+        ));
 
-        for (var classroom in classrooms) {
+        for (int c = 0; c < classrooms.length; c++) {
+          var classroom = classrooms[c];
+          bool isFirstInGrade = false;
+          if (c == 0 || classrooms[c - 1].grade != classroom.grade) {
+            isFirstInGrade = true;
+          }
+          bool isLastInGrade = false;
+          if (c == classrooms.length - 1 || classrooms[c + 1].grade != classroom.grade) {
+            isLastInGrade = true;
+          }
+
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
           if (lesson != null) {
             final subjectName = lesson.subject.value?.name ?? 'غير محدد';
             final teacherName = lesson.teacher.value != null ? lesson.teacher.value!.name.split(' ').first : 'فارغ';
-            cells.add(DataCell(
+            cells.add(
               Container(
                 alignment: Alignment.center,
-                padding: const EdgeInsets.all(1.0),
+                padding: const EdgeInsets.all(4.0),
                 decoration: BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: Colors.grey.shade700, width: 2.0),
+                    right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+                    left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
                   ),
                 ),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Flexible(
-                      child: Text(subjectName,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 10),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis),
-                    ),
-                    Flexible(
-                      child: Text(teacherName,
-                          style: const TextStyle(fontSize: 8, color: Colors.grey),
-                          textAlign: TextAlign.center,
-                          overflow: TextOverflow.ellipsis),
-                    ),
+                    Text(subjectName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                        textAlign: TextAlign.center),
+                    const SizedBox(height: 2),
+                    Text(teacherName,
+                        style: const TextStyle(fontSize: 8, color: Colors.grey),
+                        textAlign: TextAlign.center),
                   ],
                 ),
-              ),
-            ));
+              )
+            );
           } else {
-            cells.add(DataCell(
+            cells.add(
               Container(
                 decoration: BoxDecoration(
                   border: Border(
-                    right: BorderSide(color: Colors.grey.shade700, width: 2.0),
+                    right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+                    left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
                   ),
                 ),
-                child: const SizedBox.expand(),
-              ),
-            ));
+                child: const SizedBox(height: 40),
+              )
+            );
           }
         }
 
-        rows.add(DataRow(
-          color: p % 2 == 0
-              ? WidgetStateProperty.all(Colors.grey.shade50)
-              : WidgetStateProperty.all(Colors.white),
-          cells: cells,
+        rows.add(TableRow(
+          decoration: BoxDecoration(
+            color: p % 2 == 0 ? Colors.grey.shade50 : Colors.white
+          ),
+          children: cells,
         ));
       }
     }
@@ -446,11 +500,6 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     final now = DateTime.now();
     int startYear = now.month >= 9 ? now.year : now.year - 1;
     final academicYear = '$startYear/${startYear + 1}';
-
-    // Use IntrinsicWidth inside the export grid to tightly fit the table without massive blank space.
-    double colSpacing = 16.0;
-    if (classrooms.length > 8) colSpacing = 8.0;
-    if (classrooms.length > 12) colSpacing = 4.0;
 
     return RepaintBoundary(
       key: _exportKey,
@@ -508,41 +557,15 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.black26),
                 ),
-                child: DataTable(
+                child: Table(
                   border: TableBorder.all(color: Colors.black26),
-                  headingRowColor: WidgetStateProperty.all(Colors.grey.shade200),
-                  columnSpacing: colSpacing,
-                  horizontalMargin: 8.0,
-                  dataRowMinHeight: 60.0,
-                  dataRowMaxHeight: 70.0,
-                  headingRowHeight: 50.0,
-                  columns: [
-                    const DataColumn(
-                        label: Center(child: Text('اليوم',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
-                    const DataColumn(
-                        label: Center(child: Text('الدرس',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
-                    for (var classroom in classrooms)
-                      DataColumn(
-                        label: Container(
-                          decoration: BoxDecoration(
-                            border: Border(
-                              right: BorderSide(color: Colors.grey.shade700, width: 2.0),
-                            ),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: Center(
-                            child: Text(classroom.name,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                          ),
-                        ),
-                      ),
-                  ],
-                  rows: rows,
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  defaultColumnWidth: const IntrinsicColumnWidth(),
+                  columnWidths: const {
+                    0: IntrinsicColumnWidth(),
+                    1: IntrinsicColumnWidth(),
+                  },
+                  children: rows,
                 ),
               ),
             ),
@@ -629,32 +652,67 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       _classroomKeys[masterKeyId] = GlobalKey();
     }
 
-    // Build Rows
-    List<DataRow> rows = [];
+    // Build Rows for Table
+    List<TableRow> rows = [];
+
+    List<Widget> headerCells = [
+      const Center(child: Padding(padding: EdgeInsets.all(8.0), child: Text('اليوم', style: TextStyle(fontWeight: FontWeight.bold)))),
+      const Center(child: Padding(padding: EdgeInsets.all(8.0), child: Text('الدرس', style: TextStyle(fontWeight: FontWeight.bold)))),
+    ];
+
+    for (int c = 0; c < classrooms.length; c++) {
+      var classroom = classrooms[c];
+      bool isFirstInGrade = false;
+      if (c == 0 || classrooms[c - 1].grade != classroom.grade) {
+        isFirstInGrade = true;
+      }
+      bool isLastInGrade = false;
+      if (c == classrooms.length - 1 || classrooms[c + 1].grade != classroom.grade) {
+        isLastInGrade = true;
+      }
+      headerCells.add(
+        Container(
+          decoration: BoxDecoration(
+            border: Border(
+              right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+              left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
+          child: Center(
+            child: Text(classroom.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        )
+      );
+    }
+
+    rows.add(TableRow(
+      decoration: BoxDecoration(color: Colors.teal.shade100),
+      children: headerCells
+    ));
+
     for (int d = 0; d < displayDays.length; d++) {
       for (int p = 0; p < settings.periodsPerDay; p++) {
-        List<DataCell> cells = [];
+        List<Widget> cells = [];
 
-        // Vertical merging logic: only show day name on the first period of the day
         if (p == 0) {
-          // This cell would ideally span vertically, but DataTable does not support rowspans.
-          // We can simulate it by showing the text only on the first row, or center it, etc.
-          // For a true Master Grid in flutter DataTable, we just place the day on the first cell.
-          cells.add(DataCell(Container(
+          cells.add(Container(
             alignment: Alignment.center,
+            padding: const EdgeInsets.all(8.0),
             child: Text(displayDays[d],
                 style: const TextStyle(fontWeight: FontWeight.bold)),
-          )));
+          ));
         } else {
-          cells.add(DataCell(const SizedBox.shrink()));
+          cells.add(const SizedBox.shrink());
         }
 
         // Sequence column
-        cells.add(DataCell(Container(
+        cells.add(Container(
           alignment: Alignment.center,
+          padding: const EdgeInsets.all(8.0),
           child: Text((p + 1).toString(),
               style: const TextStyle(fontWeight: FontWeight.bold)),
-        )));
+        ));
 
         // Classrooms columns
         for (int c = 0; c < classrooms.length; c++) {
@@ -668,83 +726,33 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             isLastInGrade = true;
           }
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
-          cells.add(DataCell(_buildCell(lesson, classroom, d, p, isFirstInGrade, isLastInGrade)));
+          cells.add(_buildCell(lesson, classroom, d, p, isFirstInGrade, isLastInGrade));
         }
 
-        rows.add(DataRow(
-          color: p % 2 == 0
-              ? WidgetStateProperty.all(Colors.grey.shade50)
-              : WidgetStateProperty.all(Colors.white),
-          cells: cells,
+        rows.add(TableRow(
+          decoration: BoxDecoration(
+            color: p % 2 == 0 ? Colors.grey.shade50 : Colors.white
+          ),
+          children: cells,
         ));
       }
     }
 
-        Widget buildDataTable() {
+    Widget buildDataTable() {
       return Container(
         color: Colors.white,
         padding: const EdgeInsets.all(16.0),
         child: Directionality(
           textDirection: TextDirection.rtl,
-          child: DataTable(
-            border: TableBorder(
-              top: BorderSide(color: Colors.grey.shade700, width: 1.5),
-              bottom: BorderSide(color: Colors.grey.shade700, width: 1.5),
-              left: BorderSide(color: Colors.grey.shade700, width: 1.5),
-              right: BorderSide(color: Colors.grey.shade700, width: 1.5),
-              horizontalInside: BorderSide(color: Colors.grey.shade700, width: 1.5),
-              verticalInside: BorderSide(color: Colors.grey.shade700, width: 1.5),
-            ),
-            headingRowColor:
-                WidgetStateProperty.all(Colors.teal.shade100),
-            columnSpacing: 4.0,
-            horizontalMargin: 4.0,
-            dataRowMinHeight: 45.0,
-            dataRowMaxHeight: double.infinity,
-            headingRowHeight: 45.0,
-            dividerThickness: 4.0,
-            columns: [
-              const DataColumn(
-                  label: Center(
-                    child: Text('اليوم',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                  )),
-              const DataColumn(
-                  label: Center(
-                    child: Text('الدرس',
-                        style: TextStyle(fontWeight: FontWeight.bold)),
-                  )),
-              for (int c = 0; c < classrooms.length; c++)
-                ...() {
-                  var classroom = classrooms[c];
-                  bool isFirstInGrade = false;
-                  if (c == 0 || classrooms[c - 1].grade != classroom.grade) {
-                    isFirstInGrade = true;
-                  }
-                  bool isLastInGrade = false;
-                  if (c == classrooms.length - 1 || classrooms[c + 1].grade != classroom.grade) {
-                    isLastInGrade = true;
-                  }
-                  return [
-                    DataColumn(
-                      label: Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
-                            left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
-                          ),
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                        child: Center(
-                          child: Text(classroom.name,
-                              style: const TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ),
-                  ];
-                }()
-            ],
-            rows: rows,
+          child: Table(
+            border: TableBorder.all(color: Colors.grey.shade700, width: 1.5),
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            defaultColumnWidth: const IntrinsicColumnWidth(),
+            columnWidths: const {
+              0: IntrinsicColumnWidth(),
+              1: IntrinsicColumnWidth(),
+            },
+            children: rows,
           ),
         ),
       );
@@ -785,7 +793,6 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-
   Widget _buildCell(Lesson? lesson, Classroom classroom, int dayIndex, int periodIndex, bool isFirstInGrade, bool isLastInGrade) {
     if (lesson == null) {
       return DragTarget<Lesson>(
@@ -794,10 +801,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
           if (incoming.isPinned) return false;
 
-          // Basic constraint checks for visual feedback without full async DB read
-          // 1. Same subject already has this period allowed
           if (incoming.subject.value != null && (incoming.subject.value?.allowedPeriods.isNotEmpty ?? false) && !(incoming.subject.value?.allowedPeriods.contains(periodIndex) ?? false)) return false;
-          // 2. Teacher unavailable days
           if (incoming.teacher.value != null && (incoming.teacher.value?.unavailableDays.contains(dayIndex) ?? false)) return false;
 
           return true;
@@ -819,6 +823,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         },
         builder: (context, candidateData, rejectedData) {
           return Container(
+            height: 50,
             decoration: BoxDecoration(
               color: candidateData.isNotEmpty
                   ? Colors.green.withValues(alpha: 0.3)
@@ -868,16 +873,18 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             ),
           ),
           childWhenDragging:
-              Container(color: Colors.grey.shade200, height: double.infinity),
-          child: InkWell(
-            onLongPress: () {
+              Container(color: Colors.grey.shade200, height: 50),
+          child: GestureDetector(
+            onDoubleTap: () {
               ref.read(timetableNotifierProvider.notifier).togglePin(lesson);
             },
             child: Container(
+              height: 50,
+              padding: const EdgeInsets.all(4.0),
               decoration: BoxDecoration(
                 color: lesson.isPinned
                     ? Colors.orange.shade100
-                    : (candidateData.isNotEmpty ? Colors.red.shade100 : Colors.teal.shade50),
+                    : (candidateData.isNotEmpty ? Colors.red.shade100 : Colors.transparent),
                 border: Border(
                   right: isFirstInGrade
                     ? const BorderSide(color: Colors.black, width: 3.0)
@@ -892,25 +899,20 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               child: Stack(
                 children: [
                   Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(1.0),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Flexible(
-                            child: Text(subjectName,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                                textAlign: TextAlign.center),
-                          ),
-                          const SizedBox(height: 4),
-                          Flexible(
-                            child: Text(teacherName,
-                                style: const TextStyle(fontSize: 10, color: Colors.grey),
-                                textAlign: TextAlign.center),
-                          ),
-                        ],
-                      ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(subjectName,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis),
+                        const SizedBox(height: 2),
+                        Text(teacherName,
+                            style: const TextStyle(fontSize: 8, color: Colors.grey),
+                            textAlign: TextAlign.center,
+                            overflow: TextOverflow.ellipsis),
+                      ],
                     ),
                   ),
                   if (lesson.isPinned)
