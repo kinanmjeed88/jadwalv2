@@ -754,11 +754,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           child: Table(
             border: TableBorder.all(color: Colors.grey.shade700, width: 1.5),
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            // إلغاء IntrinsicColumnWidth واستخدام أحجام ثابتة لمعالجة الانهيار
-            defaultColumnWidth: const FixedColumnWidth(120.0), // عرض ثابت للشعب
+            // السر الأول: تثبيت العرض لكي لا ينهار الجدول
+            defaultColumnWidth: const FixedColumnWidth(150.0), 
             columnWidths: const {
-              0: FixedColumnWidth(60.0), // عرض ثابت لليوم
-              1: FixedColumnWidth(60.0), // عرض ثابت للدرس
+              0: FixedColumnWidth(60.0), 
+              1: FixedColumnWidth(60.0), 
             },
             children: rows,
           ),
@@ -770,7 +770,6 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       builder: (context, constraints) {
         return Stack(
           children: [
-            // الطبقة المخفية لأجل تصدير الصورة بوضوح دون تأثير التكبير
             Positioned(
               top: -9999,
               left: -9999,
@@ -781,34 +780,28 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 ),
               ),
             ),
-
-            // الطبقة المرئية التفاعلية مع دعم التكبير والتمرير
+            
             Positioned.fill(
               child: Container(
                 color: Colors.white,
                 clipBehavior: Clip.hardEdge,
                 child: InteractiveViewer(
-                  boundaryMargin: const EdgeInsets.all(double.infinity),
+                  boundaryMargin: const EdgeInsets.all(150.0),
                   minScale: 0.1,
                   maxScale: 5.0,
-                  constrained: false,
+                  constrained: false, // السر الثاني: السماح للمحتوى بأخذ مساحته
                   scaleEnabled: true,
                   panEnabled: true,
                   alignment: Alignment.center,
                   transformationController: _transformationController,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.vertical,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minWidth: constraints.maxWidth,
-                          minHeight: constraints.maxHeight,
-                        ),
-                        child: Center(
-                          child: buildDataTable(),
-                        ),
-                      ),
+                  // السر الثالث: إزالة SingleChildScrollView الكارثي واستخدام ConstrainedBox فقط
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: constraints.maxWidth,
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: Center(
+                      child: buildDataTable(),
                     ),
                   ),
                 ),
