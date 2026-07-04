@@ -152,7 +152,6 @@ class PdfExportUseCase {
     final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
-    // Sort classrooms by id to keep consistent order
     classrooms.sort((a, b) => a.id.compareTo(b.id));
 
     PdfPageFormat baseFormat;
@@ -173,15 +172,9 @@ class PdfExportUseCase {
         ? baseFormat.portrait
         : baseFormat.landscape;
 
-    // Determine layout constraints
-    final double margins = 40.0; // 20 each side
-    // final double availableWidth = format.width - margins;
-
-    // Static chunking based on layout to avoid squishing
-    // If portrait A4, we can comfortably fit 3 or 4 columns. Landscape can fit 5 or 6.
-    int maxCapacity = settings.exportOrientation == 'Portrait' ? 4 : 6;
-    if (settings.exportPageSize == 'A3') maxCapacity = settings.exportOrientation == 'Portrait' ? 6 : 8;
-    if (settings.exportPageSize == 'A5') maxCapacity = settings.exportOrientation == 'Portrait' ? 2 : 3;
+    int maxCapacity = 4;
+    if (settings.exportPageSize == 'A3') maxCapacity = 8;
+    if (settings.exportPageSize == 'A5') maxCapacity = 2;
 
     final List<List<Classroom>> horizontalChunks = [];
     for (int i = 0; i < classrooms.length; i += maxCapacity) {
@@ -192,7 +185,6 @@ class PdfExportUseCase {
               : i + maxCapacity));
     }
 
-    // Build the lesson map once with full data guarantee
     final Map<String, Lesson> lessonMap = {};
     for (final l in lessons) {
       if (!l.isUnassigned) {
@@ -226,7 +218,7 @@ class PdfExportUseCase {
           },
           build: (pw.Context context) {
             return [
-              _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth - 40),
+              _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth),
             ];
           },
         ),
@@ -235,7 +227,6 @@ class PdfExportUseCase {
 
     return doc.save();
   }
-
   pw.Widget _buildHeader(AppSettings settings, pw.Font font, {String? subtitle}) {
     return pw.Directionality(
       textDirection: pw.TextDirection.rtl,
@@ -313,24 +304,21 @@ class PdfExportUseCase {
     final displayDays = days.take(settings.daysPerWeek).toList();
     final int periodsPerDay = settings.periodsPerDay;
 
-    // Dynamic width calculation
     final double totalProportions = 0.8 + 0.6 + chunk.length;
     final double unitWidth = availableWidth / totalProportions;
 
     final Map<int, pw.TableColumnWidth> columnWidths = {
-      0: pw.FixedColumnWidth(unitWidth * 0.8), // Day
-      1: pw.FixedColumnWidth(unitWidth * 0.6), // Period
+      0: pw.FixedColumnWidth(unitWidth * 0.8),
+      1: pw.FixedColumnWidth(unitWidth * 0.6),
       for (int i = 0; i < chunk.length; i++)
         i + 2: pw.FixedColumnWidth(unitWidth * 1.0),
     };
 
     double baseFontSize = 10.0;
-    if (chunk.length > 8) baseFontSize = 8.0;
-    if (chunk.length > 12) baseFontSize = 6.0;
+    if (chunk.length >= 8) baseFontSize = 8.0;
 
     final List<pw.Widget> dayTables = [];
 
-    // Header Widget
     final headerRow = pw.TableRow(
       decoration: const pw.BoxDecoration(color: PdfColors.teal100),
       children: [
@@ -341,7 +329,6 @@ class PdfExportUseCase {
       ],
     );
 
-    // Build independent pw.Table for the header to maintain column width alignment
     final headerTable = pw.Directionality(
       textDirection: pw.TextDirection.rtl,
       child: pw.Table(
@@ -362,7 +349,6 @@ class PdfExportUseCase {
       for (int p = 0; p < periodsPerDay; p++) {
         final cells = <pw.Widget>[];
 
-        // Day cell: Only show on middle period of the day to simulate rowspan
         bool isLastPeriodOfDay = p == periodsPerDay - 1;
         if (p == periodsPerDay ~/ 2) {
           cells.add(
@@ -382,12 +368,10 @@ class PdfExportUseCase {
           );
         }
 
-        // Period
         cells.add(
           _buildCell((p + 1).toString(), font, baseFontSize, isBold: true),
         );
 
-        // Classrooms
         for (int c = 0; c < chunk.length; c++) {
           final classroom = chunk[c];
           bool isLastInGrade = c == chunk.length - 1 || chunk[c + 1].grade != classroom.grade;
@@ -435,7 +419,6 @@ class PdfExportUseCase {
         ));
       }
 
-      // Add a single pw.Table per day and wrap it in pw.Wrap (Keep-together logic)
       dayTables.add(
         pw.Wrap(
           children: [
@@ -443,7 +426,7 @@ class PdfExportUseCase {
               textDirection: pw.TextDirection.rtl,
               child: pw.Table(
                 border: pw.TableBorder(
-                  top: pw.BorderSide.none, // To prevent double border with header/previous day
+                  top: pw.BorderSide.none,
                   bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
                   left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
                   right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
@@ -461,7 +444,6 @@ class PdfExportUseCase {
       children: dayTables,
     );
   }
-
   pw.Widget _buildCell(String text, pw.Font font, double fontSize,
       {bool isHeader = false, bool isBold = false, bool isLastInGrade = false, bool hideBottomBorder = false}) {
     return pw.Container(

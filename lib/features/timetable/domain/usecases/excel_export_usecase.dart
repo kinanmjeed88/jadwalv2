@@ -26,13 +26,24 @@ class ExcelExportUseCase {
 
     int colIndex = 0;
 
-    // Set fixed column widths
-    sheet.setColumnWidth(0, 10.0); // Day
-    sheet.setColumnWidth(1, 10.0); // Period
+    // تحديد عرض الأعمدة
+    sheet.setColumnWidth(0, 12.0); // عمود اليوم
+    sheet.setColumnWidth(1, 12.0); // عمود الحصة (الدرس)
     for (int i = 0; i < classrooms.length; i++) {
-      sheet.setColumnWidth(i + 2, 20.0); // Classroom
+      sheet.setColumnWidth(i + 2, 25.0); // أعمدة الشعب
     }
 
+    // تحديد ارتفاع الصفوف
+    sheet.setRowHeight(0, 30.0); // صف اسم المدير
+    sheet.setRowHeight(1, 30.0); // صف العناوين
+
+    final int daysCount = settings.daysPerWeek;
+    final int periodsCount = settings.periodsPerDay;
+    final int totalLessonRows = daysCount * periodsCount;
+
+    for (int r = 2; r < 2 + totalLessonRows; r++) {
+      sheet.setRowHeight(r, 45.0); // تثبيت الارتفاع
+    }
     // Principal Name Row
     var principalCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
     principalCell.value = TextCellValue('المدير : ${settings.principalName}');
