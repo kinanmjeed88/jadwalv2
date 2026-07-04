@@ -37,8 +37,8 @@ class ExcelExportUseCase {
       var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: colIndex++, rowIndex: 0));
       cell.value = TextCellValue(classroom.name);
       cell.cellStyle = headerStyle.copyWith(
-        rightBorder: Border(borderStyle: BorderStyle.Medium),
-        leftBorder: Border(borderStyle: BorderStyle.Medium),
+        rightBorderVal: Border(borderStyle: BorderStyle.Medium),
+        leftBorderVal: Border(borderStyle: BorderStyle.Medium),
       );
     }
 
@@ -94,8 +94,8 @@ class ExcelExportUseCase {
             String hexColor = _getSubjectColor(subjectName);
 
             cell.cellStyle = baseStyle.copyWith(
-              backgroundColorHex: ExcelColor.fromHexString(hexColor),
-              textWrapping: TextWrapping.WrapText,
+              backgroundColorHexVal: ExcelColor.fromHexString(hexColor),
+              textWrappingVal: TextWrapping.WrapText,
             );
           } else {
              cell.cellStyle = baseStyle;
