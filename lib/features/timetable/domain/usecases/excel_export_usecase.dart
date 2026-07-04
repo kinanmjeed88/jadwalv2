@@ -26,6 +26,13 @@ class ExcelExportUseCase {
 
     int colIndex = 0;
 
+    // Set fixed column widths
+    sheet.setColumnWidth(0, 10.0); // Day
+    sheet.setColumnWidth(1, 10.0); // Period
+    for (int i = 0; i < classrooms.length; i++) {
+      sheet.setColumnWidth(i + 2, 20.0); // Classroom
+    }
+
     // Principal Name Row
     var principalCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
     principalCell.value = TextCellValue('المدير : ${settings.principalName}');

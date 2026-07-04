@@ -328,23 +328,37 @@ class PdfExportUseCase {
     if (chunk.length > 8) baseFontSize = 8.0;
     if (chunk.length > 12) baseFontSize = 6.0;
 
-    final List<pw.TableRow> rows = [];
+    final List<pw.Widget> dayTables = [];
 
-    // Header Row
-    rows.add(
-      pw.TableRow(
-        repeat: true,
-        decoration: const pw.BoxDecoration(color: PdfColors.teal100),
-        children: [
-          _buildCell('اليوم', font, baseFontSize, isHeader: true),
-          _buildCell('الدرس', font, baseFontSize, isHeader: true),
-          for (int c = 0; c < chunk.length; c++)
-            _buildCell(chunk[c].name, font, baseFontSize, isHeader: true, isLastInGrade: c == chunk.length - 1 || chunk[c + 1].grade != chunk[c].grade),
-        ],
-      ),
+    // Header Widget
+    final headerRow = pw.TableRow(
+      decoration: const pw.BoxDecoration(color: PdfColors.teal100),
+      children: [
+        _buildCell('اليوم', font, baseFontSize, isHeader: true),
+        _buildCell('الدرس', font, baseFontSize, isHeader: true),
+        for (int c = 0; c < chunk.length; c++)
+          _buildCell(chunk[c].name, font, baseFontSize, isHeader: true, isLastInGrade: c == chunk.length - 1 || chunk[c + 1].grade != chunk[c].grade),
+      ],
     );
 
+    // Build independent pw.Table for the header to maintain column width alignment
+    final headerTable = pw.Directionality(
+      textDirection: pw.TextDirection.rtl,
+      child: pw.Table(
+        border: pw.TableBorder(
+          top: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+        ),
+        columnWidths: columnWidths,
+        children: [headerRow],
+      ),
+    );
+    dayTables.add(headerTable);
+
     for (int d = 0; d < displayDays.length; d++) {
+      final List<pw.TableRow> rows = [];
       for (int p = 0; p < periodsPerDay; p++) {
         final cells = <pw.Widget>[];
 
@@ -420,20 +434,31 @@ class PdfExportUseCase {
           children: cells,
         ));
       }
+
+      // Add a single pw.Table per day and wrap it in pw.Wrap (Keep-together logic)
+      dayTables.add(
+        pw.Wrap(
+          children: [
+            pw.Directionality(
+              textDirection: pw.TextDirection.rtl,
+              child: pw.Table(
+                border: pw.TableBorder(
+                  top: pw.BorderSide.none, // To prevent double border with header/previous day
+                  bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                ),
+                columnWidths: columnWidths,
+                children: rows,
+              ),
+            ),
+          ],
+        ),
+      );
     }
 
-    return pw.Directionality(
-      textDirection: pw.TextDirection.rtl,
-      child: pw.Table(
-        border: pw.TableBorder(
-          top: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-        ),
-        columnWidths: columnWidths,
-        children: rows,
-      ),
+    return pw.Column(
+      children: dayTables,
     );
   }
 
