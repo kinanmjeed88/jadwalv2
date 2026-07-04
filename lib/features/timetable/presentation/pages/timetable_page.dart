@@ -746,68 +746,80 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     }
 
     Widget buildDataTable() {
-      return Center(
-        child: IntrinsicWidth(
-          child: IntrinsicHeight(
-            child: Container(
-              color: Colors.white,
-              padding: const EdgeInsets.all(16.0),
-              child: Directionality(
-                textDirection: TextDirection.rtl,
-                child: Table(
-                  border: TableBorder.all(color: Colors.grey.shade700, width: 1.5),
-                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                  defaultColumnWidth: const IntrinsicColumnWidth(),
-                  columnWidths: const {
-                    0: IntrinsicColumnWidth(),
-                    1: IntrinsicColumnWidth(),
-                  },
-                  children: rows,
-                ),
-              ),
-            ),
+      return Container(
+        color: Colors.white,
+        padding: const EdgeInsets.all(16.0),
+        child: Directionality(
+          textDirection: TextDirection.rtl,
+          child: Table(
+            border: TableBorder.all(color: Colors.grey.shade700, width: 1.5),
+            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            // إلغاء IntrinsicColumnWidth واستخدام أحجام ثابتة لمعالجة الانهيار
+            defaultColumnWidth: const FixedColumnWidth(120.0), // عرض ثابت للشعب
+            columnWidths: const {
+              0: FixedColumnWidth(60.0), // عرض ثابت لليوم
+              1: FixedColumnWidth(60.0), // عرض ثابت للدرس
+            },
+            children: rows,
           ),
         ),
       );
     }
 
-    return Stack(
-      children: [
-        Positioned(
-          top: -9999,
-          left: -9999,
-          child: IgnorePointer(
-            child: UnconstrainedBox(
-              clipBehavior: Clip.hardEdge,
-              child: IntrinsicHeight(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Stack(
+          children: [
+            // الطبقة المخفية لأجل تصدير الصورة بوضوح دون تأثير التكبير
+            Positioned(
+              top: -9999,
+              left: -9999,
+              child: IgnorePointer(
                 child: RepaintBoundary(
                   key: _classroomKeys[masterKeyId],
                   child: buildDataTable(),
                 ),
               ),
             ),
-          ),
-        ),
-        Positioned.fill(
-          child: Container(
-            color: Colors.white,
-            clipBehavior: Clip.hardEdge,
-            child: InteractiveViewer(
-              boundaryMargin: const EdgeInsets.all(double.infinity),
-              minScale: 0.1,
-              maxScale: 5.0,
-              constrained: false,
-              scaleEnabled: true,
-              panEnabled: true,
-              alignment: Alignment.center,
-              transformationController: _transformationController,
-              child: buildDataTable(),
+
+            // الطبقة المرئية التفاعلية مع دعم التكبير والتمرير
+            Positioned.fill(
+              child: Container(
+                color: Colors.white,
+                clipBehavior: Clip.hardEdge,
+                child: InteractiveViewer(
+                  boundaryMargin: const EdgeInsets.all(double.infinity),
+                  minScale: 0.1,
+                  maxScale: 5.0,
+                  constrained: false,
+                  scaleEnabled: true,
+                  panEnabled: true,
+                  alignment: Alignment.center,
+                  transformationController: _transformationController,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.vertical,
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minWidth: constraints.maxWidth,
+                          minHeight: constraints.maxHeight,
+                        ),
+                        child: Center(
+                          child: buildDataTable(),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
+
   Widget _buildCell(Lesson? lesson, Classroom classroom, int dayIndex, int periodIndex, bool isFirstInGrade, bool isLastInGrade) {
     if (lesson == null) {
       return DragTarget<Lesson>(
