@@ -24,6 +24,7 @@ dependencies:
   file_picker: ^10.3.10
   share_plus: ^12.0.2
   gal: ^2.3.2
+  excel: ^4.0.6
 
 dev_dependencies:
   flutter_test:
@@ -47,6 +48,6 @@ flutter:
     - assets/images/
     
   fonts:
-    - family: Amiri
+    - family: Cairo
       fonts:
-        - asset: assets/fonts/Amiri-Regular.ttf
+        - asset: assets/fonts/Cairo-Regular.ttf

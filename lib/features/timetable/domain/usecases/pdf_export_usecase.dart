@@ -18,7 +18,7 @@ class PdfExportUseCase {
       List<Teacher> teachers, AppSettings settings) async {
     final doc = pw.Document();
 
-    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
+    final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
     PdfPageFormat format = PdfPageFormat.a4.landscape;
@@ -135,10 +135,13 @@ class PdfExportUseCase {
       ));
     }
 
-    return pw.Table(
-      border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
-      columnWidths: columnWidths,
-      children: rows,
+    return pw.Directionality(
+      textDirection: pw.TextDirection.rtl,
+      child: pw.Table(
+        border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+        columnWidths: columnWidths,
+        children: rows,
+      ),
     );
   }
 
@@ -146,13 +149,13 @@ class PdfExportUseCase {
       List<Classroom> classrooms, AppSettings settings) async {
     final doc = pw.Document();
 
-    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
+    final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
     // Sort classrooms by id to keep consistent order
     classrooms.sort((a, b) => a.id.compareTo(b.id));
 
-    PdfPageFormat format = PdfPageFormat.a3.landscape;
+    PdfPageFormat format = PdfPageFormat.a4.landscape;
 
     // Determine layout constraints
     final double margins = 40.0; // 20 each side
@@ -191,23 +194,10 @@ class PdfExportUseCase {
       }
     }
 
-    // Calculate total height needed for a full week (header + (days * periods * row_height))
-    // A standard row might be around 30pt.
-    double expectedTableHeight = (settings.daysPerWeek * settings.periodsPerDay * 30.0) + 50.0;
-    // Header and footer take about 150pt
-    double requiredTotalHeight = expectedTableHeight + 150.0;
-
-    // If the standard A3 landscape height (approx 842pt) is not enough, extend the page format vertically
-    // This ensures no day gets truncated and the whole "chunk" fits on one continuous page.
-    PdfPageFormat finalFormat = format;
-    if (requiredTotalHeight > format.availableHeight) {
-      finalFormat = format.copyWith(height: requiredTotalHeight + margins * 2);
-    }
-
     for (var chunk in horizontalChunks) {
       doc.addPage(
         pw.Page(
-          pageFormat: finalFormat,
+          pageFormat: format,
           textDirection: pw.TextDirection.rtl,
           margin: const pw.EdgeInsets.all(20),
           theme: pw.ThemeData.withFont(
@@ -220,7 +210,10 @@ class PdfExportUseCase {
                 _buildHeader(settings, font),
                 pw.SizedBox(height: 15),
                 pw.Expanded(
-                  child: _buildMasterTable(chunk, lessonMap, settings, font, finalFormat.availableWidth - 40),
+                  child: pw.FittedBox(
+                    fit: pw.BoxFit.scaleDown,
+                    child: _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth - 40),
+                  ),
                 ),
                 _buildFooter(settings, font, context),
               ]
@@ -341,12 +334,23 @@ class PdfExportUseCase {
         final cells = <pw.Widget>[];
 
         // Day cell: Only show on middle period of the day to simulate rowspan
+        bool isLastPeriodOfDay = p == periodsPerDay - 1;
         if (p == periodsPerDay ~/ 2) {
           cells.add(
-            _buildCell(displayDays[d], font, baseFontSize, isBold: true),
+            _buildCell(displayDays[d], font, baseFontSize, isBold: true, hideBottomBorder: !isLastPeriodOfDay),
           );
         } else {
-          cells.add(pw.SizedBox());
+          cells.add(
+            pw.Container(
+              decoration: pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: isLastPeriodOfDay ? pw.BorderSide(color: PdfColors.grey400, width: 0.5) : pw.BorderSide.none,
+                  left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                )
+              ),
+              child: pw.SizedBox(),
+            )
+          );
         }
 
         // Period
@@ -386,7 +390,8 @@ class PdfExportUseCase {
               padding: const pw.EdgeInsets.all(1),
               decoration: pw.BoxDecoration(
                 border: pw.Border(
-                  left: isLastInGrade ? pw.BorderSide(color: PdfColors.black, width: 2.0) : pw.BorderSide.none,
+                  bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  left: isLastInGrade ? pw.BorderSide(color: PdfColors.black, width: 2.0) : pw.BorderSide(color: PdfColors.grey400, width: 0.5),
                 ),
               ),
               child: cellContent,
@@ -410,8 +415,6 @@ class PdfExportUseCase {
           bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
           left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
           right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          horizontalInside: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          verticalInside: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
         ),
         columnWidths: columnWidths,
         children: rows,
@@ -420,13 +423,14 @@ class PdfExportUseCase {
   }
 
   pw.Widget _buildCell(String text, pw.Font font, double fontSize,
-      {bool isHeader = false, bool isBold = false, bool isLastInGrade = false}) {
+      {bool isHeader = false, bool isBold = false, bool isLastInGrade = false, bool hideBottomBorder = false}) {
     return pw.Container(
       alignment: pw.Alignment.center,
       padding: const pw.EdgeInsets.all(4),
       decoration: pw.BoxDecoration(
         border: pw.Border(
-          left: isLastInGrade ? pw.BorderSide(color: PdfColors.black, width: 2.0) : pw.BorderSide.none,
+          bottom: hideBottomBorder ? pw.BorderSide.none : pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          left: isLastInGrade ? pw.BorderSide(color: PdfColors.black, width: 2.0) : pw.BorderSide(color: PdfColors.grey400, width: 0.5),
         ),
       ),
       child: pw.Text(
