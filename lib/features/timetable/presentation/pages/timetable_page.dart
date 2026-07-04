@@ -783,21 +783,31 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           ),
         ),
         Positioned.fill(
-          child: Container(
-            color: Colors.white,
-            clipBehavior: Clip.hardEdge,
-            child: InteractiveViewer(
-            boundaryMargin: const EdgeInsets.all(double.infinity),
-            minScale: 0.1,
-            maxScale: 5.0,
-            constrained: false,
-            scaleEnabled: true,
-            panEnabled: true,
-            alignment: Alignment.center,
-            transformationController: _transformationController,
-            child: buildDataTable(),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return Container(
+                color: Colors.white,
+                clipBehavior: Clip.hardEdge,
+                child: InteractiveViewer(
+                  boundaryMargin: const EdgeInsets.all(double.infinity),
+                  minScale: 0.1,
+                  maxScale: 5.0,
+                  constrained: false,
+                  scaleEnabled: true,
+                  panEnabled: true,
+                  alignment: Alignment.center,
+                  transformationController: _transformationController,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: constraints.maxWidth,
+                      minHeight: constraints.maxHeight,
+                    ),
+                    child: buildDataTable(),
+                  ),
+                ),
+              );
+            },
           ),
-        ),
         ),
       ],
     );
