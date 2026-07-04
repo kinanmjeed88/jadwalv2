@@ -155,7 +155,23 @@ class PdfExportUseCase {
     // Sort classrooms by id to keep consistent order
     classrooms.sort((a, b) => a.id.compareTo(b.id));
 
-    PdfPageFormat format = PdfPageFormat.a4.landscape;
+    PdfPageFormat baseFormat;
+    switch (settings.exportPageSize) {
+      case 'A3':
+        baseFormat = PdfPageFormat.a3;
+        break;
+      case 'A5':
+        baseFormat = PdfPageFormat.a5;
+        break;
+      case 'A4':
+      default:
+        baseFormat = PdfPageFormat.a4;
+        break;
+    }
+
+    PdfPageFormat format = settings.exportOrientation == 'Portrait'
+        ? baseFormat.portrait
+        : baseFormat.landscape;
 
     // Determine layout constraints
     final double margins = 40.0; // 20 each side
@@ -196,7 +212,7 @@ class PdfExportUseCase {
 
     for (var chunk in horizontalChunks) {
       doc.addPage(
-        pw.Page(
+        pw.MultiPage(
           pageFormat: format,
           textDirection: pw.TextDirection.rtl,
           margin: const pw.EdgeInsets.all(20),
@@ -204,20 +220,21 @@ class PdfExportUseCase {
             base: font,
             bold: font,
           ),
-          build: (pw.Context context) {
+          header: (pw.Context context) {
             return pw.Column(
               children: [
                 _buildHeader(settings, font),
                 pw.SizedBox(height: 15),
-                pw.Expanded(
-                  child: pw.FittedBox(
-                    fit: pw.BoxFit.scaleDown,
-                    child: _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth - 40),
-                  ),
-                ),
-                _buildFooter(settings, font, context),
-              ]
+              ],
             );
+          },
+          footer: (pw.Context context) {
+            return _buildFooter(settings, font, context);
+          },
+          build: (pw.Context context) {
+            return [
+              _buildMasterTable(chunk, lessonMap, settings, font, format.availableWidth - 40),
+            ];
           },
         ),
       );
@@ -269,7 +286,12 @@ class PdfExportUseCase {
           ),
           pw.Expanded(
             flex: 1,
-            child: pw.SizedBox(),
+            child: pw.Text(
+              'المدير : ${settings.principalName}',
+              style: pw.TextStyle(
+                  fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
+              textAlign: pw.TextAlign.left,
+            ),
           ),
         ],
       ),
