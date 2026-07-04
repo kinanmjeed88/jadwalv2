@@ -16,6 +16,7 @@ import '../../../../core/models/classroom.dart';
 import '../../../../core/models/teacher.dart';
 import '../../../../core/providers/database_provider.dart';
 import '../../domain/usecases/pdf_export_usecase.dart';
+import '../../domain/usecases/excel_export_usecase.dart';
 import '../providers/timetable_provider.dart';
 
 class TimetablePage extends ConsumerStatefulWidget {
@@ -146,6 +147,32 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     }
   }
 
+  Future<void> _exportToExcel() async {
+    final settingsAsync = ref.read(timetableNotifierProvider);
+    final isarAsync = ref.read(isarDatabaseProvider);
+
+    if (settingsAsync is! AsyncData || isarAsync is! AsyncData) return;
+
+    final lessons = settingsAsync.value!;
+    final isar = isarAsync.value!;
+
+    final classrooms = await isar.classrooms.where().findAll();
+    final settingsList = await isar.appSettings.where().findAll();
+    final settings = settingsList.isNotEmpty ? settingsList.first : (AppSettings()..periodsPerDay = 7);
+
+    final usecase = ExcelExportUseCase();
+    final excelBytes = await usecase.generateTimetableExcel(lessons, classrooms, settings);
+
+    final tempDir = await getTemporaryDirectory();
+    final file = File('${tempDir.path}/timetable_export.xlsx');
+    await file.writeAsBytes(excelBytes);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تصدير الجدول إلى Excel بنجاح')));
+      Share.shareXFiles([XFile(file.path)], text: 'جدول الفصول الأسبوعي');
+    }
+  }
+
   Future<void> _exportToImage() async {
     try {
       final boundary = _exportKey.currentContext?.findRenderObject()
@@ -196,6 +223,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       appBar: AppBar(
         title: const Text('جدول الدروس'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.table_chart),
+            tooltip: 'تصدير كـ Excel',
+            onPressed: _exportToExcel,
+          ),
           IconButton(
             icon: const Icon(Icons.picture_as_pdf),
             tooltip: 'تصدير جدول الفصول كـ PDF',
@@ -268,11 +300,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                     top: -10000,
                     left: -10000,
                     child: IgnorePointer(
-                      child: OverflowBox(
-                        minWidth: 0,
-                        maxWidth: double.infinity,
-                        minHeight: 0,
-                        maxHeight: double.infinity,
+                        child: UnconstrainedBox(
+                          clipBehavior: Clip.hardEdge,
                         child: _buildExportGrid(lessons, classrooms, settings),
                       ),
                     ),
@@ -429,10 +458,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         color: Colors.white,
         padding: const EdgeInsets.all(24.0),
         child: IntrinsicWidth(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+          child: IntrinsicHeight(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
             Directionality(
               textDirection: TextDirection.rtl,
               child: Row(
@@ -516,8 +546,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 ),
               ),
             ),
-              const SizedBox(height: 24),
-            ],
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),
