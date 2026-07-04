@@ -175,20 +175,13 @@ class PdfExportUseCase {
 
     // Determine layout constraints
     final double margins = 40.0; // 20 each side
-    final double availableWidth = format.width - margins;
+    // final double availableWidth = format.width - margins;
 
-    // Minimum acceptable width for a classroom column is 50pt
-    // Day (0.8 unit) + Period (0.6 unit) + Classrooms (1.0 unit each)
-    // totalUnits = 1.4 + classroomCount
-    // availableWidth / (1.4 + classroomCount) >= 50
-    // 1.4 + classroomCount <= availableWidth / 50
-    // classroomCount <= (availableWidth / 50) - 1.4
-
-    int maxCapacity = ((availableWidth / 50) - 1.4).floor();
-    if (maxCapacity < 1) maxCapacity = 1;
-
-    // In Landscape, we try to fit more, but still need a limit to keep it readable.
-    // If the user didn't specify a limit, we use the calculated one.
+    // Static chunking based on layout to avoid squishing
+    // If portrait A4, we can comfortably fit 3 or 4 columns. Landscape can fit 5 or 6.
+    int maxCapacity = settings.exportOrientation == 'Portrait' ? 4 : 6;
+    if (settings.exportPageSize == 'A3') maxCapacity = settings.exportOrientation == 'Portrait' ? 6 : 8;
+    if (settings.exportPageSize == 'A5') maxCapacity = settings.exportOrientation == 'Portrait' ? 2 : 3;
 
     final List<List<Classroom>> horizontalChunks = [];
     for (int i = 0; i < classrooms.length; i += maxCapacity) {
@@ -289,7 +282,7 @@ class PdfExportUseCase {
             child: pw.Text(
               'المدير : ${settings.principalName}',
               style: pw.TextStyle(
-                  fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
+                  fontSize: 12, font: font, fontWeight: pw.FontWeight.bold),
               textAlign: pw.TextAlign.left,
             ),
           ),

@@ -302,7 +302,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                     child: IgnorePointer(
                         child: UnconstrainedBox(
                           clipBehavior: Clip.hardEdge,
-                        child: _buildExportGrid(lessons, classrooms, settings),
+                        child: IntrinsicHeight(
+                          child: _buildExportGrid(lessons, classrooms, settings),
+                        ),
                       ),
                     ),
                   );
@@ -543,9 +545,14 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                       ),
                     ]),
                   ),
-                  const Expanded(
+                  Expanded(
                     flex: 1,
-                    child: SizedBox(),
+                    child: Text(
+                      'المدير : ${settings.principalName}',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                      textAlign: TextAlign.left,
+                    ),
                   ),
                 ],
               ),
@@ -764,20 +771,22 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           top: -9999,
           left: -9999,
           child: IgnorePointer(
-            child: OverflowBox(
-              minWidth: 0,
-              maxWidth: double.infinity,
-              minHeight: 0,
-              maxHeight: double.infinity,
-              child: RepaintBoundary(
-                key: _classroomKeys[masterKeyId],
-                child: buildDataTable(),
+            child: UnconstrainedBox(
+              clipBehavior: Clip.hardEdge,
+              child: IntrinsicHeight(
+                child: RepaintBoundary(
+                  key: _classroomKeys[masterKeyId],
+                  child: buildDataTable(),
+                ),
               ),
             ),
           ),
         ),
         Positioned.fill(
-          child: InteractiveViewer(
+          child: Container(
+            color: Colors.white,
+            clipBehavior: Clip.hardEdge,
+            child: InteractiveViewer(
             boundaryMargin: const EdgeInsets.all(double.infinity),
             minScale: 0.1,
             maxScale: 5.0,
@@ -788,6 +797,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             transformationController: _transformationController,
             child: buildDataTable(),
           ),
+        ),
         ),
       ],
     );

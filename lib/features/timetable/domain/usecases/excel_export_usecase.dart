@@ -1,5 +1,5 @@
-import 'dart:io';
-import 'package:flutter/services.dart';
+
+
 import 'package:excel/excel.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/classroom.dart';
@@ -8,15 +8,16 @@ import '../../../../core/models/settings.dart';
 class ExcelExportUseCase {
   Future<List<int>> generateTimetableExcel(List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) async {
     final excel = Excel.createExcel();
-    final sheet = excel['Sheet1'];
-    excel.rename('Sheet1', 'الجدول الأسبوعي');
+    final sheetName = 'الجدول الأسبوعي';
+    excel.rename('Sheet1', sheetName);
+    final sheet = excel[sheetName];
 
     // Header
     final headerStyle = CellStyle(
       bold: true,
       horizontalAlign: HorizontalAlign.Center,
       verticalAlign: VerticalAlign.Center,
-      backgroundColorHex: ExcelColor.fromHexString('#E0F2F1'), // Teal 100
+      backgroundColorHex: ExcelColor.fromHexString('#E0F2F1'),
       topBorder: Border(borderStyle: BorderStyle.Thin),
       bottomBorder: Border(borderStyle: BorderStyle.Thin),
       leftBorder: Border(borderStyle: BorderStyle.Thin),
@@ -111,7 +112,6 @@ class ExcelExportUseCase {
             final teacherName = lesson.teacher.value != null ? lesson.teacher.value!.name.split(' ').first : '-';
             cell.value = TextCellValue('$subjectName\n$teacherName');
 
-            // Simple color hash based on subject name
             String hexColor = _getSubjectColor(subjectName);
 
             cell.cellStyle = CellStyle(
@@ -132,10 +132,12 @@ class ExcelExportUseCase {
       }
 
       // Merge Day Cells
-      sheet.merge(
-        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: startRowOfDay),
-        CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex - 1)
-      );
+      if (rowIndex - 1 > startRowOfDay) {
+        sheet.merge(
+          CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: startRowOfDay),
+          CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: rowIndex - 1)
+        );
+      }
     }
 
     // Find consecutive identical lessons and merge them per classroom per day
