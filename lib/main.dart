@@ -8,6 +8,25 @@ import 'features/management/presentation/pages/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      color: Colors.black87,
+      child: SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              '🚨 CRITICAL RENDER ERROR:\n\n${details.exceptionAsString()}\n\n${details.stack.toString()}',
+              style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold),
+              textDirection: TextDirection.ltr,
+            ),
+          ),
+        ),
+      ),
+    );
+  };
+
   runApp(const ProviderScope(child: JadwalApp()));
 }
 
