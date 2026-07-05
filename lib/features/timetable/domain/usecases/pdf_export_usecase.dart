@@ -53,7 +53,7 @@ class PdfExportUseCase {
                 _buildHeader(settings, font, subtitle: 'جدول المدرس: $teacherName'),
                 pw.SizedBox(height: 15),
                 pw.Expanded(
-                  child: _buildTeacherTable(teacher, lessonMap, settings, font, format.availableWidth - 40),
+                  child: _buildTeacherTable(teacher, lessonMap, settings, font, format.availableHeight - 120),
                 ),
                 _buildFooter(settings, font, context),
               ],
@@ -71,18 +71,18 @@ class PdfExportUseCase {
       Map<String, Lesson> lessonMap,
       AppSettings settings,
       pw.Font font,
-      double availableWidth) {
+      double availableHeight) {
     final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
     final displayDays = days.take(settings.daysPerWeek).toList();
     final int periodsPerDay = settings.periodsPerDay;
 
-    final double unitWidth = availableWidth / (1.4 + periodsPerDay);
-
     final Map<int, pw.TableColumnWidth> columnWidths = {
-      0: pw.FixedColumnWidth(unitWidth * 1.4),
+      0: const pw.FlexColumnWidth(1.4),
       for (int i = 0; i < periodsPerDay; i++)
-        i + 1: pw.FixedColumnWidth(unitWidth * 1.0),
+        i + 1: const pw.FlexColumnWidth(1.0),
     };
+
+    final double rowHeight = availableHeight / (1 + displayDays.length);
 
     final List<pw.TableRow> rows = [];
 
@@ -92,16 +92,16 @@ class PdfExportUseCase {
         repeat: true,
         decoration: const pw.BoxDecoration(color: PdfColors.teal100),
         children: [
-          _buildCell('اليوم / الحصة', font, 12, isHeader: true),
+          _buildCell('اليوم / الحصة', font, 12, isHeader: true, height: rowHeight),
           for (int p = 0; p < periodsPerDay; p++)
-            _buildCell((p + 1).toString(), font, 12, isHeader: true),
+            _buildCell((p + 1).toString(), font, 12, isHeader: true, height: rowHeight),
         ],
       ),
     );
 
     for (int d = 0; d < displayDays.length; d++) {
       final cells = <pw.Widget>[];
-      cells.add(_buildCell(displayDays[d], font, 12, isBold: true));
+      cells.add(_buildCell(displayDays[d], font, 12, isBold: true, height: rowHeight));
 
       for (int p = 0; p < periodsPerDay; p++) {
         final lesson = lessonMap['${teacher.id}_${d}_${p}'];
@@ -110,6 +110,7 @@ class PdfExportUseCase {
           String classroomName = (lesson.classroom.value?.name as String?) ?? '';
           cells.add(
             pw.Container(
+              height: rowHeight,
               alignment: pw.Alignment.center,
               padding: const pw.EdgeInsets.all(1),
               child: pw.Column(
@@ -130,7 +131,7 @@ class PdfExportUseCase {
             ),
           );
         } else {
-          cells.add(pw.SizedBox());
+          cells.add(pw.Container(height: rowHeight));
         }
       }
 
@@ -242,7 +243,7 @@ class PdfExportUseCase {
                 pw.SizedBox(height: 15),
                 pw.Expanded(
                   child: _buildMasterTable(
-                      chunk, lessonMap, settings, font, format.availableWidth - 40),
+                      chunk, lessonMap, settings, font, format.availableHeight - 120),
                 ),
                 _buildFooter(settings, font, context),
               ],
@@ -329,24 +330,23 @@ class PdfExportUseCase {
       Map<String, Lesson> lessonMap,
       AppSettings settings,
       pw.Font font,
-      double availableWidth) {
+      double availableHeight) {
     final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
     final displayDays = days.take(settings.daysPerWeek).toList();
     final int periodsPerDay = settings.periodsPerDay;
 
-    final double totalProportions = 0.8 + 0.6 + chunk.length;
-    final double unitWidth = availableWidth / totalProportions;
-
     final Map<int, pw.TableColumnWidth> columnWidths = {
-      0: pw.FixedColumnWidth(unitWidth * 0.8),
-      1: pw.FixedColumnWidth(unitWidth * 0.6),
+      0: const pw.FlexColumnWidth(0.8),
+      1: const pw.FlexColumnWidth(0.6),
       for (int i = 0; i < chunk.length; i++)
-        i + 2: pw.FixedColumnWidth(unitWidth * 1.0),
+        i + 2: const pw.FlexColumnWidth(1.0),
     };
 
     const double fixedFontSize = 12.0;
     const double subjectFontSize = 10.0;
     const double teacherFontSize = 8.0;
+
+    final double rowHeight = availableHeight / (1 + displayDays.length * periodsPerDay);
 
     final List<pw.TableRow> rows = [];
 
@@ -355,11 +355,12 @@ class PdfExportUseCase {
       pw.TableRow(
         decoration: const pw.BoxDecoration(color: PdfColors.teal100),
         children: [
-          _buildCell('اليوم', font, fixedFontSize, isHeader: true),
-          _buildCell('الدرس', font, fixedFontSize, isHeader: true),
+          _buildCell('اليوم', font, fixedFontSize, isHeader: true, height: rowHeight),
+          _buildCell('الدرس', font, fixedFontSize, isHeader: true, height: rowHeight),
           for (int c = 0; c < chunk.length; c++)
             _buildCell((chunk[c].name as String?) ?? '', font, fixedFontSize,
                 isHeader: true,
+                height: rowHeight,
                 isLastInGrade: c == chunk.length - 1 ||
                 ((chunk[c + 1].grade as String?) ?? '') != ((chunk[c].grade as String?) ?? '')),
         ],
@@ -374,11 +375,12 @@ class PdfExportUseCase {
         if (p == periodsPerDay ~/ 2) {
           cells.add(
             _buildCell(displayDays[d], font, fixedFontSize,
-                isBold: true, hideBottomBorder: !isLastPeriodOfDay),
+                isBold: true, hideBottomBorder: !isLastPeriodOfDay, height: rowHeight),
           );
         } else {
           cells.add(
             pw.Container(
+              height: rowHeight,
               decoration: pw.BoxDecoration(
                 border: pw.Border(
                   bottom: isLastPeriodOfDay
@@ -393,7 +395,7 @@ class PdfExportUseCase {
         }
 
         cells.add(
-          _buildCell((p + 1).toString(), font, fixedFontSize, isBold: true),
+          _buildCell((p + 1).toString(), font, fixedFontSize, isBold: true, height: rowHeight),
         );
 
         for (int c = 0; c < chunk.length; c++) {
@@ -437,6 +439,7 @@ class PdfExportUseCase {
 
           cells.add(
             pw.Container(
+              height: rowHeight,
               alignment: pw.Alignment.center,
               padding: const pw.EdgeInsets.all(1),
               decoration: pw.BoxDecoration(
@@ -476,8 +479,9 @@ class PdfExportUseCase {
   }
 
   pw.Widget _buildCell(String text, pw.Font font, double fontSize,
-      {bool isHeader = false, bool isBold = false, bool isLastInGrade = false, bool hideBottomBorder = false}) {
+      {bool isHeader = false, bool isBold = false, bool isLastInGrade = false, bool hideBottomBorder = false, double? height}) {
     return pw.Container(
+      height: height,
       alignment: pw.Alignment.center,
       padding: const pw.EdgeInsets.all(4),
       decoration: pw.BoxDecoration(
