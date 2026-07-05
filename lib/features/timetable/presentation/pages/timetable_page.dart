@@ -153,8 +153,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
     if (settingsAsync is! AsyncData || isarAsync is! AsyncData) return;
 
-    final lessons = settingsAsync.value!;
-    final isar = isarAsync.value!;
+    final lessons = settingsAsync.value ?? [];
+    final isar = isarAsync.value;
+    if (isar == null) return;
 
     final classrooms = await isar.classrooms.where().findAll();
     final settingsList = await isar.appSettings.where().findAll();
@@ -450,7 +451,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
           if (lesson != null) {
             final subjectName = lesson.subject.value?.name ?? 'غير محدد';
-            final teacherName = lesson.teacher.value != null ? lesson.teacher.value!.name.split(' ').first : 'فارغ';
+            final teacherName = lesson.teacher.value?.name.split(' ').first ?? 'فارغ';
             cells.add(
               Container(
                 alignment: Alignment.center,
@@ -880,7 +881,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       },
       builder: (context, candidateData, rejectedData) {
         final subjectName = lesson.subject.value?.name ?? 'غير محدد';
-        final teacherName = lesson.teacher.value != null ? lesson.teacher.value!.name.split(' ').first : 'فارغ';
+        final teacherName = lesson.teacher.value?.name.split(' ').first ?? 'فارغ';
         return LongPressDraggable<Lesson>(
           data: lesson,
           feedback: Material(

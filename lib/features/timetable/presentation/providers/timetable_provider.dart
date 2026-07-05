@@ -18,7 +18,13 @@ class TimetableNotifier extends _$TimetableNotifier {
   @override
   Future<List<Lesson>> build() async {
     final isar = await ref.watch(isarDatabaseProvider.future);
-    return isar.lessons.where().findAll();
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    return lessons;
   }
 
   Future<(bool, String?)> assignLessonsToPool(
@@ -60,7 +66,13 @@ class TimetableNotifier extends _$TimetableNotifier {
       }
     });
 
-    state = AsyncValue.data(await isar.lessons.where().findAll());
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    state = AsyncValue.data(lessons);
     return (true, null);
   }
 
@@ -76,7 +88,13 @@ class TimetableNotifier extends _$TimetableNotifier {
     isar.writeTxnSync(() {
       isar.lessons.deleteAllSync(toDelete.map((e) => e.id).toList());
     });
-    state = AsyncValue.data(await isar.lessons.where().findAll());
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    state = AsyncValue.data(lessons);
   }
 
   Future<void> updateAssignment(
@@ -96,7 +114,13 @@ class TimetableNotifier extends _$TimetableNotifier {
         lesson.teacher.saveSync();
       }
     });
-    state = AsyncValue.data(await isar.lessons.where().findAll());
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    state = AsyncValue.data(lessons);
   }
 
   Future<void> generateTimetable() async {
@@ -161,6 +185,11 @@ class TimetableNotifier extends _$TimetableNotifier {
         }
       });
 
+      for (var lesson in existingLessons) {
+        lesson.classroom.loadSync();
+        lesson.subject.loadSync();
+        lesson.teacher.loadSync();
+      }
       state = AsyncValue.data(existingLessons);
     } on UnsolvableTimetableException catch (e) {
       state = AsyncValue.error(e.message, StackTrace.current);
@@ -175,7 +204,13 @@ class TimetableNotifier extends _$TimetableNotifier {
       lesson.isPinned = !lesson.isPinned;
       isar.lessons.putSync(lesson);
     });
-    state = AsyncValue.data(await isar.lessons.where().findAll());
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    state = AsyncValue.data(lessons);
   }
 
   Future<(bool, String?)> moveLessonToEmpty(Lesson lesson, int newDay, int newPeriod) async {
@@ -243,7 +278,13 @@ class TimetableNotifier extends _$TimetableNotifier {
       isar.lessons.putSync(lesson);
     });
 
-    state = AsyncValue.data(await isar.lessons.where().findAll());
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    state = AsyncValue.data(lessons);
     return (true, null);
   }
 
@@ -378,7 +419,13 @@ class TimetableNotifier extends _$TimetableNotifier {
       isar.lessons.putAllSync([lesson1, lesson2]);
     });
 
-    state = AsyncValue.data(await isar.lessons.where().findAll());
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    state = AsyncValue.data(lessons);
     return (true, null);
   }
 }
