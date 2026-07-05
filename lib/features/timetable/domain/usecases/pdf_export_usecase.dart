@@ -92,16 +92,16 @@ class PdfExportUseCase {
         repeat: true,
         decoration: const pw.BoxDecoration(color: PdfColors.teal100),
         children: [
-          _buildCell('اليوم / الحصة', font, 12, isHeader: true, height: rowHeight),
+          _buildCell('اليوم / الحصة', font, isHeader: true, height: rowHeight),
           for (int p = 0; p < periodsPerDay; p++)
-            _buildCell((p + 1).toString(), font, 12, isHeader: true, height: rowHeight),
+            _buildCell((p + 1).toString(), font, isHeader: true, height: rowHeight),
         ],
       ),
     );
 
     for (int d = 0; d < displayDays.length; d++) {
       final cells = <pw.Widget>[];
-      cells.add(_buildCell(displayDays[d], font, 12, isBold: true, height: rowHeight));
+      cells.add(_buildCell(displayDays[d], font, isBold: true, height: rowHeight));
 
       for (int p = 0; p < periodsPerDay; p++) {
         final lesson = lessonMap['${teacher.id}_${d}_${p}'];
@@ -114,17 +114,27 @@ class PdfExportUseCase {
               alignment: pw.Alignment.center,
               padding: const pw.EdgeInsets.all(1),
               child: pw.Column(
-                mainAxisAlignment: pw.MainAxisAlignment.center,
+                mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                 children: [
-                  pw.Text(
-                    subjectName,
-                    textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(font: font, fontSize: 10, fontWeight: pw.FontWeight.bold),
+                  pw.Expanded(
+                    child: pw.FittedBox(
+                      fit: pw.BoxFit.scaleDown,
+                      child: pw.Text(
+                        subjectName,
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold),
+                      ),
+                    ),
                   ),
-                  pw.Text(
-                    classroomName,
-                    textAlign: pw.TextAlign.center,
-                    style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey700),
+                  pw.Expanded(
+                    child: pw.FittedBox(
+                      fit: pw.BoxFit.scaleDown,
+                      child: pw.Text(
+                        classroomName,
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(font: font, color: PdfColors.grey700),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -342,10 +352,6 @@ class PdfExportUseCase {
         i + 2: const pw.FlexColumnWidth(1.0),
     };
 
-    const double fixedFontSize = 12.0;
-    const double subjectFontSize = 10.0;
-    const double teacherFontSize = 8.0;
-
     final double rowHeight = availableHeight / (1 + displayDays.length * periodsPerDay);
 
     final List<pw.TableRow> rows = [];
@@ -355,10 +361,10 @@ class PdfExportUseCase {
       pw.TableRow(
         decoration: const pw.BoxDecoration(color: PdfColors.teal100),
         children: [
-          _buildCell('اليوم', font, fixedFontSize, isHeader: true, height: rowHeight),
-          _buildCell('الدرس', font, fixedFontSize, isHeader: true, height: rowHeight),
+          _buildCell('اليوم', font, isHeader: true, height: rowHeight),
+          _buildCell('الدرس', font, isHeader: true, height: rowHeight),
           for (int c = 0; c < chunk.length; c++)
-            _buildCell((chunk[c].name as String?) ?? '', font, fixedFontSize,
+            _buildCell((chunk[c].name as String?) ?? '', font,
                 isHeader: true,
                 height: rowHeight,
                 isLastInGrade: c == chunk.length - 1 ||
@@ -374,7 +380,7 @@ class PdfExportUseCase {
         bool isLastPeriodOfDay = p == periodsPerDay - 1;
         if (p == periodsPerDay ~/ 2) {
           cells.add(
-            _buildCell(displayDays[d], font, fixedFontSize,
+            _buildCell(displayDays[d], font,
                 isBold: true, hideBottomBorder: !isLastPeriodOfDay, height: rowHeight),
           );
         } else {
@@ -395,7 +401,7 @@ class PdfExportUseCase {
         }
 
         cells.add(
-          _buildCell((p + 1).toString(), font, fixedFontSize, isBold: true, height: rowHeight),
+          _buildCell((p + 1).toString(), font, isBold: true, height: rowHeight),
         );
 
         for (int c = 0; c < chunk.length; c++) {
@@ -415,23 +421,31 @@ class PdfExportUseCase {
             }
 
             cellContent = pw.Column(
-              mainAxisAlignment: pw.MainAxisAlignment.center,
+              mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
               children: [
-                pw.Text(
-                  subjectName,
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                      font: font,
-                      fontSize: subjectFontSize,
-                      fontWeight: pw.FontWeight.bold),
+                pw.Expanded(
+                  child: pw.FittedBox(
+                    fit: pw.BoxFit.scaleDown,
+                    child: pw.Text(
+                      subjectName,
+                      textAlign: pw.TextAlign.center,
+                      style: pw.TextStyle(
+                          font: font,
+                          fontWeight: pw.FontWeight.bold),
+                    ),
+                  ),
                 ),
-                pw.Text(
-                  teacherName,
-                  textAlign: pw.TextAlign.center,
-                  style: pw.TextStyle(
-                      font: font,
-                      fontSize: teacherFontSize,
-                      color: PdfColors.grey700),
+                pw.Expanded(
+                  child: pw.FittedBox(
+                    fit: pw.BoxFit.scaleDown,
+                    child: pw.Text(
+                      teacherName,
+                      textAlign: pw.TextAlign.center,
+                      style: pw.TextStyle(
+                          font: font,
+                          color: PdfColors.grey700),
+                    ),
+                  ),
                 ),
               ],
             );
@@ -478,7 +492,7 @@ class PdfExportUseCase {
     );
   }
 
-  pw.Widget _buildCell(String text, pw.Font font, double fontSize,
+  pw.Widget _buildCell(String text, pw.Font font,
       {bool isHeader = false, bool isBold = false, bool isLastInGrade = false, bool hideBottomBorder = false, double? height}) {
     return pw.Container(
       height: height,
@@ -490,14 +504,16 @@ class PdfExportUseCase {
           left: isLastInGrade ? const pw.BorderSide(color: PdfColors.black, width: 2.0) : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
         ),
       ),
-      child: pw.Text(
-        text,
-        style: pw.TextStyle(
-          font: font,
-          fontSize: fontSize,
-          fontWeight: (isHeader || isBold) ? pw.FontWeight.bold : pw.FontWeight.normal,
+      child: pw.FittedBox(
+        fit: pw.BoxFit.scaleDown,
+        child: pw.Text(
+          text,
+          style: pw.TextStyle(
+            font: font,
+            fontWeight: (isHeader || isBold) ? pw.FontWeight.bold : pw.FontWeight.normal,
+          ),
+          textAlign: pw.TextAlign.center,
         ),
-        textAlign: pw.TextAlign.center,
       ),
     );
   }
