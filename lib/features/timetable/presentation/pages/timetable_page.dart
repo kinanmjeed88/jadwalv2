@@ -385,11 +385,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     for (int c = 0; c < classrooms.length; c++) {
       var classroom = classrooms[c];
       bool isFirstInGrade = false;
-      if (c == 0 || classrooms[c - 1].grade != classroom.grade) {
+      if (c == 0 || ((classrooms[c - 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
         isFirstInGrade = true;
       }
       bool isLastInGrade = false;
-      if (c == classrooms.length - 1 || classrooms[c + 1].grade != classroom.grade) {
+      if (c == classrooms.length - 1 || ((classrooms[c + 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
         isLastInGrade = true;
       }
       headerCells.add(
@@ -402,7 +402,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             ),
           ),
           child: Center(
-            child: Text(classroom.name,
+            child: Text((classroom.name as String?) ?? 'فصل',
                 textAlign: TextAlign.center,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
           ),
@@ -440,11 +440,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         for (int c = 0; c < classrooms.length; c++) {
           var classroom = classrooms[c];
           bool isFirstInGrade = false;
-          if (c == 0 || classrooms[c - 1].grade != classroom.grade) {
+          if (c == 0 || ((classrooms[c - 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
             isFirstInGrade = true;
           }
           bool isLastInGrade = false;
-          if (c == classrooms.length - 1 || classrooms[c + 1].grade != classroom.grade) {
+          if (c == classrooms.length - 1 || ((classrooms[c + 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
             isLastInGrade = true;
           }
 
@@ -671,11 +671,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     for (int c = 0; c < classrooms.length; c++) {
       var classroom = classrooms[c];
       bool isFirstInGrade = false;
-      if (c == 0 || classrooms[c - 1].grade != classroom.grade) {
+      if (c == 0 || ((classrooms[c - 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
         isFirstInGrade = true;
       }
       bool isLastInGrade = false;
-      if (c == classrooms.length - 1 || classrooms[c + 1].grade != classroom.grade) {
+      if (c == classrooms.length - 1 || ((classrooms[c + 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
         isLastInGrade = true;
       }
       headerCells.add(
@@ -688,7 +688,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           ),
           padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
           child: Center(
-            child: Text(classroom.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+            child: Text((classroom.name as String?) ?? 'فصل', style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         )
       );
@@ -726,11 +726,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         for (int c = 0; c < classrooms.length; c++) {
           var classroom = classrooms[c];
           bool isFirstInGrade = false;
-          if (c == 0 || classrooms[c - 1].grade != classroom.grade) {
+          if (c == 0 || ((classrooms[c - 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
             isFirstInGrade = true;
           }
           bool isLastInGrade = false;
-          if (c == classrooms.length - 1 || classrooms[c + 1].grade != classroom.grade) {
+          if (c == classrooms.length - 1 || ((classrooms[c + 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
             isLastInGrade = true;
           }
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
