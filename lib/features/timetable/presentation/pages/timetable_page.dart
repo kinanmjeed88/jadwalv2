@@ -785,7 +785,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             Positioned.fill(
               child: Container(
                 color: Colors.white,
-                clipBehavior: Clip.hardEdge,
+                
                 child: InteractiveViewer(
                   boundaryMargin: const EdgeInsets.all(150.0),
                   minScale: 0.1,
