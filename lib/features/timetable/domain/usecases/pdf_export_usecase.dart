@@ -14,8 +14,8 @@ class PdfExportUseCase {
     return '$startYear/${startYear + 1}';
   }
 
-  Future<Uint8List> generateTeacherTimetablePdf(List<Lesson> lessons,
-      List<Teacher> teachers, AppSettings settings) async {
+  Future<Uint8List> generateTeacherTimetablePdf(
+      List<Lesson> lessons, List<Teacher> teachers, AppSettings settings) async {
     final doc = pw.Document();
 
     final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
@@ -26,6 +26,9 @@ class PdfExportUseCase {
     final Map<String, Lesson> lessonMap = {};
     for (final l in lessons) {
       if (!l.isUnassigned) {
+        l.teacher.loadSync();
+        l.subject.loadSync();
+        l.classroom.loadSync();
         final tId = l.teacher.value?.id;
         if (tId != null) {
           lessonMap['${tId}_${l.dayIndex}_${l.periodIndex}'] = l;
@@ -44,15 +47,16 @@ class PdfExportUseCase {
             bold: font,
           ),
           build: (pw.Context context) {
+            String teacherName = (teacher.name as String?) ?? 'بدون اسم';
             return pw.Column(
               children: [
-                _buildHeader(settings, font, subtitle: 'جدول المدرس: ${teacher.name}'),
+                _buildHeader(settings, font, subtitle: 'جدول المدرس: $teacherName'),
                 pw.SizedBox(height: 15),
                 pw.Expanded(
                   child: _buildTeacherTable(teacher, lessonMap, settings, font, format.availableWidth - 40),
                 ),
                 _buildFooter(settings, font, context),
-              ]
+              ],
             );
           },
         ),
@@ -75,7 +79,7 @@ class PdfExportUseCase {
     final double unitWidth = availableWidth / (1.4 + periodsPerDay);
 
     final Map<int, pw.TableColumnWidth> columnWidths = {
-      0: pw.FixedColumnWidth(unitWidth * 1.4), // Day
+      0: pw.FixedColumnWidth(unitWidth * 1.4),
       for (int i = 0; i < periodsPerDay; i++)
         i + 1: pw.FixedColumnWidth(unitWidth * 1.0),
     };
@@ -102,6 +106,8 @@ class PdfExportUseCase {
       for (int p = 0; p < periodsPerDay; p++) {
         final lesson = lessonMap['${teacher.id}_${d}_${p}'];
         if (lesson != null) {
+          String subjectName = (lesson.subject.value?.name as String?) ?? '';
+          String classroomName = (lesson.classroom.value?.name as String?) ?? '';
           cells.add(
             pw.Container(
               alignment: pw.Alignment.center,
@@ -110,12 +116,12 @@ class PdfExportUseCase {
                 mainAxisAlignment: pw.MainAxisAlignment.center,
                 children: [
                   pw.Text(
-                    lesson.subject.value?.name ?? '',
+                    subjectName,
                     textAlign: pw.TextAlign.center,
                     style: pw.TextStyle(font: font, fontSize: 10, fontWeight: pw.FontWeight.bold),
                   ),
                   pw.Text(
-                    lesson.classroom.value?.name ?? '',
+                    classroomName,
                     textAlign: pw.TextAlign.center,
                     style: pw.TextStyle(font: font, fontSize: 8, color: PdfColors.grey700),
                   ),
@@ -145,14 +151,20 @@ class PdfExportUseCase {
     );
   }
 
-  Future<Uint8List> generateTimetablePdf(List<Lesson> lessons,
-      List<Classroom> classrooms, AppSettings settings) async {
+  Future<Uint8List> generateTimetablePdf(
+      List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) async {
     final doc = pw.Document();
 
     final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
-    classrooms.sort((a, b) => a.id.compareTo(b.id));
+    classrooms.sort((a, b) {
+      String aGrade = (a.grade as String?) ?? '';
+      String bGrade = (b.grade as String?) ?? '';
+      int cmp = aGrade.compareTo(bGrade);
+      if (cmp != 0) return cmp;
+      return a.id.compareTo(b.id);
+    });
 
     PdfPageFormat baseFormat;
     switch (settings.exportPageSize) {
@@ -172,22 +184,40 @@ class PdfExportUseCase {
         ? baseFormat.portrait
         : baseFormat.landscape;
 
-    int maxCapacity = 4;
-    if (settings.exportPageSize == 'A3') maxCapacity = 8;
-    if (settings.exportPageSize == 'A5') maxCapacity = 2;
-
-    final List<List<Classroom>> horizontalChunks = [];
-    for (int i = 0; i < classrooms.length; i += maxCapacity) {
-      horizontalChunks.add(classrooms.sublist(
-          i,
-          i + maxCapacity > classrooms.length
-              ? classrooms.length
-              : i + maxCapacity));
+    final List<List<Classroom>> chunks = [];
+    if (settings.exportPageSize == 'A4') {
+      // Group by Grade
+      Map<String, List<Classroom>> gradeMap = {};
+      for (var c in classrooms) {
+        String grade = (c.grade as String?) ?? 'بدون صف';
+        gradeMap.putIfAbsent(grade, () => []).add(c);
+      }
+      for (var gradeList in gradeMap.values) {
+        chunks.add(gradeList);
+      }
+    } else if (settings.exportPageSize == 'A3') {
+      // Draw all classrooms in a single page
+      if (classrooms.isNotEmpty) {
+        chunks.add(classrooms);
+      }
+    } else {
+      // A5 or other, arbitrary chunking
+      int maxCapacity = 2;
+      for (int i = 0; i < classrooms.length; i += maxCapacity) {
+        chunks.add(classrooms.sublist(
+            i,
+            i + maxCapacity > classrooms.length
+                ? classrooms.length
+                : i + maxCapacity));
+      }
     }
 
     final Map<String, Lesson> lessonMap = {};
     for (final l in lessons) {
       if (!l.isUnassigned) {
+        l.teacher.loadSync();
+        l.subject.loadSync();
+        l.classroom.loadSync();
         final cId = l.classroom.value?.id;
         if (cId != null) {
           lessonMap['${cId}_${l.dayIndex}_${l.periodIndex}'] = l;
@@ -195,7 +225,7 @@ class PdfExportUseCase {
       }
     }
 
-    for (var chunk in horizontalChunks) {
+    for (var chunk in chunks) {
       doc.addPage(
         pw.Page(
           pageFormat: format,
@@ -224,7 +254,10 @@ class PdfExportUseCase {
 
     return doc.save();
   }
+
   pw.Widget _buildHeader(AppSettings settings, pw.Font font, {String? subtitle}) {
+    String schoolName = (settings.schoolName as String?) ?? '';
+    String principalName = (settings.principalName as String?) ?? '';
     return pw.Directionality(
       textDirection: pw.TextDirection.rtl,
       child: pw.Row(
@@ -233,7 +266,7 @@ class PdfExportUseCase {
           pw.Expanded(
             flex: 1,
             child: pw.Text(
-              settings.schoolName,
+              schoolName,
               style: pw.TextStyle(
                   fontSize: 14, font: font, fontWeight: pw.FontWeight.bold),
               textAlign: pw.TextAlign.right,
@@ -268,7 +301,7 @@ class PdfExportUseCase {
           pw.Expanded(
             flex: 1,
             child: pw.Text(
-              'المدير : ${settings.principalName}',
+              'المدير : $principalName',
               style: pw.TextStyle(
                   fontSize: 12, font: font, fontWeight: pw.FontWeight.bold),
               textAlign: pw.TextAlign.left,
@@ -312,6 +345,8 @@ class PdfExportUseCase {
     };
 
     const double fixedFontSize = 12.0;
+    const double subjectFontSize = 10.0;
+    const double teacherFontSize = 8.0;
 
     final List<pw.TableRow> rows = [];
 
@@ -323,9 +358,10 @@ class PdfExportUseCase {
           _buildCell('اليوم', font, fixedFontSize, isHeader: true),
           _buildCell('الدرس', font, fixedFontSize, isHeader: true),
           for (int c = 0; c < chunk.length; c++)
-            _buildCell(chunk[c].name, font, fixedFontSize,
+            _buildCell((chunk[c].name as String?) ?? '', font, fixedFontSize,
                 isHeader: true,
-                isLastInGrade: c == chunk.length - 1 || chunk[c + 1].grade != chunk[c].grade),
+                isLastInGrade: c == chunk.length - 1 ||
+                ((chunk[c + 1].grade as String?) ?? '') != ((chunk[c].grade as String?) ?? '')),
         ],
       ),
     );
@@ -346,9 +382,9 @@ class PdfExportUseCase {
               decoration: pw.BoxDecoration(
                 border: pw.Border(
                   bottom: isLastPeriodOfDay
-                      ? pw.BorderSide(color: PdfColors.grey400, width: 0.5)
+                      ? const pw.BorderSide(color: PdfColors.grey400, width: 0.5)
                       : pw.BorderSide.none,
-                  left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  left: const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
                 ),
               ),
               child: pw.SizedBox(),
@@ -363,31 +399,36 @@ class PdfExportUseCase {
         for (int c = 0; c < chunk.length; c++) {
           final classroom = chunk[c];
           bool isLastInGrade =
-              c == chunk.length - 1 || chunk[c + 1].grade != classroom.grade;
+              c == chunk.length - 1 ||
+              ((chunk[c + 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '');
 
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
 
           pw.Widget cellContent = pw.SizedBox();
           if (lesson != null) {
+            String subjectName = (lesson.subject.value?.name as String?) ?? '';
+            String teacherName = 'فارغ';
+            if (lesson.teacher.value != null) {
+               teacherName = ((lesson.teacher.value!.name as String?) ?? 'فارغ').split(' ').first;
+            }
+
             cellContent = pw.Column(
               mainAxisAlignment: pw.MainAxisAlignment.center,
               children: [
                 pw.Text(
-                  lesson.subject.value?.name ?? '',
+                  subjectName,
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(
                       font: font,
-                      fontSize: fixedFontSize,
+                      fontSize: subjectFontSize,
                       fontWeight: pw.FontWeight.bold),
                 ),
                 pw.Text(
-                  lesson.teacher.value != null
-                      ? lesson.teacher.value!.name.split(' ').first
-                      : 'فارغ',
+                  teacherName,
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(
                       font: font,
-                      fontSize: fixedFontSize,
+                      fontSize: teacherFontSize,
                       color: PdfColors.grey700),
                 ),
               ],
@@ -400,10 +441,10 @@ class PdfExportUseCase {
               padding: const pw.EdgeInsets.all(1),
               decoration: pw.BoxDecoration(
                 border: pw.Border(
-                  bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  bottom: const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
                   left: isLastInGrade
-                      ? pw.BorderSide(color: PdfColors.black, width: 2.0)
-                      : pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                      ? const pw.BorderSide(color: PdfColors.black, width: 2.0)
+                      : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
                 ),
               ),
               child: cellContent,
@@ -422,7 +463,7 @@ class PdfExportUseCase {
     return pw.Directionality(
       textDirection: pw.TextDirection.rtl,
       child: pw.Table(
-        border: pw.TableBorder(
+        border: const pw.TableBorder(
           top: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
           bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
           left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
@@ -433,6 +474,7 @@ class PdfExportUseCase {
       ),
     );
   }
+
   pw.Widget _buildCell(String text, pw.Font font, double fontSize,
       {bool isHeader = false, bool isBold = false, bool isLastInGrade = false, bool hideBottomBorder = false}) {
     return pw.Container(
@@ -440,8 +482,8 @@ class PdfExportUseCase {
       padding: const pw.EdgeInsets.all(4),
       decoration: pw.BoxDecoration(
         border: pw.Border(
-          bottom: hideBottomBorder ? pw.BorderSide.none : pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          left: isLastInGrade ? pw.BorderSide(color: PdfColors.black, width: 2.0) : pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          bottom: hideBottomBorder ? pw.BorderSide.none : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          left: isLastInGrade ? const pw.BorderSide(color: PdfColors.black, width: 2.0) : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
         ),
       ),
       child: pw.Text(
