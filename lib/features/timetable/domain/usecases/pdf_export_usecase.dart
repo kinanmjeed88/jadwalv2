@@ -14,8 +14,8 @@ class PdfExportUseCase {
     return '$startYear/${startYear + 1}';
   }
 
-  Future<Uint8List> generateTeacherTimetablePdf(
-      List<Lesson> lessons, List<Teacher> teachers, AppSettings settings) async {
+  Future<Uint8List> generateTeacherTimetablePdf(List<Lesson> lessons,
+      List<Teacher> teachers, AppSettings settings) async {
     final doc = pw.Document();
 
     final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
@@ -50,10 +50,12 @@ class PdfExportUseCase {
             String teacherName = (teacher.name as String?) ?? 'بدون اسم';
             return pw.Column(
               children: [
-                _buildHeader(settings, font, subtitle: 'جدول المدرس: $teacherName'),
+                _buildHeader(settings, font,
+                    subtitle: 'جدول المدرس: $teacherName'),
                 pw.SizedBox(height: 15),
                 pw.Expanded(
-                  child: _buildTeacherTable(teacher, lessonMap, settings, font, format.availableHeight - 120),
+                  child: _buildTeacherTable(teacher, lessonMap, settings, font,
+                      format.availableHeight - 120),
                 ),
                 _buildFooter(settings, font, context),
               ],
@@ -66,18 +68,14 @@ class PdfExportUseCase {
     return doc.save();
   }
 
-  pw.Widget _buildTeacherTable(
-      Teacher teacher,
-      Map<String, Lesson> lessonMap,
-      AppSettings settings,
-      pw.Font font,
-      double availableHeight) {
+  pw.Widget _buildTeacherTable(Teacher teacher, Map<String, Lesson> lessonMap,
+      AppSettings settings, pw.Font font, double availableHeight) {
     final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
     final displayDays = days.take(settings.daysPerWeek).toList();
     final int periodsPerDay = settings.periodsPerDay;
 
     final Map<int, pw.TableColumnWidth> columnWidths = {
-      0: const pw.FlexColumnWidth(1.4),
+      0: const pw.FlexColumnWidth(0.5),
       for (int i = 0; i < periodsPerDay; i++)
         i + 1: const pw.FlexColumnWidth(1.0),
     };
@@ -94,20 +92,23 @@ class PdfExportUseCase {
         children: [
           _buildCell('اليوم / الحصة', font, isHeader: true, height: rowHeight),
           for (int p = 0; p < periodsPerDay; p++)
-            _buildCell((p + 1).toString(), font, isHeader: true, height: rowHeight),
+            _buildCell((p + 1).toString(), font,
+                isHeader: true, height: rowHeight),
         ],
       ),
     );
 
     for (int d = 0; d < displayDays.length; d++) {
       final cells = <pw.Widget>[];
-      cells.add(_buildCell(displayDays[d], font, isBold: true, height: rowHeight));
+      cells.add(
+          _buildCell(displayDays[d], font, isBold: true, height: rowHeight));
 
       for (int p = 0; p < periodsPerDay; p++) {
         final lesson = lessonMap['${teacher.id}_${d}_${p}'];
         if (lesson != null) {
           String subjectName = (lesson.subject.value?.name as String?) ?? '';
-          String classroomName = (lesson.classroom.value?.name as String?) ?? '';
+          String classroomName =
+              (lesson.classroom.value?.name as String?) ?? '';
           cells.add(
             pw.Container(
               height: rowHeight,
@@ -122,7 +123,8 @@ class PdfExportUseCase {
                       child: pw.Text(
                         subjectName,
                         textAlign: pw.TextAlign.center,
-                        style: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold),
+                        style: pw.TextStyle(
+                            font: font, fontWeight: pw.FontWeight.bold),
                       ),
                     ),
                   ),
@@ -132,7 +134,8 @@ class PdfExportUseCase {
                       child: pw.Text(
                         classroomName,
                         textAlign: pw.TextAlign.center,
-                        style: pw.TextStyle(font: font, color: PdfColors.grey700),
+                        style:
+                            pw.TextStyle(font: font, color: PdfColors.grey700),
                       ),
                     ),
                   ),
@@ -162,8 +165,8 @@ class PdfExportUseCase {
     );
   }
 
-  Future<Uint8List> generateTimetablePdf(
-      List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) async {
+  Future<Uint8List> generateTimetablePdf(List<Lesson> lessons,
+      List<Classroom> classrooms, AppSettings settings) async {
     final doc = pw.Document();
 
     final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
@@ -252,8 +255,8 @@ class PdfExportUseCase {
                 _buildHeader(settings, font),
                 pw.SizedBox(height: 15),
                 pw.Expanded(
-                  child: _buildMasterTable(
-                      chunk, lessonMap, settings, font, format.availableHeight - 120),
+                  child: _buildMasterTable(chunk, lessonMap, settings, font,
+                      format.availableHeight - 120),
                 ),
                 _buildFooter(settings, font, context),
               ],
@@ -266,7 +269,8 @@ class PdfExportUseCase {
     return doc.save();
   }
 
-  pw.Widget _buildHeader(AppSettings settings, pw.Font font, {String? subtitle}) {
+  pw.Widget _buildHeader(AppSettings settings, pw.Font font,
+      {String? subtitle}) {
     String schoolName = (settings.schoolName as String?) ?? '';
     String principalName = (settings.principalName as String?) ?? '';
     return pw.Directionality(
@@ -323,7 +327,8 @@ class PdfExportUseCase {
     );
   }
 
-  pw.Widget _buildFooter(AppSettings settings, pw.Font font, pw.Context context) {
+  pw.Widget _buildFooter(
+      AppSettings settings, pw.Font font, pw.Context context) {
     return pw.Container(
         alignment: pw.Alignment.center,
         padding: const pw.EdgeInsets.only(top: 10),
@@ -346,13 +351,14 @@ class PdfExportUseCase {
     final int periodsPerDay = settings.periodsPerDay;
 
     final Map<int, pw.TableColumnWidth> columnWidths = {
-      0: const pw.FlexColumnWidth(0.8),
-      1: const pw.FlexColumnWidth(0.6),
+      0: const pw.FlexColumnWidth(0.5),
+      1: const pw.FlexColumnWidth(0.3),
       for (int i = 0; i < chunk.length; i++)
-        i + 2: const pw.FlexColumnWidth(1.0),
+        i + 2: const pw.FlexColumnWidth(2.0),
     };
 
-    final double rowHeight = availableHeight / (1 + displayDays.length * periodsPerDay);
+    final double rowHeight =
+        availableHeight / (1 + displayDays.length * periodsPerDay);
 
     final List<pw.TableRow> rows = [];
 
@@ -364,11 +370,18 @@ class PdfExportUseCase {
           _buildCell('اليوم', font, isHeader: true, height: rowHeight),
           _buildCell('الدرس', font, isHeader: true, height: rowHeight),
           for (int c = 0; c < chunk.length; c++)
-            _buildCell((chunk[c].name as String?) ?? '', font,
-                isHeader: true,
-                height: rowHeight,
-                isLastInGrade: c == chunk.length - 1 ||
-                ((chunk[c + 1].grade as String?) ?? '') != ((chunk[c].grade as String?) ?? '')),
+            _buildCell(
+              (chunk[c].name as String?) ?? '',
+              font,
+              isHeader: true,
+              height: rowHeight,
+              isFirstInGrade: c == 0 ||
+                  ((chunk[c - 1].grade as String?) ?? '') !=
+                      ((chunk[c].grade as String?) ?? ''),
+              isLastInGrade: c == chunk.length - 1 ||
+                  ((chunk[c + 1].grade as String?) ?? '') !=
+                      ((chunk[c].grade as String?) ?? ''),
+            ),
         ],
       ),
     );
@@ -378,10 +391,14 @@ class PdfExportUseCase {
         final cells = <pw.Widget>[];
 
         bool isLastPeriodOfDay = p == periodsPerDay - 1;
-        if (p == periodsPerDay ~/ 2) {
+
+        // Day Cell Logic
+        if (p == 0) {
           cells.add(
             _buildCell(displayDays[d], font,
-                isBold: true, hideBottomBorder: !isLastPeriodOfDay, height: rowHeight),
+                isBold: true,
+                hideBottomBorder: !isLastPeriodOfDay,
+                height: rowHeight),
           );
         } else {
           cells.add(
@@ -390,9 +407,13 @@ class PdfExportUseCase {
               decoration: pw.BoxDecoration(
                 border: pw.Border(
                   bottom: isLastPeriodOfDay
-                      ? const pw.BorderSide(color: PdfColors.grey400, width: 0.5)
+                      ? const pw.BorderSide(
+                          color: PdfColors.grey400, width: 0.5)
                       : pw.BorderSide.none,
-                  left: const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  left:
+                      const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  right:
+                      const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
                 ),
               ),
               child: pw.SizedBox(),
@@ -400,15 +421,20 @@ class PdfExportUseCase {
           );
         }
 
+        // Period Cell Logic
         cells.add(
           _buildCell((p + 1).toString(), font, isBold: true, height: rowHeight),
         );
 
+        // Classrooms Cells Logic
         for (int c = 0; c < chunk.length; c++) {
           final classroom = chunk[c];
-          bool isLastInGrade =
-              c == chunk.length - 1 ||
-              ((chunk[c + 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '');
+          bool isFirstInGrade = c == 0 ||
+              ((chunk[c - 1].grade as String?) ?? '') !=
+                  ((classroom.grade as String?) ?? '');
+          bool isLastInGrade = c == chunk.length - 1 ||
+              ((chunk[c + 1].grade as String?) ?? '') !=
+                  ((classroom.grade as String?) ?? '');
 
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
 
@@ -417,7 +443,9 @@ class PdfExportUseCase {
             String subjectName = (lesson.subject.value?.name as String?) ?? '';
             String teacherName = 'فارغ';
             if (lesson.teacher.value != null) {
-               teacherName = ((lesson.teacher.value!.name as String?) ?? 'فارغ').split(' ').first;
+              teacherName = ((lesson.teacher.value!.name as String?) ?? 'فارغ')
+                  .split(' ')
+                  .first;
             }
 
             cellContent = pw.Column(
@@ -430,8 +458,7 @@ class PdfExportUseCase {
                       subjectName,
                       textAlign: pw.TextAlign.center,
                       style: pw.TextStyle(
-                          font: font,
-                          fontWeight: pw.FontWeight.bold),
+                          font: font, fontWeight: pw.FontWeight.bold),
                     ),
                   ),
                 ),
@@ -441,9 +468,7 @@ class PdfExportUseCase {
                     child: pw.Text(
                       teacherName,
                       textAlign: pw.TextAlign.center,
-                      style: pw.TextStyle(
-                          font: font,
-                          color: PdfColors.grey700),
+                      style: pw.TextStyle(font: font, color: PdfColors.grey700),
                     ),
                   ),
                 ),
@@ -458,10 +483,16 @@ class PdfExportUseCase {
               padding: const pw.EdgeInsets.all(1),
               decoration: pw.BoxDecoration(
                 border: pw.Border(
-                  bottom: const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  bottom:
+                      const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
                   left: isLastInGrade
                       ? const pw.BorderSide(color: PdfColors.black, width: 2.0)
-                      : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                      : const pw.BorderSide(
+                          color: PdfColors.grey400, width: 0.5),
+                  right: isFirstInGrade
+                      ? const pw.BorderSide(color: PdfColors.black, width: 2.0)
+                      : const pw.BorderSide(
+                          color: PdfColors.grey400, width: 0.5),
                 ),
               ),
               child: cellContent,
@@ -481,10 +512,10 @@ class PdfExportUseCase {
       textDirection: pw.TextDirection.rtl,
       child: pw.Table(
         border: const pw.TableBorder(
-          top: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          left: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          right: pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          top: pw.BorderSide(color: PdfColors.black, width: 2.0),
+          bottom: pw.BorderSide(color: PdfColors.black, width: 2.0),
+          left: pw.BorderSide(color: PdfColors.black, width: 2.0),
+          right: pw.BorderSide(color: PdfColors.black, width: 2.0),
         ),
         columnWidths: columnWidths,
         children: rows,
@@ -493,15 +524,27 @@ class PdfExportUseCase {
   }
 
   pw.Widget _buildCell(String text, pw.Font font,
-      {bool isHeader = false, bool isBold = false, bool isLastInGrade = false, bool hideBottomBorder = false, double? height}) {
+      {bool isHeader = false,
+      bool isBold = false,
+      bool isFirstInGrade = false,
+      bool isLastInGrade = false,
+      bool hideBottomBorder = false,
+      double? height}) {
     return pw.Container(
       height: height,
       alignment: pw.Alignment.center,
       padding: const pw.EdgeInsets.all(4),
       decoration: pw.BoxDecoration(
         border: pw.Border(
-          bottom: hideBottomBorder ? pw.BorderSide.none : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          left: isLastInGrade ? const pw.BorderSide(color: PdfColors.black, width: 2.0) : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          bottom: hideBottomBorder
+              ? pw.BorderSide.none
+              : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          left: isLastInGrade
+              ? const pw.BorderSide(color: PdfColors.black, width: 2.0)
+              : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          right: isFirstInGrade
+              ? const pw.BorderSide(color: PdfColors.black, width: 2.0)
+              : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
         ),
       ),
       child: pw.FittedBox(
@@ -510,7 +553,9 @@ class PdfExportUseCase {
           text,
           style: pw.TextStyle(
             font: font,
-            fontWeight: (isHeader || isBold) ? pw.FontWeight.bold : pw.FontWeight.normal,
+            fontWeight: (isHeader || isBold)
+                ? pw.FontWeight.bold
+                : pw.FontWeight.normal,
           ),
           textAlign: pw.TextAlign.center,
         ),
