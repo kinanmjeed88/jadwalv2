@@ -31,14 +31,13 @@ class ExcelExportUseCase {
     sheet.setRowHeight(1, 30.0);
     sheet.setRowHeight(2, 30.0);
     sheet.setRowHeight(3, 30.0);
-    sheet.setRowHeight(4, 30.0); // Column Headers
 
     // Data Row Heights
     final int daysCount = settings.daysPerWeek;
     final int periodsCount = settings.periodsPerDay;
     final int totalLessonRows = daysCount * periodsCount;
 
-    for (int r = 5; r < 5 + totalLessonRows; r++) {
+    for (int r = 4; r < 4 + totalLessonRows; r++) {
       sheet.setRowHeight(r, 45.0);
     }
 
@@ -52,47 +51,52 @@ class ExcelExportUseCase {
       verticalAlign: VerticalAlign.Center,
     );
 
-    // Row 0: School Name
-    sheet.merge(
-      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0),
-      CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 0)
-    );
-    var cell0 = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
-    cell0.value = TextCellValue('اسم المدرسة: $schoolName');
-    cell0.cellStyle = centerMergeStyle;
-
-    // Row 1: Title
-    sheet.merge(
-      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 1),
-      CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 1)
-    );
-    var cell1 = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 1));
-    cell1.value = TextCellValue('جدول الدروس الأسبوعي');
-    cell1.cellStyle = centerMergeStyle;
-
-    // Row 2: Academic Year
-    sheet.merge(
-      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2),
-      CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 2)
-    );
-    var cell2 = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 2));
-    cell2.value = TextCellValue('العام الدراسي: $academicYear');
-    cell2.cellStyle = centerMergeStyle;
-
-    // Row 3: Principal
-    sheet.merge(
-      CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 3),
-      CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 3)
-    );
-    var cell3 = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 3));
-    cell3.value = TextCellValue('المدير: $principalName');
-    cell3.cellStyle = CellStyle(
+    // Row 0
+    // School Name (Rightmost in standard, but Leftmost visually RTL mapping? Wait, let's look at issue:
+    // "اليمين (العمود الأول Index 0): اكتب اسم المدرسة"
+    var cellSchool = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
+    cellSchool.value = TextCellValue('اسم المدرسة: $schoolName');
+    cellSchool.cellStyle = CellStyle(
       bold: true,
-      horizontalAlign: HorizontalAlign.Right, // Right aligned since it's RTL
+      horizontalAlign: HorizontalAlign.Right,
       verticalAlign: VerticalAlign.Center,
     );
 
-    // Row 4: Column Headers
+    // Title merged in center
+    if (totalCols > 2) {
+      sheet.merge(
+        CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0),
+        CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: 0)
+      );
+      var cellTitle = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0));
+      cellTitle.value = TextCellValue('جدول الدروس الأسبوعي');
+      cellTitle.cellStyle = centerMergeStyle;
+    }
+
+    // Principal Name (اليسار (العمود الأخير totalCols - 1): اكتب المدير)
+    var cellPrincipal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 0));
+    cellPrincipal.value = TextCellValue('المدير: $principalName');
+    cellPrincipal.cellStyle = CellStyle(
+      bold: true,
+      horizontalAlign: HorizontalAlign.Left,
+      verticalAlign: VerticalAlign.Center,
+    );
+
+
+    // Row 1: Academic Year
+    if (totalCols > 2) {
+      sheet.merge(
+        CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 1),
+        CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: 1)
+      );
+      var cellYear = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 1));
+      cellYear.value = TextCellValue('العام الدراسي: $academicYear');
+      cellYear.cellStyle = centerMergeStyle;
+    }
+
+    // Row 2 is Empty
+
+    // Row 3: Column Headers
     final headerStyle = CellStyle(
       bold: true,
       horizontalAlign: HorizontalAlign.Center,
@@ -104,18 +108,18 @@ class ExcelExportUseCase {
       rightBorder: Border(borderStyle: BorderStyle.Thin),
     );
 
-    var dayCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 4));
+    var dayCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 3));
     dayCell.value = TextCellValue('اليوم');
     dayCell.cellStyle = headerStyle;
 
-    var periodCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: 4));
+    var periodCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: 3));
     periodCell.value = TextCellValue('الدرس');
     periodCell.cellStyle = headerStyle;
 
     for (int i = 0; i < classrooms.length; i++) {
       var classroom = classrooms[i];
       String cName = (classroom.name as String?) ?? '';
-      var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 3 - i, rowIndex: 4));
+      var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 3 - i, rowIndex: 3));
       cell.value = TextCellValue(cName);
       cell.cellStyle = CellStyle(
         bold: true,
@@ -146,7 +150,7 @@ class ExcelExportUseCase {
       }
     }
 
-    int rowIndex = 5;
+    int rowIndex = 4;
 
     for (int d = 0; d < displayDays.length; d++) {
       int startRowOfDay = rowIndex;
@@ -237,8 +241,8 @@ class ExcelExportUseCase {
           }
 
           if (pEnd > pStart) {
-            int rowStart = 5 + (d * periodsPerDay) + pStart;
-            int rowEnd = 5 + (d * periodsPerDay) + pEnd;
+            int rowStart = 4 + (d * periodsPerDay) + pStart;
+            int rowEnd = 4 + (d * periodsPerDay) + pEnd;
             sheet.merge(
               CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowStart),
               CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowEnd)
