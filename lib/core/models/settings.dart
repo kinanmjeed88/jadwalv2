@@ -19,7 +19,7 @@ class AppSettings {
   String exportPageSize = "A4";
 
   /// Orientation for PDF export (e.g., "Portrait", "Landscape")
-  String exportOrientation = "Landscape";
+  String exportOrientation = "Portrait";
 
   /// If true, the table auto-scales to fit the page during export
   bool exportAutoScale = true;
