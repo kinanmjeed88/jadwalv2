@@ -7,8 +7,13 @@ import '../../../../core/models/subject.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
+import '../../../../core/entities/lesson_entity.dart';
+import '../../../../core/entities/teacher_entity.dart';
+import '../../../../core/entities/subject_entity.dart';
+import '../../../../core/entities/classroom_entity.dart';
+import '../../../../core/entities/app_settings_entity.dart';
+
 import '../../domain/usecases/timetable_generator.dart';
-import '../../domain/models/timetable_dto.dart';
 import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
 
 part 'timetable_provider.g.dart';
@@ -141,34 +146,34 @@ class TimetableNotifier extends _$TimetableNotifier {
       final existingLessons = await isar.lessons.where().findAll();
 
       // Map Isar to DTOs
-      final teachersMap = {for (var t in teachers) t.id: TeacherDto.fromIsar(t)};
-      final subjectsMap = {for (var s in subjects) s.id: SubjectDto.fromIsar(s)};
-      final classroomsMap = {for (var c in classrooms) c.id: ClassroomDto.fromIsar(c)};
+      final teachersMap = {for (var t in teachers) t.id: TeacherEntity.fromIsar(t)};
+      final subjectsMap = {for (var s in subjects) s.id: SubjectEntity.fromIsar(s)};
+      final classroomsMap = {for (var c in classrooms) c.id: ClassroomEntity.fromIsar(c)};
 
-      final existingLessonsDto = existingLessons
-          .map((l) => LessonDto.fromIsar(l, teachersMap, subjectsMap, classroomsMap))
+      final existingLessonsEntity = existingLessons
+          .map((l) => LessonEntity.fromIsar(l, teachersMap, subjectsMap, classroomsMap))
           .toList();
 
-      final settingsDto = AppSettingsDto.fromIsar(settings);
+      final settingsEntity = AppSettingsEntity.fromIsar(settings);
 
-      final teachersDtoList = teachersMap.values.toList();
-      final subjectsDtoList = subjectsMap.values.toList();
-      final classroomsDtoList = classroomsMap.values.toList();
+      final teachersEntityList = teachersMap.values.toList();
+      final subjectsEntityList = subjectsMap.values.toList();
+      final classroomsEntityList = classroomsMap.values.toList();
 
       // Create payload to avoid capturing anything from lexical scope
       final payload = GenerationPayload(
-        teachers: teachersDtoList,
-        subjects: subjectsDtoList,
-        classrooms: classroomsDtoList,
-        settings: settingsDto,
-        existingLessons: existingLessonsDto,
+        teachers: teachersEntityList,
+        subjects: subjectsEntityList,
+        classrooms: classroomsEntityList,
+        settings: settingsEntity,
+        existingLessons: existingLessonsEntity,
       );
 
       // Run Generator in an Isolate using a top-level function to avoid capturing `this`
-      final resultDtos = await _spawnIsolateAndGenerate(payload);
+      final resultEntities = await _spawnIsolateAndGenerate(payload);
 
       // Map DTOs back to existingLessons
-      for (var lessonDto in resultDtos) {
+      for (var lessonDto in resultEntities) {
         final lesson = existingLessons.firstWhere((l) => l.id == lessonDto.id);
         lesson.dayIndex = lessonDto.dayIndex;
         lesson.periodIndex = lessonDto.periodIndex;
@@ -431,11 +436,11 @@ class TimetableNotifier extends _$TimetableNotifier {
 }
 
 class GenerationPayload {
-  final List<TeacherDto> teachers;
-  final List<SubjectDto> subjects;
-  final List<ClassroomDto> classrooms;
-  final AppSettingsDto settings;
-  final List<LessonDto> existingLessons;
+  final List<TeacherEntity> teachers;
+  final List<SubjectEntity> subjects;
+  final List<ClassroomEntity> classrooms;
+  final AppSettingsEntity settings;
+  final List<LessonEntity> existingLessons;
 
   const GenerationPayload({
     required this.teachers,
@@ -446,13 +451,13 @@ class GenerationPayload {
   });
 }
 
-Future<List<LessonDto>> _spawnIsolateAndGenerate(GenerationPayload payload) async {
+Future<List<LessonEntity>> _spawnIsolateAndGenerate(GenerationPayload payload) async {
   // هذه الدالة موجودة في Top-Level، لذا لا يوجد هنا 'this' ولا 'isar' ليلتقطه الـ Closure!
   return await Isolate.run(() => _generateInIsolate(payload));
 }
 
 /// A top-level function that strictly accepts DTOs, isolating memory.
-List<LessonDto> _generateInIsolate(GenerationPayload payload) {
+List<LessonEntity> _generateInIsolate(GenerationPayload payload) {
   final generator = TimetableGenerator(
     teachers: payload.teachers,
     subjects: payload.subjects,

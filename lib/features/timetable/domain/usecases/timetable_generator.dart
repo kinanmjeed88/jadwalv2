@@ -1,5 +1,9 @@
 import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
-import '../models/timetable_dto.dart';
+import '../../../../core/entities/lesson_entity.dart';
+import '../../../../core/entities/teacher_entity.dart';
+import '../../../../core/entities/subject_entity.dart';
+import '../../../../core/entities/classroom_entity.dart';
+import '../../../../core/entities/app_settings_entity.dart';
 
 class _TimeSlot {
   final int day;
@@ -10,11 +14,11 @@ class _TimeSlot {
 }
 
 class TimetableGenerator {
-  final List<TeacherDto> teachers;
-  final List<SubjectDto> subjects;
-  final List<ClassroomDto> classrooms;
-  final AppSettingsDto settings;
-  final List<LessonDto> existingLessons;
+  final List<TeacherEntity> teachers;
+  final List<SubjectEntity> subjects;
+  final List<ClassroomEntity> classrooms;
+  final AppSettingsEntity settings;
+  final List<LessonEntity> existingLessons;
   late final Stopwatch _stopwatch;
 
   // Caches for O(1) lookup
@@ -25,7 +29,7 @@ class TimetableGenerator {
 
   // Tracking best state
   int _maxAssignedCount = 0;
-  List<LessonDto> _bestState = [];
+  List<LessonEntity> _bestState = [];
 
   TimetableGenerator({
     required this.teachers,
@@ -36,7 +40,7 @@ class TimetableGenerator {
   });
 
   /// Generates the timetable and returns a list of lessons.
-  List<LessonDto> generate() {
+  List<LessonEntity> generate() {
     _stopwatch = Stopwatch()..start();
 
     int maxDays = settings.daysPerWeek;
@@ -51,9 +55,9 @@ class TimetableGenerator {
     _bestState = [];
 
     // Use existing lessons as the pool.
-    List<LessonDto> pool = List.from(existingLessons);
-    List<LessonDto> unpinnedLessons = [];
-    List<LessonDto> pinnedLessons = [];
+    List<LessonEntity> pool = List.from(existingLessons);
+    List<LessonEntity> unpinnedLessons = [];
+    List<LessonEntity> pinnedLessons = [];
 
     // Separate pinned and unpinned lessons. Also reset unpinned ones.
     for (var l in pool) {
@@ -75,7 +79,7 @@ class TimetableGenerator {
       return scoreA.compareTo(scoreB);
     });
 
-    List<LessonDto> currentAssignment = List.from(pinnedLessons);
+    List<LessonEntity> currentAssignment = List.from(pinnedLessons);
 
     // Initialize cache with pinned lessons
     for (var lesson in pinnedLessons) {
@@ -92,7 +96,7 @@ class TimetableGenerator {
       return currentAssignment;
     } else {
       // Restore the best partial assignment found before timeout
-      List<LessonDto> fallbackAssignment = List.from(_bestState);
+      List<LessonEntity> fallbackAssignment = List.from(_bestState);
 
       // Rebuild caches for the best state
       _teacherScheduleCache.clear();
@@ -144,7 +148,7 @@ class TimetableGenerator {
     }
   }
 
-  int _calculateConstraintScore(LessonDto lesson, int maxDays, int maxPeriods) {
+  int _calculateConstraintScore(LessonEntity lesson, int maxDays, int maxPeriods) {
     int score = maxDays * maxPeriods;
 
     // Teacher unavailable days
@@ -173,7 +177,7 @@ class TimetableGenerator {
     return score;
   }
 
-  int _scoreTimeSlot(LessonDto lesson, int day, int period, int maxPeriods) {
+  int _scoreTimeSlot(LessonEntity lesson, int day, int period, int maxPeriods) {
     int score = 0;
 
     if (lesson.teacher == null) return 0;
@@ -200,7 +204,7 @@ class TimetableGenerator {
     return score;
   }
 
-  bool _tryRedistribution(LessonDto lesson, List<LessonDto> currentAssignment, int maxDays, int maxPeriods) {
+  bool _tryRedistribution(LessonEntity lesson, List<LessonEntity> currentAssignment, int maxDays, int maxPeriods) {
     if (lesson.teacher == null) return false;
 
     // Try to find an existing assigned lesson that we can swap out
@@ -276,11 +280,11 @@ class TimetableGenerator {
     return false;
   }
 
-  bool _backtrack(List<LessonDto> unpinnedLessons, int index, List<LessonDto> currentAssignment, int maxDays, int maxPeriods) {
+  bool _backtrack(List<LessonEntity> unpinnedLessons, int index, List<LessonEntity> currentAssignment, int maxDays, int maxPeriods) {
     // Track best state in case of failure/timeout
     if (index > _maxAssignedCount) {
       _maxAssignedCount = index;
-      _bestState = List.from(currentAssignment.map((l) => LessonDto(
+      _bestState = List.from(currentAssignment.map((l) => LessonEntity(
         id: l.id,
         teacher: l.teacher,
         subject: l.subject,
@@ -300,7 +304,7 @@ class TimetableGenerator {
       return true; // All lessons placed
     }
 
-    LessonDto lesson = unpinnedLessons[index];
+    LessonEntity lesson = unpinnedLessons[index];
 
     List<int> periodOrder = List.generate(maxPeriods, (i) => i);
     if (lesson.subject?.preferEarlyPeriods ?? false) {
@@ -356,7 +360,7 @@ class TimetableGenerator {
     return false; // Could not place this lesson
   }
 
-  bool _isValidPlacement(LessonDto lesson, int day, int period) {
+  bool _isValidPlacement(LessonEntity lesson, int day, int period) {
     int timeKey = day * 100 + period;
 
     // 1. Teacher conflict (same period)
@@ -392,7 +396,7 @@ class TimetableGenerator {
     return true;
   }
 
-  void _addToCache(LessonDto lesson, int day, int period) {
+  void _addToCache(LessonEntity lesson, int day, int period) {
     int timeKey = day * 100 + period;
 
     if (lesson.teacher != null) {
@@ -413,7 +417,7 @@ class TimetableGenerator {
     }
   }
 
-  void _removeFromCache(LessonDto lesson, int day, int period) {
+  void _removeFromCache(LessonEntity lesson, int day, int period) {
     int timeKey = day * 100 + period;
 
     if (lesson.teacher != null) {
