@@ -324,10 +324,20 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           FloatingActionButton(
             heroTag: "btn_zoom_in",
             onPressed: () {
+              final size = MediaQuery.of(context).size;
+              final focalPoint = Offset(size.width / 2, size.height / 2);
+              const scale = 1.2;
+
               final Matrix4 matrix = _transformationController.value.clone();
-              final double scale = 1.2;
-              matrix[0] *= scale;
-              matrix[5] *= scale;
+
+              // Validate maxScale (assuming 5.0 is the maxScale configured)
+              final currentScale = matrix.getMaxScaleOnAxis();
+              if (currentScale * scale > 5.0) return;
+
+              matrix.translate(focalPoint.dx, focalPoint.dy, 0.0);
+              matrix.scale(scale, scale, 1.0);
+              matrix.translate(-focalPoint.dx, -focalPoint.dy, 0.0);
+
               _transformationController.value = matrix;
             },
             tooltip: 'تكبير',
@@ -337,10 +347,20 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           FloatingActionButton(
             heroTag: "btn_zoom_out",
             onPressed: () {
+              final size = MediaQuery.of(context).size;
+              final focalPoint = Offset(size.width / 2, size.height / 2);
+              const scale = 1 / 1.2;
+
               final Matrix4 matrix = _transformationController.value.clone();
-              final double scale = 1 / 1.2;
-              matrix[0] *= scale;
-              matrix[5] *= scale;
+
+              // Validate minScale (assuming 0.1 is the minScale configured)
+              final currentScale = matrix.getMaxScaleOnAxis();
+              if (currentScale * scale < 0.1) return;
+
+              matrix.translate(focalPoint.dx, focalPoint.dy, 0.0);
+              matrix.scale(scale, scale, 1.0);
+              matrix.translate(-focalPoint.dx, -focalPoint.dy, 0.0);
+
               _transformationController.value = matrix;
             },
             tooltip: 'تصغير',
@@ -787,7 +807,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 color: Colors.white,
                 
                 child: InteractiveViewer(
-                  boundaryMargin: const EdgeInsets.all(150.0),
+                  boundaryMargin: const EdgeInsets.all(5000.0),
                   minScale: 0.1,
                   maxScale: 5.0,
                   constrained: false, // السر الثاني: السماح للمحتوى بأخذ مساحته
