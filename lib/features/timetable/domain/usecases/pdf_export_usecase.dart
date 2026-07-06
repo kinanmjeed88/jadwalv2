@@ -25,25 +25,28 @@ class PdfExportUseCase {
 
     PdfPageFormat format = PdfPageFormat.a4.landscape;
 
-    final Map<String, Lesson> lessonMap = {};
-    for (final l in lessons) {
-      if (!l.isUnassigned) {
-        l.teacher.loadSync();
-        l.subject.loadSync();
-        l.classroom.loadSync();
-        final tId = l.teacher.value?.id;
-        if (tId != null) {
-          lessonMap['${tId}_${l.dayIndex}_${l.periodIndex}'] = l;
-        }
-      }
-    }
+    final PdfPageFormat highResFormat = PdfPageFormat(
+      format.width * _highResFactor,
+      format.height * _highResFactor,
+      marginTop: 20 * _highResFactor,
+      marginBottom: 20 * _highResFactor,
+      marginLeft: 20 * _highResFactor,
+      marginRight: 20 * _highResFactor,
+    );
 
     for (var teacher in teachers) {
+      final teacherLessons = lessons.where((l) => !l.isUnassigned && l.teacher.value?.id == teacher.id).toList();
+
+      final Map<String, Lesson> lessonMap = {};
+      for (final l in teacherLessons) {
+        lessonMap['${teacher.id}_${l.dayIndex}_${l.periodIndex}'] = l;
+      }
+
       doc.addPage(
         pw.Page(
-          pageFormat: format,
+          pageFormat: highResFormat,
           textDirection: pw.TextDirection.rtl,
-          margin: const pw.EdgeInsets.all(20),
+          margin: pw.EdgeInsets.all(20 * _highResFactor),
           theme: pw.ThemeData.withFont(
             base: font,
             bold: font,
@@ -56,10 +59,10 @@ class PdfExportUseCase {
                 children: [
                   _buildHeader(settings, font,
                       subtitle: 'جدول المدرس: $teacherName'),
-                  pw.SizedBox(height: 15),
+                  pw.SizedBox(height: 15 * _highResFactor),
                   pw.Expanded(
                     child: _buildTeacherTable(teacher, lessonMap, settings,
-                        font, format.availableHeight - 120),
+                        font, highResFormat.availableHeight - (120 * _highResFactor)),
                   ),
                   _buildFooter(settings, font, context),
                 ],
@@ -120,30 +123,38 @@ class PdfExportUseCase {
             pw.Container(
               height: rowHeight,
               alignment: pw.Alignment.center,
-              padding: const pw.EdgeInsets.all(1),
+              padding: pw.EdgeInsets.all(2 * _highResFactor),
+              decoration: pw.BoxDecoration(
+                border: pw.Border(
+                  bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5 * _highResFactor),
+                  left: pw.BorderSide(color: PdfColors.grey400, width: 0.5 * _highResFactor),
+                  right: pw.BorderSide(color: PdfColors.grey400, width: 0.5 * _highResFactor),
+                  top: pw.BorderSide(color: PdfColors.grey400, width: 0.5 * _highResFactor),
+                ),
+              ),
               child: pw.Column(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceEvenly,
                 children: [
-                  pw.Expanded(
-                    child: pw.FittedBox(
-                      fit: pw.BoxFit.scaleDown,
-                      child: pw.Text(
-                        subjectName,
-                        textAlign: pw.TextAlign.center,
-                        style: pw.TextStyle(
-                            font: font, fontWeight: pw.FontWeight.bold),
-                      ),
+                  pw.Text(
+                    subjectName,
+                    textAlign: pw.TextAlign.center,
+                    softWrap: true,
+                    textDirection: pw.TextDirection.rtl,
+                    style: pw.TextStyle(
+                        font: font,
+                        fontWeight: pw.FontWeight.bold,
+                        fontSize: 10 * _highResFactor,
                     ),
                   ),
-                  pw.Expanded(
-                    child: pw.FittedBox(
-                      fit: pw.BoxFit.scaleDown,
-                      child: pw.Text(
-                        classroomName,
-                        textAlign: pw.TextAlign.center,
-                        style:
-                            pw.TextStyle(font: font, color: PdfColors.grey700),
-                      ),
+                  pw.Text(
+                    classroomName,
+                    textAlign: pw.TextAlign.center,
+                    softWrap: true,
+                    textDirection: pw.TextDirection.rtl,
+                    style: pw.TextStyle(
+                      font: font,
+                      color: PdfColors.grey700,
+                      fontSize: 9 * _highResFactor,
                     ),
                   ),
                 ],
@@ -151,7 +162,17 @@ class PdfExportUseCase {
             ),
           );
         } else {
-          cells.add(pw.Container(height: rowHeight));
+          cells.add(pw.Container(
+            height: rowHeight,
+            decoration: pw.BoxDecoration(
+              border: pw.Border(
+                bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.5 * _highResFactor),
+                left: pw.BorderSide(color: PdfColors.grey400, width: 0.5 * _highResFactor),
+                right: pw.BorderSide(color: PdfColors.grey400, width: 0.5 * _highResFactor),
+                top: pw.BorderSide(color: PdfColors.grey400, width: 0.5 * _highResFactor),
+              ),
+            ),
+          ));
         }
       }
 
@@ -165,13 +186,12 @@ class PdfExportUseCase {
     return pw.Directionality(
       textDirection: pw.TextDirection.rtl,
       child: pw.Table(
-        border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
+        border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5 * _highResFactor),
         columnWidths: columnWidths,
         children: rows,
       ),
     );
   }
-
   Future<Uint8List> generateTimetablePdf(List<Lesson> lessons,
       List<Classroom> classrooms, AppSettings settings) async {
     final doc = pw.Document();
