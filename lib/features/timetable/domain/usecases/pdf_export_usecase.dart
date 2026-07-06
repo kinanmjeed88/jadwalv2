@@ -350,11 +350,19 @@ class PdfExportUseCase {
     final displayDays = days.take(settings.daysPerWeek).toList();
     final int periodsPerDay = settings.periodsPerDay;
 
+    bool isA3Layout = chunk.length > 4;
+
     final Map<int, pw.TableColumnWidth> columnWidths = {
-      0: const pw.FlexColumnWidth(0.5),
-      1: const pw.FlexColumnWidth(0.3),
+      0: isA3Layout
+          ? const pw.FlexColumnWidth(1.0)
+          : const pw.FlexColumnWidth(0.5),
+      1: isA3Layout
+          ? const pw.FlexColumnWidth(1.0)
+          : const pw.FlexColumnWidth(0.3),
       for (int i = 0; i < chunk.length; i++)
-        i + 2: const pw.FlexColumnWidth(2.0),
+        i + 2: isA3Layout
+            ? const pw.FlexColumnWidth(1.0)
+            : const pw.FlexColumnWidth(2.0),
     };
 
     final double rowHeight =
@@ -375,12 +383,6 @@ class PdfExportUseCase {
               font,
               isHeader: true,
               height: rowHeight,
-              isFirstInGrade: c == 0 ||
-                  ((chunk[c - 1].grade as String?) ?? '') !=
-                      ((chunk[c].grade as String?) ?? ''),
-              isLastInGrade: c == chunk.length - 1 ||
-                  ((chunk[c + 1].grade as String?) ?? '') !=
-                      ((chunk[c].grade as String?) ?? ''),
             ),
         ],
       ),
@@ -429,12 +431,6 @@ class PdfExportUseCase {
         // Classrooms Cells Logic
         for (int c = 0; c < chunk.length; c++) {
           final classroom = chunk[c];
-          bool isFirstInGrade = c == 0 ||
-              ((chunk[c - 1].grade as String?) ?? '') !=
-                  ((classroom.grade as String?) ?? '');
-          bool isLastInGrade = c == chunk.length - 1 ||
-              ((chunk[c + 1].grade as String?) ?? '') !=
-                  ((classroom.grade as String?) ?? '');
 
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
 
@@ -485,14 +481,10 @@ class PdfExportUseCase {
                 border: pw.Border(
                   bottom:
                       const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-                  left: isLastInGrade
-                      ? const pw.BorderSide(color: PdfColors.black, width: 2.0)
-                      : const pw.BorderSide(
-                          color: PdfColors.grey400, width: 0.5),
-                  right: isFirstInGrade
-                      ? const pw.BorderSide(color: PdfColors.black, width: 2.0)
-                      : const pw.BorderSide(
-                          color: PdfColors.grey400, width: 0.5),
+                  left:
+                      const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+                  right:
+                      const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
                 ),
               ),
               child: cellContent,
@@ -511,12 +503,7 @@ class PdfExportUseCase {
     return pw.Directionality(
       textDirection: pw.TextDirection.rtl,
       child: pw.Table(
-        border: const pw.TableBorder(
-          top: pw.BorderSide(color: PdfColors.black, width: 2.0),
-          bottom: pw.BorderSide(color: PdfColors.black, width: 2.0),
-          left: pw.BorderSide(color: PdfColors.black, width: 2.0),
-          right: pw.BorderSide(color: PdfColors.black, width: 2.0),
-        ),
+        border: pw.TableBorder.all(color: PdfColors.grey400, width: 0.5),
         columnWidths: columnWidths,
         children: rows,
       ),
@@ -526,8 +513,6 @@ class PdfExportUseCase {
   pw.Widget _buildCell(String text, pw.Font font,
       {bool isHeader = false,
       bool isBold = false,
-      bool isFirstInGrade = false,
-      bool isLastInGrade = false,
       bool hideBottomBorder = false,
       double? height}) {
     return pw.Container(
@@ -539,12 +524,8 @@ class PdfExportUseCase {
           bottom: hideBottomBorder
               ? pw.BorderSide.none
               : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          left: isLastInGrade
-              ? const pw.BorderSide(color: PdfColors.black, width: 2.0)
-              : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
-          right: isFirstInGrade
-              ? const pw.BorderSide(color: PdfColors.black, width: 2.0)
-              : const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          left: const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
+          right: const pw.BorderSide(color: PdfColors.grey400, width: 0.5),
         ),
       ),
       child: pw.FittedBox(
