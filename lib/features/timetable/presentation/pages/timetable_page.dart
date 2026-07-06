@@ -322,10 +322,19 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           FloatingActionButton(
+            heroTag: "btn_zoom_reset",
+            onPressed: () {
+              _transformationController.value = Matrix4.identity();
+            },
+            tooltip: 'استعادة الحجم الأصلي',
+            child: const Icon(Icons.fit_screen),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
             heroTag: "btn_zoom_in",
             onPressed: () {
               final size = MediaQuery.of(context).size;
-              final focalPoint = Offset(size.width / 2, size.height / 2);
+              final center = Offset(size.width / 2, size.height / 2);
               const scale = 1.2;
 
               final Matrix4 matrix = _transformationController.value.clone();
@@ -334,9 +343,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               final currentScale = matrix.getMaxScaleOnAxis();
               if (currentScale * scale > 5.0) return;
 
-              matrix.translate(focalPoint.dx, focalPoint.dy, 0.0);
+              matrix.translate(center.dx, center.dy);
               matrix.scale(scale, scale, 1.0);
-              matrix.translate(-focalPoint.dx, -focalPoint.dy, 0.0);
+              matrix.translate(-center.dx, -center.dy);
 
               _transformationController.value = matrix;
             },
@@ -348,7 +357,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             heroTag: "btn_zoom_out",
             onPressed: () {
               final size = MediaQuery.of(context).size;
-              final focalPoint = Offset(size.width / 2, size.height / 2);
+              final center = Offset(size.width / 2, size.height / 2);
               const scale = 1 / 1.2;
 
               final Matrix4 matrix = _transformationController.value.clone();
@@ -357,9 +366,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               final currentScale = matrix.getMaxScaleOnAxis();
               if (currentScale * scale < 0.1) return;
 
-              matrix.translate(focalPoint.dx, focalPoint.dy, 0.0);
+              matrix.translate(center.dx, center.dy);
               matrix.scale(scale, scale, 1.0);
-              matrix.translate(-focalPoint.dx, -focalPoint.dy, 0.0);
+              matrix.translate(-center.dx, -center.dy);
 
               _transformationController.value = matrix;
             },

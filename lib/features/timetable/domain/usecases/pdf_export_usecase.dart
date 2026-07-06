@@ -48,17 +48,20 @@ class PdfExportUseCase {
           ),
           build: (pw.Context context) {
             String teacherName = (teacher.name as String?) ?? 'بدون اسم';
-            return pw.Column(
-              children: [
-                _buildHeader(settings, font,
-                    subtitle: 'جدول المدرس: $teacherName'),
-                pw.SizedBox(height: 15),
-                pw.Expanded(
-                  child: _buildTeacherTable(teacher, lessonMap, settings, font,
-                      format.availableHeight - 120),
-                ),
-                _buildFooter(settings, font, context),
-              ],
+            return pw.Directionality(
+              textDirection: pw.TextDirection.rtl,
+              child: pw.Column(
+                children: [
+                  _buildHeader(settings, font,
+                      subtitle: 'جدول المدرس: $teacherName'),
+                  pw.SizedBox(height: 15),
+                  pw.Expanded(
+                    child: _buildTeacherTable(teacher, lessonMap, settings, font,
+                        format.availableHeight - 120),
+                  ),
+                  _buildFooter(settings, font, context),
+                ],
+              ),
             );
           },
         ),
@@ -250,16 +253,19 @@ class PdfExportUseCase {
             bold: font,
           ),
           build: (pw.Context context) {
-            return pw.Column(
-              children: [
-                _buildHeader(settings, font),
-                pw.SizedBox(height: 15),
-                pw.Expanded(
-                  child: _buildMasterTable(chunk, lessonMap, settings, font,
-                      format.availableHeight - 120),
-                ),
-                _buildFooter(settings, font, context),
-              ],
+            return pw.Directionality(
+              textDirection: pw.TextDirection.rtl,
+              child: pw.Column(
+                children: [
+                  _buildHeader(settings, font),
+                  pw.SizedBox(height: 15),
+                  pw.Expanded(
+                    child: _buildMasterTable(chunk, lessonMap, settings, font,
+                        format.availableHeight - 120),
+                  ),
+                  _buildFooter(settings, font, context),
+                ],
+              ),
             );
           },
         ),
