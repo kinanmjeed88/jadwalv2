@@ -56,8 +56,8 @@ class PdfExportUseCase {
                       subtitle: 'جدول المدرس: $teacherName'),
                   pw.SizedBox(height: 15),
                   pw.Expanded(
-                    child: _buildTeacherTable(teacher, lessonMap, settings, font,
-                        format.availableHeight - 120),
+                    child: _buildTeacherTable(teacher, lessonMap, settings,
+                        font, format.availableHeight - 120),
                   ),
                   _buildFooter(settings, font, context),
                 ],
@@ -77,10 +77,12 @@ class PdfExportUseCase {
     final displayDays = days.take(settings.daysPerWeek).toList();
     final int periodsPerDay = settings.periodsPerDay;
 
+    final int totalCols = 1 + periodsPerDay;
+
     final Map<int, pw.TableColumnWidth> columnWidths = {
-      0: const pw.FlexColumnWidth(0.5),
+      totalCols - 1: const pw.FlexColumnWidth(0.5),
       for (int i = 0; i < periodsPerDay; i++)
-        i + 1: const pw.FlexColumnWidth(1.0),
+        totalCols - 2 - i: const pw.FlexColumnWidth(1.0),
     };
 
     final double rowHeight = availableHeight / (1 + displayDays.length);
@@ -88,16 +90,16 @@ class PdfExportUseCase {
     final List<pw.TableRow> rows = [];
 
     // Header Row
+    final headerCells = <pw.Widget>[
+      _buildCell('اليوم / الحصة', font, isHeader: true, height: rowHeight),
+      for (int p = 0; p < periodsPerDay; p++)
+        _buildCell((p + 1).toString(), font, isHeader: true, height: rowHeight),
+    ];
     rows.add(
       pw.TableRow(
         repeat: true,
         decoration: const pw.BoxDecoration(color: PdfColors.teal100),
-        children: [
-          _buildCell('اليوم / الحصة', font, isHeader: true, height: rowHeight),
-          for (int p = 0; p < periodsPerDay; p++)
-            _buildCell((p + 1).toString(), font,
-                isHeader: true, height: rowHeight),
-        ],
+        children: headerCells.reversed.toList(),
       ),
     );
 
@@ -154,7 +156,7 @@ class PdfExportUseCase {
       final bgColor = d % 2 == 0 ? PdfColors.grey50 : PdfColors.white;
       rows.add(pw.TableRow(
         decoration: pw.BoxDecoration(color: bgColor),
-        children: cells,
+        children: cells.reversed.toList(),
       ));
     }
 
@@ -358,15 +360,17 @@ class PdfExportUseCase {
 
     bool isA3Layout = chunk.length > 4;
 
+    final int totalCols = 2 + chunk.length;
+
     final Map<int, pw.TableColumnWidth> columnWidths = {
-      0: isA3Layout
+      totalCols - 1: isA3Layout
           ? const pw.FlexColumnWidth(1.0)
           : const pw.FlexColumnWidth(0.5),
-      1: isA3Layout
+      totalCols - 2: isA3Layout
           ? const pw.FlexColumnWidth(1.0)
           : const pw.FlexColumnWidth(0.3),
       for (int i = 0; i < chunk.length; i++)
-        i + 2: isA3Layout
+        totalCols - 3 - i: isA3Layout
             ? const pw.FlexColumnWidth(1.0)
             : const pw.FlexColumnWidth(2.0),
     };
@@ -377,20 +381,21 @@ class PdfExportUseCase {
     final List<pw.TableRow> rows = [];
 
     // Header Row
+    final headerCells = <pw.Widget>[
+      _buildCell('اليوم', font, isHeader: true, height: rowHeight),
+      _buildCell('الدرس', font, isHeader: true, height: rowHeight),
+      for (int c = 0; c < chunk.length; c++)
+        _buildCell(
+          (chunk[c].name as String?) ?? '',
+          font,
+          isHeader: true,
+          height: rowHeight,
+        ),
+    ];
     rows.add(
       pw.TableRow(
         decoration: const pw.BoxDecoration(color: PdfColors.teal100),
-        children: [
-          _buildCell('اليوم', font, isHeader: true, height: rowHeight),
-          _buildCell('الدرس', font, isHeader: true, height: rowHeight),
-          for (int c = 0; c < chunk.length; c++)
-            _buildCell(
-              (chunk[c].name as String?) ?? '',
-              font,
-              isHeader: true,
-              height: rowHeight,
-            ),
-        ],
+        children: headerCells.reversed.toList(),
       ),
     );
 
@@ -501,7 +506,7 @@ class PdfExportUseCase {
         final bgColor = p % 2 == 0 ? PdfColors.grey50 : PdfColors.white;
         rows.add(pw.TableRow(
           decoration: pw.BoxDecoration(color: bgColor),
-          children: cells,
+          children: cells.reversed.toList(),
         ));
       }
     }
