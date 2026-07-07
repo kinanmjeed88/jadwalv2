@@ -32,10 +32,6 @@ android {
         versionName = flutter.versionName
     }
 
-
-
-
-
     signingConfigs {
         val keystorePropertiesFile = rootProject.file("key.properties")
         val keystoreProperties = Properties()
@@ -82,7 +78,6 @@ android {
         }
     }
 
-
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
@@ -92,4 +87,13 @@ android {
 
 flutter {
     source = "../.."
+}
+
+// 🚨 هذا هو الجزء الجديد لإجبار المكتبات على التوافق مع AGP 8.6.0
+configurations.all {
+    resolutionStrategy {
+        force("androidx.browser:browser:1.8.0")
+        force("androidx.core:core-ktx:1.13.1")
+        force("androidx.core:core:1.13.1")
+    }
 }
