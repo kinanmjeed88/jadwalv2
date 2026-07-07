@@ -20,7 +20,7 @@ class PdfExportUseCase {
       List<Teacher> teachers, AppSettings settings) async {
     final doc = pw.Document();
 
-    final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
+    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
     PdfPageFormat format = PdfPageFormat.a4.landscape;
@@ -196,7 +196,7 @@ class PdfExportUseCase {
       List<Classroom> classrooms, AppSettings settings) async {
     final doc = pw.Document();
 
-    final fontData = await rootBundle.load('assets/fonts/Cairo-Regular.ttf');
+    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
     final font = pw.Font.ttf(fontData);
 
     classrooms.sort((a, b) {
