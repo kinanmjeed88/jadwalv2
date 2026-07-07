@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'dart:convert';
 
@@ -88,21 +90,21 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
       final jsonStr = await backupService.exportDatabaseToJson();
 
       final jsonBytes = const Utf8Encoder().convert(jsonStr);
-      String? outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'احفظ النسخة الاحتياطية',
-        fileName: 'jadwal_backup.json',
-        bytes: jsonBytes,
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/jadwal_backup.json');
+      await file.writeAsBytes(jsonBytes);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم تحضير البيانات، جاري فتح المشاركة...')),
+        );
+      }
+
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'نسخة احتياطية لبيانات التطبيق',
       );
 
-      if (outputFile != null) {
-        final file = File(outputFile);
-        await file.writeAsBytes(jsonBytes);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('تم تصدير البيانات بنجاح')),
-          );
-        }
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
