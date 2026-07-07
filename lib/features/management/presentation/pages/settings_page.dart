@@ -231,8 +231,10 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                 ],
               ),
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 12.0,
+                runSpacing: 12.0,
                 children: [
                   IconButton(
                     icon: const FaIcon(FontAwesomeIcons.telegram, color: Color(0xFF0088cc)),
