@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:io';
 import 'dart:convert';
 
@@ -85,9 +87,6 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
       final backupService = await ref.read(backupServiceProvider.future);
       final jsonStr = await backupService.exportDatabaseToJson();
 
-      // In a real device we'd use a file picker to choose location,
-      // here we just simulate saving to a default location for demo purposes.
-      // We will try to use file_picker to get a directory.
       final jsonBytes = const Utf8Encoder().convert(jsonStr);
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'احفظ النسخة الاحتياطية',
@@ -131,7 +130,6 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
         await backupService.importDatabaseFromJson(jsonStr);
 
         if (mounted) {
-          // Refresh data providers
           ref.invalidate(teachersNotifierProvider);
           ref.invalidate(subjectsNotifierProvider);
           ref.invalidate(classroomsNotifierProvider);
@@ -151,6 +149,124 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
         );
       }
     }
+  }
+
+  Future<void> _launchSocialMediaUrl(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('لا يمكن فتح الرابط: $urlString')),
+        );
+      }
+    }
+  }
+
+  void _showDeveloperDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Center(
+            child: Text(
+              'حول مطور التطبيق',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'كنان الصائغ',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Kinan Al-Sayegh',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Wrap(
+                alignment: WrapAlignment.center,
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      'التطبيق حالياً مجاني',
+                      style: TextStyle(
+                        color: Colors.green.shade900,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text(
+                      'نسخة تجريبية',
+                      style: TextStyle(
+                        color: Colors.orange.shade900,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  IconButton(
+                    icon: const FaIcon(FontAwesomeIcons.telegram, color: Color(0xFF0088cc)),
+                    onPressed: () => _launchSocialMediaUrl('https://t.me/techtouch7'),
+                  ),
+                  IconButton(
+                    icon: const FaIcon(FontAwesomeIcons.tiktok, color: Colors.black),
+                    onPressed: () => _launchSocialMediaUrl('https://www.tiktok.com/@techtouch6?_r=1&_t=ZT-97ououQ8tkk'),
+                  ),
+                  IconButton(
+                    icon: const FaIcon(FontAwesomeIcons.youtube, color: Color(0xFFFF0000)),
+                    onPressed: () => _launchSocialMediaUrl('https://youtube.com/@kinanmajeed?si=I2yuzJT2rRnEHLVg'),
+                  ),
+                  IconButton(
+                    icon: const FaIcon(FontAwesomeIcons.facebook, color: Color(0xFF1877F2)),
+                    onPressed: () => _launchSocialMediaUrl('https://www.facebook.com/share/1EsapVHA6W/'),
+                  ),
+                  IconButton(
+                    icon: const FaIcon(FontAwesomeIcons.instagram, color: Color(0xFFE1306C)),
+                    onPressed: () => _launchSocialMediaUrl('https://www.instagram.com/techtouch0'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('إغلاق'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -338,6 +454,22 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 24),
+            const Text('مطور التطبيق',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal)),
+            const SizedBox(height: 16),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.code, color: Colors.teal),
+                title: const Text('حول مطور التطبيق'),
+                subtitle: const Text('تواصل معنا، حقوق المطور، الإصدار'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: () => _showDeveloperDialog(context),
+              ),
             ),
             const SizedBox(height: 32),
             SizedBox(
