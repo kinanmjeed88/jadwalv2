@@ -3,11 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
+import 'package:firebase_core/firebase_core.dart';
 import 'core/theme/app_theme.dart';
 import 'features/management/presentation/pages/home_page.dart';
+import 'services/analytics_service.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  try {
+    await Firebase.initializeApp();
+  } catch (e) {
+    // التعامل مع أخطاء التهيئة بشكل نظيف دون تعطيل التطبيق
+    print('Firebase initialization failed: $e');
+  }
 
   ErrorWidget.builder = (FlutterErrorDetails details) {
     return Material(
@@ -46,6 +54,9 @@ class JadwalApp extends StatelessWidget {
       ],
       supportedLocales: const [
         Locale('ar', 'AE'), // Arabic
+      ],
+      navigatorObservers: [
+        AnalyticsService().analyticsObserver,
       ],
       home: const HomePage(),
     );
