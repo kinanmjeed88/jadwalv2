@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "772090108610",
+    "project_id": "jadwal-1348f",
+    "storage_bucket": "jadwal-1348f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:772090108610:android:f18ceab465b7760c0ab95b",
+        "android_client_info": {
+          "package_name": "com.jadwal.jadwal_v2"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAeAY-a6K_qBFoPCaVf-RG8Vf70GExVrck"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
