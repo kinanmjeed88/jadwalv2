@@ -119,8 +119,6 @@ class TimetableGenerator {
 
           // Phase 2: Ultimate Fallback -> Temporarily set teacher to null to bypass constraints
 
-          unpinned.teacher = null;
-
           bool placedTemporally = false;
           // Find first available slot where classroom doesn't have a conflict
           for (int d = 0; d < maxDays && !placedTemporally; d++) {
@@ -131,6 +129,7 @@ class TimetableGenerator {
               if (!classroomBusy && !subjectAlreadyOnDay) {
                 unpinned.dayIndex = d;
                 unpinned.periodIndex = p;
+                _addToCache(unpinned, d, p);
                 placedTemporally = true;
               }
             }
