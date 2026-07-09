@@ -27,6 +27,8 @@ dependencies:
   excel: ^4.0.6
   url_launcher: ^6.3.2
   font_awesome_flutter: ^11.0.0
+  firebase_core: ^4.11.0
+  firebase_analytics: ^12.4.3
 
 dev_dependencies:
   flutter_test:
