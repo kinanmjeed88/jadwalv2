@@ -4,6 +4,7 @@ import '../../../../core/models/teacher.dart';
 import '../../../../core/models/subject.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/settings.dart';
+import '../../../../core/models/lesson.dart';
 import '../../domain/repositories/management_repository.dart';
 
 class ManagementRepositoryImpl implements ManagementRepository {
@@ -27,7 +28,6 @@ class ManagementRepositoryImpl implements ManagementRepository {
   Future<void> deleteTeacher(int id) async {
     await _isar.writeTxn(() async {
       await _isar.lessons.filter().teacher((q) => q.idEqualTo(id)).deleteAll();
-      await _isar.assignments.filter().teacher((q) => q.idEqualTo(id)).deleteAll();
       await _isar.teachers.delete(id);
     });
   }
@@ -48,7 +48,6 @@ class ManagementRepositoryImpl implements ManagementRepository {
   Future<void> deleteSubject(int id) async {
     await _isar.writeTxn(() async {
       await _isar.lessons.filter().subject((q) => q.idEqualTo(id)).deleteAll();
-      await _isar.assignments.filter().subject((q) => q.idEqualTo(id)).deleteAll();
       await _isar.subjects.delete(id);
     });
   }
@@ -69,7 +68,6 @@ class ManagementRepositoryImpl implements ManagementRepository {
   Future<void> deleteClassroom(int id) async {
     await _isar.writeTxn(() async {
       await _isar.lessons.filter().classroom((q) => q.idEqualTo(id)).deleteAll();
-      await _isar.assignments.filter().classroom((q) => q.idEqualTo(id)).deleteAll();
       await _isar.classrooms.delete(id);
     });
   }
