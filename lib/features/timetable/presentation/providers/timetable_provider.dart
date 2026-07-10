@@ -217,7 +217,18 @@ class TimetableNotifier extends _$TimetableNotifier {
       }
       state = AsyncValue.data(existingLessons);
     } on UnsolvableTimetableException catch (e) {
-      state = AsyncValue.error(e.message, StackTrace.current);
+      // Restore valid data state to avoid generic error widget
+      final isar = await ref.read(isarDatabaseProvider.future);
+      final lessons = await isar.lessons.where().findAll();
+      for (var lesson in lessons) {
+        lesson.classroom.loadSync();
+        lesson.subject.loadSync();
+        lesson.teacher.loadSync();
+      }
+      state = AsyncValue.data(lessons);
+
+      // Rethrow to the UI try-catch block
+      throw Exception(e.message);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
