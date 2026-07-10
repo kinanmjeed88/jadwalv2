@@ -1,32 +1,49 @@
 import '../../../../core/entities/lesson_entity.dart';
 import '../../../../core/entities/teacher_entity.dart';
-import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
+import '../../../../core/entities/classroom_entity.dart';
+import '../../../../core/entities/app_settings_entity.dart';
 
 class PreValidationEngine {
-  /// Validates the pool of unassigned lessons against teacher constraints.
-  /// Throws [UnsolvableTimetableException] if any constraint is inherently unsolvable.
-  static void validate(List<LessonEntity> lessons, List<TeacherEntity> teachers) {
-    // Check if any teacher is assigned more lessons than their weekly max capacity.
+  final List<LessonEntity> existingLessons;
+  final List<TeacherEntity> teachers;
+  final List<ClassroomEntity> classrooms;
+  final AppSettingsEntity settings;
 
-    // Group lessons by teacher ID
-    final Map<int, int> teacherLessonCount = {};
-    for (final lesson in lessons) {
-      if (lesson.teacher != null) {
-        teacherLessonCount[lesson.teacher!.id] = (teacherLessonCount[lesson.teacher!.id] ?? 0) + 1;
+  PreValidationEngine({
+    required this.existingLessons,
+    required this.teachers,
+    required this.classrooms,
+    required this.settings,
+  });
+
+  List<String> validateAll() {
+    List<String> errors = [];
+
+    // 1. Classroom Capacity Validation
+    int maxClassroomCapacity = settings.periodsPerDay * settings.daysPerWeek;
+
+    for (var classroom in classrooms) {
+      int assignedLessons = existingLessons.where((l) => l.classroom?.id == classroom.id).length;
+      if (assignedLessons > maxClassroomCapacity) {
+        errors.add('استحالة رياضية: الصف "${classroom.name}" مُسند إليه $assignedLessons حصة، بينما سعة الجدول الأسبوعي هي $maxClassroomCapacity حصة فقط (أيام الدوام × الحصص اليومية). الحل: تقليل حصص الصف أو زيادة أيام/حصص الدوام.');
       }
     }
 
-    // Validate against teacher capacity
-    for (final teacher in teachers) {
-      final assignedCount = teacherLessonCount[teacher.id] ?? 0;
-      if (assignedCount > teacher.maxLessonsPerWeek) {
-        throw UnsolvableTimetableException(
-          'خطأ في الإسناد: الأستاذ (${teacher.name}) تم إسناد $assignedCount حصص له، بينما الحد الأقصى المسموح به أسبوعياً هو ${teacher.maxLessonsPerWeek}. يرجى تقليل نصابه أو زيادة حده الأقصى.',
-        );
+    // 2. Teacher Capacity Validation
+    for (var teacher in teachers) {
+      int assignedLessons = existingLessons.where((l) => l.teacher?.id == teacher.id).length;
+
+      int activeUnavailableDays = teacher.unavailableDays.where((day) => day < settings.daysPerWeek).length;
+      int availableDays = settings.daysPerWeek - activeUnavailableDays;
+
+      int maxCapacityDays = teacher.maxLessonsPerDay * availableDays;
+      int absoluteMaxCapacity = teacher.maxLessonsPerWeek < maxCapacityDays ? teacher.maxLessonsPerWeek : maxCapacityDays;
+
+      if (assignedLessons > absoluteMaxCapacity) {
+        errors.add('استحالة رياضية: المعلم "${teacher.name}" مطلوب منه $assignedLessons حصة. لكن حده الأقصى أو أيام تفرغه تسمح له بتدريس $absoluteMaxCapacity حصة فقط كحد أقصى. الحل: رفع الحد الأقصى للمعلم، تقليل إجازاته، أو نقل بعض حصصه لمعلم آخر.');
       }
     }
 
-    // We can add more pre-validation checks here in the future
-    // e.g., Subject constraints, impossible day/period combos, etc.
+    return errors;
   }
 }

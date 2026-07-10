@@ -5,6 +5,7 @@ import '../../../../core/entities/subject_entity.dart';
 import '../../../../core/entities/classroom_entity.dart';
 import '../../../../core/entities/app_settings_entity.dart';
 import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
+import 'pre_validation_engine.dart';
 
 class TimetableGenerator {
   final List<TeacherEntity> teachers;
@@ -21,27 +22,22 @@ class TimetableGenerator {
     required this.existingLessons,
   });
 
-  void _validateInputsBeforeGeneration() {
-    for (var teacher in teachers) {
-      int assignedLessons = existingLessons.where((l) => l.teacher?.id == teacher.id).length;
-
-      // Calculate active days. Only count unavailable days that are within the active week days.
-      int activeUnavailableDays = teacher.unavailableDays.where((day) => day < settings.daysPerWeek).length;
-      int availableDays = settings.daysPerWeek - activeUnavailableDays;
-
-      int maxCapacity = teacher.maxLessonsPerDay * availableDays;
-
-      if (assignedLessons > maxCapacity) {
-        throw UnsolvableTimetableException(
-          'استحالة رياضية: المعلم ${teacher.name} مسند إليه $assignedLessons حصة أسبوعياً، ولكن حده الأقصى اليومي (${teacher.maxLessonsPerDay}) لا يكفي لتغطيتها خلال أيام الأسبوع. يرجى رفع الحد الأقصى اليومي لهذا المعلم.'
-        );
-      }
+  void _runPreValidation() {
+    final engine = PreValidationEngine(
+      existingLessons: existingLessons,
+      teachers: teachers,
+      classrooms: classrooms,
+      settings: settings,
+    );
+    final errors = engine.validateAll();
+    if (errors.isNotEmpty) {
+      throw UnsolvableTimetableException(errors.join('\n\n'));
     }
   }
 
   /// Generates the timetable using Simulated Annealing (SA)
   List<LessonEntity> generate() {
-    _validateInputsBeforeGeneration();
+    _runPreValidation();
     final stopwatch = Stopwatch()..start();
     final random = Random();
     int maxDays = settings.daysPerWeek;

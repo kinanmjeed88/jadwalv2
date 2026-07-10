@@ -47,10 +47,30 @@ class TimetableNotifier extends _$TimetableNotifier {
       return (false, "تم إسناد هذه المادة لهذا الصف مسبقاً");
     }
 
-    // Check capacity overload
+    // Check real-time classroom capacity overload
+    final settingsList = await isar.appSettings.where().findAll();
+    final settings = settingsList.isNotEmpty ? settingsList.first : (AppSettings()..periodsPerDay = 7);
+    int maxClassroomCapacity = settings.periodsPerDay * settings.daysPerWeek;
+
+    int classAssignedLessons = allLessons.where((l) => l.classroom.value?.id == classroom.id).length;
+    int proposedClassTotal = classAssignedLessons + subject.lessonsPerWeek;
+
+    if (proposedClassTotal > maxClassroomCapacity) {
+      return (false, "تحذير: لا يمكن الإسناد. الصف ${classroom.name} سيصل إلى $proposedClassTotal حصة، مما يتجاوز السعة القصوى للجدول الأسبوعي ($maxClassroomCapacity حصة).");
+    }
+
+    // Check real-time teacher capacity overload
     int teacherAssignedLessons = allLessons.where((l) => l.teacher.value?.id == teacher.id).length;
-    if (teacherAssignedLessons + subject.lessonsPerWeek > teacher.maxLessonsPerWeek) {
-      return (false, "لا يمكن الإسناد: سعة المدرس الأسبوعية لا تكفي");
+    int proposedTeacherTotal = teacherAssignedLessons + subject.lessonsPerWeek;
+
+    int activeUnavailableDays = teacher.unavailableDays.where((day) => day < settings.daysPerWeek).length;
+    int availableDays = settings.daysPerWeek - activeUnavailableDays;
+
+    int maxCapacityDays = teacher.maxLessonsPerDay * availableDays;
+    int absoluteMaxCapacity = teacher.maxLessonsPerWeek < maxCapacityDays ? teacher.maxLessonsPerWeek : maxCapacityDays;
+
+    if (proposedTeacherTotal > absoluteMaxCapacity) {
+      return (false, "تحذير: لا يمكن إسناد هذه المادة. المعلم ${teacher.name} سيصل إلى $proposedTeacherTotal حصة، مما يتجاوز حده المسموح ($absoluteMaxCapacity حصة). يرجى اختيار معلم آخر.");
     }
 
     final newLessons = <Lesson>[];
