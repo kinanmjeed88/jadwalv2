@@ -221,9 +221,79 @@ class TimetableGenerator {
 
     stopwatch.stop();
     if (bestCost > 0) {
-      throw UnsolvableTimetableException('عذراً، لا يمكن توليد الجدول. القيود الحالية صارمة جداً أو تتعارض مع بعضها (مثل تكرار مادة في نفس اليوم أو تعارض أوقات المعلمين). يرجى تعديل أوقات تفرغ المعلمين أو تقليل الحصص والمحاولة مجدداً.');
+      List<String> conflicts = _getConflicts(bestSchedule, maxDays, maxPeriods);
+      String errorMessage = conflicts.isNotEmpty
+          ? 'القيود الحالية صارمة جداً وتتعارض مع بعضها. التعارضات المتبقية:\n\n${conflicts.map((c) => '- $c').join('\n')}'
+          : 'تعذر توليد الجدول (بسبب قيود صارمة).';
+      throw UnsolvableTimetableException(errorMessage);
     }
     return bestSchedule;
+  }
+
+  List<String> _getConflicts(List<LessonEntity> state, int maxDays, int maxPeriods) {
+    List<String> conflicts = [];
+
+    Map<int, Set<int>> teacherSlots = {};
+    Map<int, Map<int, int>> teacherDailyCounts = {};
+    Map<int, Map<int, Set<int>>> classroomDailySubjects = {};
+    Map<int, Set<int>> classroomSlots = {};
+
+    for (var lesson in state) {
+      if (lesson.dayIndex == null || lesson.periodIndex == null) continue;
+
+      int day = lesson.dayIndex!;
+      int period = lesson.periodIndex!;
+      int timeKey = day * 100 + period;
+
+      if (lesson.classroom != null) {
+        int cId = lesson.classroom!.id;
+        if (classroomSlots.containsKey(cId) && classroomSlots[cId]!.contains(timeKey)) {
+          conflicts.add('تعارض في الفصل "${lesson.classroom!.name}": أكثر من حصة في اليوم ${day + 1} الحصة ${period + 1}');
+        } else {
+          classroomSlots.putIfAbsent(cId, () => {}).add(timeKey);
+        }
+      }
+
+      if (lesson.teacher != null) {
+        int tId = lesson.teacher!.id;
+        String tName = lesson.teacher!.name;
+
+        if (teacherSlots.containsKey(tId) && teacherSlots[tId]!.contains(timeKey)) {
+          conflicts.add('تعارض للمعلم "$tName": أكثر من حصة في اليوم ${day + 1} الحصة ${period + 1}');
+        } else {
+          teacherSlots.putIfAbsent(tId, () => {}).add(timeKey);
+        }
+
+        teacherDailyCounts.putIfAbsent(tId, () => {});
+        teacherDailyCounts[tId]![day] = (teacherDailyCounts[tId]![day] ?? 0) + 1;
+
+        if (teacherDailyCounts[tId]![day]! > lesson.teacher!.maxLessonsPerDay) {
+          conflicts.add('تجاوز الحد الأقصى للمعلم "$tName" في اليوم ${day + 1}');
+        }
+
+        if (lesson.teacher!.unavailableDays.contains(day)) {
+          conflicts.add('المعلم "$tName" غير متوفر في اليوم ${day + 1}');
+        }
+      }
+
+      if (lesson.subject != null && lesson.classroom != null) {
+        int sId = lesson.subject!.id;
+        int cId = lesson.classroom!.id;
+        String sName = lesson.subject!.name;
+        String cName = lesson.classroom!.name;
+
+        classroomDailySubjects.putIfAbsent(cId, () => {});
+        classroomDailySubjects[cId]!.putIfAbsent(day, () => {});
+
+        if (classroomDailySubjects[cId]![day]!.contains(sId)) {
+          conflicts.add('تكرار مادة "$sName" في نفس اليوم ${day + 1} للفصل "$cName"');
+        } else {
+          classroomDailySubjects[cId]![day]!.add(sId);
+        }
+      }
+    }
+
+    return conflicts.toSet().toList();
   }
 
   // 2. The Cost Function (Penalty Calculation)
