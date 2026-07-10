@@ -286,11 +286,29 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                     return _buildTimetableGrid(context, lessons, classrooms, settings);
                   },
                 ),
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('جاري تحليل ملايين الاحتمالات لإيجاد أفضل جدول... يرجى الانتظار (قد يستغرق دقيقة)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
                 error: (e, st) => Center(child: Text('خطأ في جلب الإعدادات: $e')),
               );
             },
-            loading: () => const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('جاري تحليل ملايين الاحتمالات لإيجاد أفضل جدول... يرجى الانتظار (قد يستغرق دقيقة)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
+                ],
+              ),
+            ),
             error: (e, st) => Center(child: Text('حدث خطأ: $e')),
           ),
 
