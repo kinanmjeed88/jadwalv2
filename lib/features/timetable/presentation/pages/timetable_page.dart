@@ -394,8 +394,25 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           const SizedBox(height: 8),
           FloatingActionButton.extended(
             heroTag: "btn_generate",
-            onPressed: () {
-              ref.read(timetableNotifierProvider.notifier).generateTimetable();
+            onPressed: () async {
+              try {
+                await ref.read(timetableNotifierProvider.notifier).generateTimetable();
+              } catch (e) {
+                if (!mounted) return;
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('عذراً، تعذر توليد الجدول', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    content: Text(e.toString().replaceAll('Exception: ', ''), style: const TextStyle(fontSize: 16, height: 1.5)),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('حسناً', style: TextStyle(fontSize: 18)),
+                      ),
+                    ],
+                  ),
+                );
+              }
             },
             label: const Text('توليد الجدول'),
             icon: const Icon(Icons.autorenew),
