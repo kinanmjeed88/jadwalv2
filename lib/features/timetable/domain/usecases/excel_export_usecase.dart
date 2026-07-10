@@ -2,6 +2,7 @@ import 'package:excel/excel.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/settings.dart';
+import '../../../../core/utils/string_utils.dart';
 
 class ExcelExportUseCase {
   String getAcademicYear() {
@@ -179,7 +180,7 @@ class ExcelExportUseCase {
           var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 3 - c, rowIndex: rowIndex));
 
           if (lesson != null) {
-            String subjectName = (lesson.subject.value?.name as String?) ?? '-';
+            String subjectName = ((lesson.subject.value?.name as String?) ?? '-').cleanSubjectName();
             String teacherName = '-';
             if (lesson.teacher.value != null) {
               teacherName = ((lesson.teacher.value!.name as String?) ?? '-').split(' ').first;
