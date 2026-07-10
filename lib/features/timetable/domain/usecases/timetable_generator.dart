@@ -133,11 +133,11 @@ class TimetableGenerator {
     int bestCost = currentCost;
 
     // 4. Simulated Annealing Core Loop
-    double temp = 1000.0;
-    const double coolingRate = 0.99;
+    double temp = 5000.0;
+    const double coolingRate = 0.999;
 
-    // Stop if temp < 0.1 or approaching 10-second timeout limit
-    while (temp >= 0.1 && stopwatch.elapsedMilliseconds < 9500) {
+    // Stop if temp < 0.1 or approaching 60-second timeout limit
+    while (temp >= 0.1 && stopwatch.elapsedMilliseconds < 59000) {
       // If we reach a perfect score, break early
       if (bestCost == 0) {
         break;
