@@ -399,11 +399,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 await ref.read(timetableNotifierProvider.notifier).generateTimetable();
               } catch (e) {
                 if (!mounted) return;
+                String errorMessage = e.toString().replaceAll('Exception:', '').trim();
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
                     title: const Text('عذراً، تعذر توليد الجدول', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                    content: Text(e.toString().replaceAll('Exception: ', ''), style: const TextStyle(fontSize: 16, height: 1.5)),
+                    content: Text(errorMessage, style: const TextStyle(fontSize: 16, height: 1.5)),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
