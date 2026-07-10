@@ -18,6 +18,7 @@ import '../../../../core/providers/database_provider.dart';
 import '../../domain/usecases/pdf_export_usecase.dart';
 import '../../domain/usecases/excel_export_usecase.dart';
 import '../providers/timetable_provider.dart';
+import '../../../../core/utils/string_utils.dart';
 
 class TimetablePage extends ConsumerStatefulWidget {
   const TimetablePage({super.key});
@@ -531,7 +532,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
           if (lesson != null) {
-            final subjectName = lesson.subject.value?.name ?? 'غير محدد';
+            final subjectName = (lesson.subject.value?.name ?? 'غير محدد').cleanSubjectName();
             final teacherName = lesson.teacher.value?.name.split(' ').first ?? 'فارغ';
             cells.add(
               Container(
@@ -961,7 +962,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         }
       },
       builder: (context, candidateData, rejectedData) {
-        final subjectName = lesson.subject.value?.name ?? 'غير محدد';
+        final subjectName = (lesson.subject.value?.name ?? 'غير محدد').cleanSubjectName();
         final teacherName = lesson.teacher.value?.name.split(' ').first ?? 'فارغ';
         return LongPressDraggable<Lesson>(
           data: lesson,

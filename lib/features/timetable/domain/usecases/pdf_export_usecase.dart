@@ -6,6 +6,7 @@ import '../../../../core/models/lesson.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/settings.dart';
 import '../../../../core/models/teacher.dart';
+import '../../../../core/utils/string_utils.dart';
 
 const double _highResFactor = 3.0;
 
@@ -116,7 +117,7 @@ class PdfExportUseCase {
       for (int p = 0; p < periodsPerDay; p++) {
         final lesson = lessonMap['${teacher.id}_${d}_${p}'];
         if (lesson != null) {
-          String subjectName = (lesson.subject.value?.name as String?) ?? '';
+          String subjectName = ((lesson.subject.value?.name as String?) ?? '').cleanSubjectName();
           String classroomName =
               (lesson.classroom.value?.name as String?) ?? '';
           cells.add(
@@ -478,7 +479,7 @@ class PdfExportUseCase {
 
           pw.Widget cellContent = pw.SizedBox();
           if (lesson != null) {
-            String subjectName = (lesson.subject.value?.name as String?) ?? '';
+            String subjectName = ((lesson.subject.value?.name as String?) ?? '').cleanSubjectName();
             String teacherName = 'فارغ';
             if (lesson.teacher.value != null) {
               teacherName = ((lesson.teacher.value!.name as String?) ?? 'فارغ')
