@@ -233,7 +233,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                               style: ElevatedButton.styleFrom(
                                   padding: const EdgeInsets.all(16)),
                               child: const Text(
-                                  'إسناد المادة وإضافتها للجدول (دروس بانتظار التوزيع)',
+                                  'إسناد المادة وإضافتها للجدول',
                                   style: TextStyle(fontSize: 16)),
                             ),
                           ),
@@ -242,7 +242,7 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  const Text('الإسنادات الحالية (دروس بانتظار التوزيع)',
+                  const Text('المهام المُسندة الحالية (نصاب المعلمين)',
                       style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
@@ -254,17 +254,17 @@ class _AssignmentsPageState extends ConsumerState<AssignmentsPage> {
           ),
           lessonsAsync.when(
             data: (lessons) {
-              final unassigned = lessons.where((l) => l.isUnassigned).toList();
-              if (unassigned.isEmpty) {
+              final assignedWorkloads = lessons;
+              if (assignedWorkloads.isEmpty) {
                 return const SliverToBoxAdapter(
                   child: Center(
                       child: Text(
-                          'لا يوجد دروس غير مجدولة. قم بإنشاء إسناد أو توليد الجدول.')),
+                          'لا توجد إسنادات حالية. قم بإنشاء إسناد جديد.')),
                 );
               }
 
               final grouped = <String, List<Lesson>>{};
-              for (var l in unassigned) {
+              for (var l in assignedWorkloads) {
                 final key = l.classroom.value?.name ?? 'بدون صف';
                 grouped.putIfAbsent(key, () => []).add(l);
               }
