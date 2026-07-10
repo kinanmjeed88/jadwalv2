@@ -1,17 +1,9 @@
-import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
+import 'dart:math';
 import '../../../../core/entities/lesson_entity.dart';
 import '../../../../core/entities/teacher_entity.dart';
 import '../../../../core/entities/subject_entity.dart';
 import '../../../../core/entities/classroom_entity.dart';
 import '../../../../core/entities/app_settings_entity.dart';
-
-class _TimeSlot {
-  final int day;
-  final int period;
-  final int score;
-
-  _TimeSlot(this.day, this.period, this.score);
-}
 
 class TimetableGenerator {
   final List<TeacherEntity> teachers;
@@ -19,17 +11,6 @@ class TimetableGenerator {
   final List<ClassroomEntity> classrooms;
   final AppSettingsEntity settings;
   final List<LessonEntity> existingLessons;
-  late final Stopwatch _stopwatch;
-
-  // Caches for O(1) lookup
-  final Map<int, Set<int>> _teacherScheduleCache = {}; // teacherId -> Set of (day * 100 + period)
-  final Map<int, Map<int, int>> _teacherDailyLessons = {}; // teacherId -> {day -> count}
-  final Map<int, Set<int>> _classroomScheduleCache = {}; // classroomId -> Set of (day * 100 + period)
-  final Map<int, Set<String>> _classroomSubjectCache = {}; // classroomId -> Set of (day_subjectId)
-
-  // Tracking best state
-  int _maxAssignedCount = 0;
-  List<LessonEntity> _bestState = [];
 
   TimetableGenerator({
     required this.teachers,
@@ -39,251 +20,88 @@ class TimetableGenerator {
     required this.existingLessons,
   });
 
-  /// Generates the timetable and returns a list of lessons.
+  /// Generates the timetable using Simulated Annealing (SA)
   List<LessonEntity> generate() {
-    _stopwatch = Stopwatch()..start();
-
+    final stopwatch = Stopwatch()..start();
+    final random = Random();
     int maxDays = settings.daysPerWeek;
     int maxPeriods = settings.periodsPerDay;
 
-    // Clear caches
-    _teacherScheduleCache.clear();
-    _teacherDailyLessons.clear();
-    _classroomScheduleCache.clear();
-    _classroomSubjectCache.clear();
-    _maxAssignedCount = 0;
-    _bestState = [];
+    // Group lessons by classroom
+    Map<int, List<LessonEntity>> classroomLessons = {};
+    for (var lesson in existingLessons) {
+      if (lesson.classroom != null) {
+        classroomLessons.putIfAbsent(lesson.classroom!.id, () => []).add(lesson);
+      }
+    }
 
-    // Use existing lessons as the pool.
-    List<LessonEntity> pool = List.from(existingLessons);
-    List<LessonEntity> unpinnedLessons = [];
-    List<LessonEntity> pinnedLessons = [];
+    // 1. Initial State Allocation (Greedy/Random Allocation)
+    List<LessonEntity> currentSchedule = [];
 
-    // Separate pinned and unpinned lessons. Also reset unpinned ones.
-    for (var l in pool) {
+    for (var classroomId in classroomLessons.keys) {
+      var lessons = classroomLessons[classroomId]!;
+      List<LessonEntity> unpinned = [];
+
+      // Track occupied slots for this classroom
+      Set<int> occupiedSlots = {};
+
+      for (var lesson in lessons) {
+        if (lesson.isPinned && lesson.dayIndex != null && lesson.periodIndex != null) {
+          currentSchedule.add(lesson);
+          occupiedSlots.add(lesson.dayIndex! * 100 + lesson.periodIndex!);
+        } else {
+          unpinned.add(lesson);
+        }
+      }
+
+      // Assign unpinned lessons to random available slots to avoid clustering
+      List<int> availableSlots = [];
+      for (int d = 0; d < maxDays; d++) {
+        for (int p = 0; p < maxPeriods; p++) {
+          int slot = d * 100 + p;
+          if (!occupiedSlots.contains(slot)) {
+            availableSlots.add(slot);
+          }
+        }
+      }
+      availableSlots.shuffle(random);
+
+      int unpinnedIndex = 0;
+      while (unpinnedIndex < unpinned.length && unpinnedIndex < availableSlots.length) {
+        var lesson = unpinned[unpinnedIndex];
+        int slot = availableSlots[unpinnedIndex];
+        lesson.dayIndex = slot ~/ 100;
+        lesson.periodIndex = slot % 100;
+        currentSchedule.add(lesson);
+        unpinnedIndex++;
+      }
+
+      // If there are still unpinned lessons (more lessons than slots),
+      // place them in (0,0) to prevent data loss (Zero Data Loss constraint).
+      while (unpinnedIndex < unpinned.length) {
+        var lesson = unpinned[unpinnedIndex];
+        lesson.dayIndex = 0;
+        lesson.periodIndex = 0;
+        currentSchedule.add(lesson);
+        unpinnedIndex++;
+      }
+    }
+
+    // Lessons without a classroom (if any) are added randomly
+    var orphanLessons = existingLessons.where((l) => l.classroom == null).toList();
+    for (var l in orphanLessons) {
       if (l.isPinned && l.dayIndex != null && l.periodIndex != null) {
-        pinnedLessons.add(l);
+        currentSchedule.add(l);
       } else {
-        l.dayIndex = null;
-        l.periodIndex = null;
-        unpinnedLessons.add(l);
+        l.dayIndex = random.nextInt(maxDays);
+        l.periodIndex = random.nextInt(maxPeriods);
+        currentSchedule.add(l);
       }
     }
 
-    // Sort unpinned lessons using Minimum Remaining Values (MRV) heuristic.
-    // Hard-to-place lessons first.
-    unpinnedLessons.sort((a, b) {
-      int scoreA = _calculateConstraintScore(a, maxDays, maxPeriods);
-      int scoreB = _calculateConstraintScore(b, maxDays, maxPeriods);
-      // Lower score means fewer remaining values -> harder to place.
-      return scoreA.compareTo(scoreB);
-    });
-
-    List<LessonEntity> currentAssignment = List.from(pinnedLessons);
-
-    // Initialize cache with pinned lessons
-    for (var lesson in pinnedLessons) {
-      if (lesson.dayIndex != null && lesson.periodIndex != null) {
-        _addToCache(lesson, lesson.dayIndex!, lesson.periodIndex!);
-      }
-    }
-
-    bool success = _backtrack(unpinnedLessons, 0, currentAssignment, maxDays, maxPeriods);
-
-    _stopwatch.stop();
-
-    if (success) {
-      return currentAssignment;
-    } else {
-      // Restore the best partial assignment found before timeout
-      List<LessonEntity> fallbackAssignment = List.from(_bestState);
-
-      // Rebuild caches for the best state
-      _teacherScheduleCache.clear();
-      _teacherDailyLessons.clear();
-      _classroomScheduleCache.clear();
-      _classroomSubjectCache.clear();
-      for (var l in fallbackAssignment) {
-        if (l.dayIndex != null && l.periodIndex != null) {
-          _addToCache(l, l.dayIndex!, l.periodIndex!);
-        }
-      }
-
-      // Post-Redistribution Phase & Fallback
-      for (var unpinned in unpinnedLessons) {
-        if (!fallbackAssignment.any((assigned) => assigned.id == unpinned.id)) {
-
-          // Phase 1: Try Swapping/Redistribution
-          bool swapped = _tryRedistribution(unpinned, fallbackAssignment, maxDays, maxPeriods);
-          if (swapped) continue;
-
-          // Phase 2: Ultimate Fallback -> Temporarily set teacher to null to bypass constraints
-
-          bool placedTemporally = false;
-          // Find first available slot where classroom doesn't have a conflict
-          for (int d = 0; d < maxDays && !placedTemporally; d++) {
-            for (int p = 0; p < maxPeriods && !placedTemporally; p++) {
-              bool classroomBusy = fallbackAssignment.any((l) => l.classroom?.id == unpinned.classroom?.id && l.dayIndex == d && l.periodIndex == p);
-              bool subjectAlreadyOnDay = fallbackAssignment.any((l) => l.classroom?.id == unpinned.classroom?.id && l.subject?.id == unpinned.subject?.id && l.dayIndex == d);
-
-              if (!classroomBusy && !subjectAlreadyOnDay) {
-                unpinned.dayIndex = d;
-                unpinned.periodIndex = p;
-                _addToCache(unpinned, d, p);
-                placedTemporally = true;
-              }
-            }
-          }
-
-          if (!placedTemporally) {
-            unpinned.dayIndex = null;
-            unpinned.periodIndex = null;
-          }
-
-          fallbackAssignment.add(unpinned);
-        }
-      }
-      return fallbackAssignment;
-    }
-  }
-
-  int _calculateConstraintScore(LessonEntity lesson, int maxDays, int maxPeriods) {
-    int score = maxDays * maxPeriods;
-
-    // Teacher unavailable days
-    if (lesson.teacher != null) {
-      score -= (lesson.teacher!.unavailableDays.length * maxPeriods).toInt();
-    }
-
-    // Subject allowed periods
-    if (lesson.subject != null && lesson.subject!.allowedPeriods.isNotEmpty) {
-      int restrictedPeriods = maxPeriods - lesson.subject!.allowedPeriods.where((p) => p < maxPeriods).length;
-      score -= (maxDays * restrictedPeriods).toInt();
-    }
-
-    // Teacher allowed periods
-    if (lesson.teacher != null && lesson.teacher!.allowedPeriods.isNotEmpty) {
-      int restrictedPeriods = maxPeriods - lesson.teacher!.allowedPeriods.where((p) => p < maxPeriods).length;
-      score -= (maxDays * restrictedPeriods).toInt();
-    }
-
-    // Teacher max lessons per week constraint
-    if (lesson.teacher != null) {
-      // If teacher has low maxLessonsPerWeek relative to what they teach, they are restricted
-      score += (lesson.teacher!.maxLessonsPerWeek).toInt();
-    }
-
-    return score;
-  }
-
-  int _scoreTimeSlot(LessonEntity lesson, int day, int period, int maxPeriods) {
-    int score = 0;
-
-    if (lesson.teacher == null) return 0;
-    int tId = lesson.teacher!.id;
-
-    // Check for isolated periods (gaps) and consecutive lessons
-    bool hasLessonBefore = period > 0 && (_teacherScheduleCache[tId]?.contains(day * 100 + (period - 1)) ?? false);
-    bool hasLessonAfter = period < maxPeriods - 1 && (_teacherScheduleCache[tId]?.contains(day * 100 + (period + 1)) ?? false);
-
-    if (hasLessonBefore || hasLessonAfter) {
-      score += 10; // Rewards contiguous blocks
-    } else {
-      score -= 5; // Penalizes isolated periods
-    }
-
-    // Penalize long consecutive chains (more than 2 contiguous lessons already)
-    if (hasLessonBefore) {
-      bool hasLessonTwoBefore = period > 1 && (_teacherScheduleCache[tId]?.contains(day * 100 + (period - 2)) ?? false);
-      if (hasLessonTwoBefore) {
-        score -= 15; // Strong penalty for 3+ consecutive lessons
-      }
-    }
-
-    return score;
-  }
-
-  bool _tryRedistribution(LessonEntity lesson, List<LessonEntity> currentAssignment, int maxDays, int maxPeriods) {
-    if (lesson.teacher == null) return false;
-
-    // Try to find an existing assigned lesson that we can swap out
-    // to make room for this current unassigned lesson.
-    for (int i = 0; i < currentAssignment.length; i++) {
-      var assignedLesson = currentAssignment[i];
-
-      // Skip pinned lessons or lessons from different classrooms/subjects if not relevant
-      if (assignedLesson.isPinned) continue;
-
-      int oldDay = assignedLesson.dayIndex!;
-      int oldPeriod = assignedLesson.periodIndex!;
-
-      // Remove assignedLesson temporarily
-      _removeFromCache(assignedLesson, oldDay, oldPeriod);
-      currentAssignment.removeAt(i);
-      assignedLesson.dayIndex = null;
-      assignedLesson.periodIndex = null;
-
-      // Check if removing it makes room for our target 'lesson'
-      bool placedLesson = false;
-      int? targetDay;
-      int? targetPeriod;
-
-      for (int d = 0; d < maxDays && !placedLesson; d++) {
-        for (int p = 0; p < maxPeriods && !placedLesson; p++) {
-          if (_isValidPlacement(lesson, d, p)) {
-            targetDay = d;
-            targetPeriod = p;
-            placedLesson = true;
-          }
-        }
-      }
-
-      if (placedLesson) {
-        lesson.dayIndex = targetDay;
-        lesson.periodIndex = targetPeriod;
-        _addToCache(lesson, targetDay!, targetPeriod!);
-        currentAssignment.add(lesson);
-
-        // Now try to find a new spot for the previously assignedLesson
-        bool placedAssigned = false;
-        for (int d = 0; d < maxDays && !placedAssigned; d++) {
-          for (int p = 0; p < maxPeriods && !placedAssigned; p++) {
-            if (_isValidPlacement(assignedLesson, d, p)) {
-              assignedLesson.dayIndex = d;
-              assignedLesson.periodIndex = p;
-              _addToCache(assignedLesson, d, p);
-              currentAssignment.add(assignedLesson);
-              placedAssigned = true;
-            }
-          }
-        }
-
-        if (placedAssigned) {
-          return true; // Redistribution successful
-        }
-
-        // If we couldn't place assignedLesson, revert changes
-        _removeFromCache(lesson, targetDay, targetPeriod);
-        currentAssignment.removeLast(); // removes 'lesson'
-        lesson.dayIndex = null;
-        lesson.periodIndex = null;
-      }
-
-      // Revert removal of assignedLesson
-      assignedLesson.dayIndex = oldDay;
-      assignedLesson.periodIndex = oldPeriod;
-      _addToCache(assignedLesson, oldDay, oldPeriod);
-      currentAssignment.insert(i, assignedLesson);
-    }
-
-    return false;
-  }
-
-  bool _backtrack(List<LessonEntity> unpinnedLessons, int index, List<LessonEntity> currentAssignment, int maxDays, int maxPeriods) {
-    // Track best state in case of failure/timeout
-    if (index > _maxAssignedCount) {
-      _maxAssignedCount = index;
-      _bestState = List.from(currentAssignment.map((l) => LessonEntity(
+    // Helper: Clone state
+    List<LessonEntity> cloneState(List<LessonEntity> source) {
+      return source.map((l) => LessonEntity(
         id: l.id,
         teacher: l.teacher,
         subject: l.subject,
@@ -291,150 +109,186 @@ class TimetableGenerator {
         dayIndex: l.dayIndex,
         periodIndex: l.periodIndex,
         isPinned: l.isPinned,
-      )));
+      )).toList();
     }
 
-    // Failsafe: Timeout after 10 seconds
-    if (_stopwatch.elapsedMilliseconds > 10000) {
-      return false; // Return false instead of throwing to use Fallback
-    }
+    int currentCost = _calculateCost(currentSchedule, maxDays, maxPeriods);
+    List<LessonEntity> bestSchedule = cloneState(currentSchedule);
+    int bestCost = currentCost;
 
-    if (index >= unpinnedLessons.length) {
-      return true; // All lessons placed
-    }
+    // 4. Simulated Annealing Core Loop
+    double temp = 1000.0;
+    const double coolingRate = 0.99;
 
-    LessonEntity lesson = unpinnedLessons[index];
-
-    List<int> periodOrder = List.generate(maxPeriods, (i) => i);
-    if (lesson.subject?.preferEarlyPeriods ?? false) {
-      periodOrder = [0, 1, 2, 3, 4, 5, 6, 7].where((p) => p < maxPeriods).toList();
-    }
-
-    if (lesson.subject != null && lesson.subject!.allowedPeriods.isNotEmpty) {
-      periodOrder = periodOrder.where((p) => lesson.subject!.allowedPeriods.contains(p)).toList();
-    }
-
-    if (lesson.teacher != null && lesson.teacher!.allowedPeriods.isNotEmpty) {
-      periodOrder = periodOrder.where((p) => lesson.teacher!.allowedPeriods.contains(p)).toList();
-    }
-
-    List<_TimeSlot> validSlots = [];
-
-    for (int day = 0; day < maxDays; day++) {
-      if (lesson.teacher != null && lesson.teacher!.unavailableDays.contains(day)) {
-        continue;
+    // Stop if temp < 0.1 or approaching 10-second timeout limit
+    while (temp >= 0.1 && stopwatch.elapsedMilliseconds < 9500) {
+      // If we reach a perfect score, break early
+      if (bestCost == 0) {
+        break;
       }
 
-      for (int period in periodOrder) {
-        if (_isValidPlacement(lesson, day, period)) {
-          int score = _scoreTimeSlot(lesson, day, period, maxPeriods);
-          validSlots.add(_TimeSlot(day, period, score));
+      // 3. Neighborhood Function (Move or Swap)
+      List<LessonEntity> neighbor = cloneState(currentSchedule);
+
+      // Group neighbor by classroom id to mutate
+      Map<int, List<LessonEntity>> neighborClassrooms = {};
+      for (var l in neighbor) {
+        if (l.classroom != null) {
+          neighborClassrooms.putIfAbsent(l.classroom!.id, () => []).add(l);
+        }
+      }
+
+      // Filter out classrooms with 0 unpinned lessons
+      List<int> validClassroomIds = neighborClassrooms.keys.where((id) {
+        return neighborClassrooms[id]!.where((l) => !l.isPinned).isNotEmpty;
+      }).toList();
+
+      if (validClassroomIds.isNotEmpty) {
+        int randomClassroomId = validClassroomIds[random.nextInt(validClassroomIds.length)];
+        var classroomLessons = neighborClassrooms[randomClassroomId]!;
+        List<LessonEntity> unpinnedClassroomLessons = classroomLessons.where((l) => !l.isPinned).toList();
+
+        // Pick a random unpinned lesson
+        LessonEntity targetLesson = unpinnedClassroomLessons[random.nextInt(unpinnedClassroomLessons.length)];
+
+        // Pick a random destination slot
+        int newDay = random.nextInt(maxDays);
+        int newPeriod = random.nextInt(maxPeriods);
+
+        // Check if destination slot is occupied by another lesson in the SAME classroom
+        // We can only swap if it's unpinned.
+        var occupyingLessonOpt = classroomLessons.where((l) => l.dayIndex == newDay && l.periodIndex == newPeriod);
+
+        if (occupyingLessonOpt.isNotEmpty) {
+          var occupyingLesson = occupyingLessonOpt.first;
+          if (!occupyingLesson.isPinned) {
+            // Swap
+            int? oldDay = targetLesson.dayIndex;
+            int? oldPeriod = targetLesson.periodIndex;
+
+            targetLesson.dayIndex = newDay;
+            targetLesson.periodIndex = newPeriod;
+
+            occupyingLesson.dayIndex = oldDay;
+            occupyingLesson.periodIndex = oldPeriod;
+          }
+          // If it's pinned, we don't mutate (invalid move, try next iteration)
+        } else {
+          // Destination is free for this classroom, just move
+          targetLesson.dayIndex = newDay;
+          targetLesson.periodIndex = newPeriod;
+        }
+      }
+
+      int neighborCost = _calculateCost(neighbor, maxDays, maxPeriods);
+      int deltaCost = neighborCost - currentCost;
+
+      if (deltaCost < 0) {
+        // Better state, accept unconditionally
+        currentSchedule = neighbor;
+        currentCost = neighborCost;
+        if (currentCost < bestCost) {
+          bestSchedule = cloneState(currentSchedule);
+          bestCost = currentCost;
+        }
+      } else {
+        // Worse state, accept with probability
+        double p = exp(-deltaCost / temp);
+        if (random.nextDouble() < p) {
+          currentSchedule = neighbor;
+          currentCost = neighborCost;
+        }
+      }
+
+      temp *= coolingRate;
+    }
+
+    stopwatch.stop();
+    return bestSchedule;
+  }
+
+  // 2. The Cost Function (Penalty Calculation)
+  int _calculateCost(List<LessonEntity> state, int maxDays, int maxPeriods) {
+    int cost = 0;
+
+    // teacherId -> set of (day * 100 + period)
+    Map<int, Set<int>> teacherSlots = {};
+    // teacherId -> map of {day -> count}
+    Map<int, Map<int, int>> teacherDailyCounts = {};
+
+    // classroomId -> map of {day -> set of subjectIds}
+    Map<int, Map<int, Set<int>>> classroomDailySubjects = {};
+
+    // classroomId -> set of (day * 100 + period)
+    Map<int, Set<int>> classroomSlots = {};
+
+    for (var lesson in state) {
+      if (lesson.dayIndex == null || lesson.periodIndex == null) continue;
+
+      int day = lesson.dayIndex!;
+      int period = lesson.periodIndex!;
+      int timeKey = day * 100 + period;
+
+      // Hard Constraint: Classroom Clash (Multiple lessons in same period)
+      if (lesson.classroom != null) {
+        int cId = lesson.classroom!.id;
+        if (classroomSlots.containsKey(cId) && classroomSlots[cId]!.contains(timeKey)) {
+          cost += 1000;
+        } else {
+          classroomSlots.putIfAbsent(cId, () => {}).add(timeKey);
+        }
+      }
+
+      if (lesson.teacher != null) {
+        int tId = lesson.teacher!.id;
+
+        // Hard Constraint: Teacher Clash
+        if (teacherSlots.containsKey(tId) && teacherSlots[tId]!.contains(timeKey)) {
+          cost += 1000;
+        } else {
+          teacherSlots.putIfAbsent(tId, () => {}).add(timeKey);
+        }
+
+        // Hard Constraint: Teacher Daily Limit
+        teacherDailyCounts.putIfAbsent(tId, () => {});
+        teacherDailyCounts[tId]![day] = (teacherDailyCounts[tId]![day] ?? 0) + 1;
+
+        if (teacherDailyCounts[tId]![day]! > lesson.teacher!.maxLessonsPerDay) {
+          cost += 1000;
+        }
+
+        // Teacher unavailable days
+        if (lesson.teacher!.unavailableDays.contains(day)) {
+          cost += 1000;
+        }
+
+        // Teacher allowed periods
+        if (lesson.teacher!.allowedPeriods.isNotEmpty && !lesson.teacher!.allowedPeriods.contains(period)) {
+          cost += 1000;
+        }
+      }
+
+      // Soft Constraint: Subject Spread
+      if (lesson.classroom != null && lesson.subject != null) {
+        int cId = lesson.classroom!.id;
+        int sId = lesson.subject!.id;
+
+        classroomDailySubjects.putIfAbsent(cId, () => {});
+        classroomDailySubjects[cId]!.putIfAbsent(day, () => {});
+
+        if (classroomDailySubjects[cId]![day]!.contains(sId)) {
+          cost += 10; // Same subject twice in one day
+        } else {
+          classroomDailySubjects[cId]![day]!.add(sId);
+        }
+
+        // Subject allowed periods
+        if (lesson.subject!.allowedPeriods.isNotEmpty && !lesson.subject!.allowedPeriods.contains(period)) {
+          cost += 1000; // Treated as hard constraint
         }
       }
     }
 
-    // Sort slots by score descending
-    validSlots.sort((a, b) => b.score.compareTo(a.score));
-
-    for (var slot in validSlots) {
-      int day = slot.day;
-      int period = slot.period;
-
-      lesson.dayIndex = day;
-      lesson.periodIndex = period;
-      currentAssignment.add(lesson);
-      _addToCache(lesson, day, period);
-
-      if (_backtrack(unpinnedLessons, index + 1, currentAssignment, maxDays, maxPeriods)) {
-        return true;
-      }
-
-      // Backtrack
-      _removeFromCache(lesson, day, period);
-      currentAssignment.removeLast();
-      lesson.dayIndex = null;
-      lesson.periodIndex = null;
-    }
-
-    return false; // Could not place this lesson
-  }
-
-  bool _isValidPlacement(LessonEntity lesson, int day, int period) {
-    int timeKey = day * 100 + period;
-
-    // 1. Teacher conflict (same period)
-    if (lesson.teacher != null) {
-      if (_teacherScheduleCache[lesson.teacher!.id]?.contains(timeKey) ?? false) {
-        return false;
-      }
-    }
-
-    // 2. Classroom conflict (same period)
-    if (lesson.classroom != null) {
-      if (_classroomScheduleCache[lesson.classroom!.id]?.contains(timeKey) ?? false) {
-        return false;
-      }
-    }
-
-    // 3. Teacher daily limit
-    if (lesson.teacher != null) {
-      int teacherLessonsToday = _teacherDailyLessons[lesson.teacher!.id]?[day] ?? 0;
-      if (teacherLessonsToday >= lesson.teacher!.maxLessonsPerDay) {
-        return false;
-      }
-    }
-
-    // 4. Same subject on the same day for a classroom
-    if (lesson.classroom != null && lesson.subject != null) {
-      String subjectKey = "${day}_${lesson.subject!.id}";
-      if (_classroomSubjectCache[lesson.classroom!.id]?.contains(subjectKey) ?? false) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  void _addToCache(LessonEntity lesson, int day, int period) {
-    int timeKey = day * 100 + period;
-
-    if (lesson.teacher != null) {
-      int tId = lesson.teacher!.id;
-      _teacherScheduleCache.putIfAbsent(tId, () => {}).add(timeKey);
-      _teacherDailyLessons.putIfAbsent(tId, () => {});
-      _teacherDailyLessons[tId]![day] = (_teacherDailyLessons[tId]![day] ?? 0) + 1;
-    }
-
-    if (lesson.classroom != null) {
-      int cId = lesson.classroom!.id;
-      _classroomScheduleCache.putIfAbsent(cId, () => {}).add(timeKey);
-
-      if (lesson.subject != null) {
-        String subjectKey = "${day}_${lesson.subject!.id}";
-        _classroomSubjectCache.putIfAbsent(cId, () => {}).add(subjectKey);
-      }
-    }
-  }
-
-  void _removeFromCache(LessonEntity lesson, int day, int period) {
-    int timeKey = day * 100 + period;
-
-    if (lesson.teacher != null) {
-      int tId = lesson.teacher!.id;
-      _teacherScheduleCache[tId]?.remove(timeKey);
-      if (_teacherDailyLessons[tId] != null && _teacherDailyLessons[tId]![day] != null) {
-        _teacherDailyLessons[tId]![day] = _teacherDailyLessons[tId]![day]! - 1;
-      }
-    }
-
-    if (lesson.classroom != null) {
-      int cId = lesson.classroom!.id;
-      _classroomScheduleCache[cId]?.remove(timeKey);
-
-      if (lesson.subject != null) {
-        String subjectKey = "${day}_${lesson.subject!.id}";
-        _classroomSubjectCache[cId]?.remove(subjectKey);
-      }
-    }
+    return cost;
   }
 }
