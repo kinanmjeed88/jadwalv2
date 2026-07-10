@@ -217,6 +217,22 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<List<Lesson>>>(timetableNotifierProvider, (previous, next) {
+      next.whenOrNull(
+        error: (error, stackTrace) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error.toString()),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 8),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+        },
+      );
+    });
+
     final lessonsAsync = ref.watch(timetableNotifierProvider);
     final isarAsync = ref.watch(isarDatabaseProvider);
 

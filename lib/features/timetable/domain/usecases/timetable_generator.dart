@@ -4,6 +4,7 @@ import '../../../../core/entities/teacher_entity.dart';
 import '../../../../core/entities/subject_entity.dart';
 import '../../../../core/entities/classroom_entity.dart';
 import '../../../../core/entities/app_settings_entity.dart';
+import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
 
 class TimetableGenerator {
   final List<TeacherEntity> teachers;
@@ -204,6 +205,9 @@ class TimetableGenerator {
     }
 
     stopwatch.stop();
+    if (bestCost > 0) {
+      throw UnsolvableTimetableException('عذراً، لا يمكن توليد الجدول. القيود الحالية صارمة جداً أو تتعارض مع بعضها (مثل تكرار مادة في نفس اليوم أو تعارض أوقات المعلمين). يرجى تعديل أوقات تفرغ المعلمين أو تقليل الحصص والمحاولة مجدداً.');
+    }
     return bestSchedule;
   }
 
@@ -277,7 +281,7 @@ class TimetableGenerator {
         classroomDailySubjects[cId]!.putIfAbsent(day, () => {});
 
         if (classroomDailySubjects[cId]![day]!.contains(sId)) {
-          cost += 10; // Same subject twice in one day
+          cost += 1000; // Same subject twice in one day (Strict Hard Constraint)
         } else {
           classroomDailySubjects[cId]![day]!.add(sId);
         }
