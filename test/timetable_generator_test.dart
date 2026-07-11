@@ -47,6 +47,17 @@ void main() {
       ));
     }
 
+    // Fill the rest of the classroom capacity (35 - 5 = 30) with blank lessons
+    for (int i = 5; i < 35; i++) {
+      lessonList.add(LessonEntity(
+        id: i,
+        teacher: null,
+        subject: null,
+        classroom: c1,
+        isPinned: false,
+      ));
+    }
+
     final generator = TimetableGenerator(
       teachers: [t1],
       subjects: [s1],
@@ -57,10 +68,10 @@ void main() {
 
     final result = generator.generate();
 
-    expect(result.length, 5);
+    expect(result.length, 35);
 
     Map<int, int> daysCount = {};
-    for (var l in result) {
+    for (var l in result.where((l) => l.teacher != null)) {
       expect(l.dayIndex, isNotNull);
       expect(l.periodIndex, isNotNull);
       daysCount[l.dayIndex!] = (daysCount[l.dayIndex!] ?? 0) + 1;
@@ -98,12 +109,24 @@ void main() {
       isPinned: false,
     );
 
+    List<LessonEntity> lessonList = [pinnedLesson, unpinnedLesson];
+    // Fill the rest of the classroom capacity (35 - 2 = 33) with blank lessons
+    for (int i = 3; i <= 35; i++) {
+      lessonList.add(LessonEntity(
+        id: i,
+        teacher: null,
+        subject: null,
+        classroom: c1,
+        isPinned: false,
+      ));
+    }
+
     final generator = TimetableGenerator(
       teachers: [t1],
       subjects: [s1],
       classrooms: [c1],
       settings: settings,
-      existingLessons: [pinnedLesson, unpinnedLesson],
+      existingLessons: lessonList,
     );
 
     final result = generator.generate();
