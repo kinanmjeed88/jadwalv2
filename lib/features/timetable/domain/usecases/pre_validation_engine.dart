@@ -19,13 +19,15 @@ class PreValidationEngine {
   List<String> validateAll() {
     List<String> errors = [];
 
-    // 1. Classroom Capacity Validation
+    // 1. Classroom Capacity Validation (Exact Match)
     int maxClassroomCapacity = settings.periodsPerDay * settings.daysPerWeek;
 
     for (var classroom in classrooms) {
       int assignedLessons = existingLessons.where((l) => l.classroom?.id == classroom.id).length;
       if (assignedLessons > maxClassroomCapacity) {
         errors.add('استحالة رياضية: الصف "${classroom.name}" مُسند إليه $assignedLessons حصة، بينما سعة الجدول الأسبوعي هي $maxClassroomCapacity حصة فقط (أيام الدوام × الحصص اليومية). الحل: تقليل حصص الصف أو زيادة أيام/حصص الدوام.');
+      } else if (assignedLessons < maxClassroomCapacity) {
+        errors.add('نقص في بيانات الإسناد: الصف "${classroom.name}" مسند إليه $assignedLessons حصة فقط، بينما المطلوب لملء جدوله الأسبوعي هو $maxClassroomCapacity حصة. يرجى إسناد المواد الناقصة لهذا الصف قبل توليد الجدول.');
       }
     }
 
