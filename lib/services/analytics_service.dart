@@ -7,17 +7,17 @@ class AnalyticsService {
   static final AnalyticsService _instance = AnalyticsService._internal();
   factory AnalyticsService() => _instance;
 
-  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  late final FirebaseAnalytics? _analytics = (kIsWeb || (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS)) ? FirebaseAnalytics.instance : null;
 
   FirebaseAnalyticsObserver? get analyticsObserver {
-    if (kIsWeb) return FirebaseAnalyticsObserver(analytics: _analytics);
+    if (kIsWeb) return FirebaseAnalyticsObserver(analytics: _analytics!);
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) return null;
-    return FirebaseAnalyticsObserver(analytics: _analytics);
+    return FirebaseAnalyticsObserver(analytics: _analytics!);
   }
 
   // دالة مخصصة لتسجيل الأحداث عند الحاجة
   Future<void> logCustomEvent(String name, Map<String, Object>? parameters) async {
     if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) return;
-    await _analytics.logEvent(name: name, parameters: parameters);
+    await _analytics?.logEvent(name: name, parameters: parameters);
   }
 }
