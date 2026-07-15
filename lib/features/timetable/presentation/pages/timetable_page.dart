@@ -1,6 +1,7 @@
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
+import 'package:path/path.dart' as path;
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 
@@ -166,7 +167,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     final excelBytes = await usecase.generateTimetableExcel(lessons, classrooms, settings);
 
     final tempDir = await getTemporaryDirectory();
-    final file = File('${tempDir.path}/timetable_export.xlsx');
+    final file = File(path.join(tempDir.path, 'timetable_export.xlsx'));
     await file.writeAsBytes(excelBytes);
 
     if (mounted) {
@@ -192,7 +193,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/timetable_export.png');
+      final file = File(path.join(tempDir.path, 'timetable_export.png'));
       await file.writeAsBytes(pngBytes);
 
       if (mounted) {

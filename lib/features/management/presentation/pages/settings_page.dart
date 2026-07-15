@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
+import 'package:path/path.dart' as path;
 import 'dart:convert';
 
 import '../../../../core/models/settings.dart';
@@ -91,7 +92,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
 
       final jsonBytes = const Utf8Encoder().convert(jsonStr);
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/jadwal_backup.json');
+      final file = File(path.join(tempDir.path, 'jadwal_backup.json'));
       await file.writeAsBytes(jsonBytes);
 
       if (mounted) {
