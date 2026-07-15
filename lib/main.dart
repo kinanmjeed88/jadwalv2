@@ -1,4 +1,7 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:window_manager/window_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -10,8 +13,28 @@ import 'services/analytics_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+    await windowManager.ensureInitialized();
+    WindowOptions windowOptions = const WindowOptions(
+      size: Size(1280, 720),
+      minimumSize: Size(1024, 768), // منع التصغير المشوه للجدول
+      center: true,
+      backgroundColor: Colors.transparent,
+      skipTaskbar: false,
+      titleBarStyle: TitleBarStyle.normal,
+      title: 'جدول الدروس الأسبوعي',
+    );
+    windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
+
   try {
-    await Firebase.initializeApp();
+    if (kIsWeb || (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS)) {
+      await Firebase.initializeApp();
+    }
   } catch (e) {
     // التعامل مع أخطاء التهيئة بشكل نظيف دون تعطيل التطبيق
     print('Firebase initialization failed: $e');
@@ -56,7 +79,8 @@ class JadwalApp extends StatelessWidget {
         Locale('ar', 'AE'), // Arabic
       ],
       navigatorObservers: [
-        AnalyticsService().analyticsObserver,
+        if (AnalyticsService().analyticsObserver != null)
+          AnalyticsService().analyticsObserver!,
       ],
       home: const HomePage(),
     );

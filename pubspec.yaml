@@ -29,6 +29,8 @@ dependencies:
   font_awesome_flutter: ^11.0.0
   firebase_core: ^4.11.0
   firebase_analytics: ^12.4.3
+  window_manager: ^0.5.2
+  path: ^1.9.1
 
 dev_dependencies:
   flutter_test:
