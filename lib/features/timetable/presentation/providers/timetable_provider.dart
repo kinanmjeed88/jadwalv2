@@ -12,6 +12,8 @@ import '../../../../core/entities/teacher_entity.dart';
 import '../../../../core/entities/subject_entity.dart';
 import '../../../../core/entities/classroom_entity.dart';
 import '../../../../core/entities/app_settings_entity.dart';
+import '../../../../core/models/subject_constraint.dart';
+import '../../../../core/entities/subject_constraint_entity.dart';
 
 import '../../domain/usecases/timetable_generator.dart';
 import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
@@ -157,6 +159,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       final teachers = await isar.teachers.where().findAll();
       final subjects = await isar.subjects.where().findAll();
       final classrooms = await isar.classrooms.where().findAll();
+      final constraints = await isar.subjectConstraints.where().findAll();
       final settingsList = await isar.appSettings.where().findAll();
       final settings = settingsList.isNotEmpty
           ? settingsList.first
@@ -179,6 +182,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       final teachersEntityList = teachersMap.values.toList();
       final subjectsEntityList = subjectsMap.values.toList();
       final classroomsEntityList = classroomsMap.values.toList();
+      final constraintsEntityList = constraints.map((c) => SubjectConstraintEntity.fromIsar(c)).toList();
 
       // Create payload to avoid capturing anything from lexical scope
       final payload = GenerationPayload(
@@ -187,6 +191,7 @@ class TimetableNotifier extends _$TimetableNotifier {
         classrooms: classroomsEntityList,
         settings: settingsEntity,
         existingLessons: existingLessonsEntity,
+        subjectConstraints: constraintsEntityList,
       );
 
       // Run Generator in an Isolate using a top-level function to avoid capturing `this`
@@ -277,14 +282,27 @@ class TimetableNotifier extends _$TimetableNotifier {
 
     if (classroomConflict) return (false, "لا يمكن النقل: الصف مشغول بالفعل في هذه الحصة");
 
-    // Check same subject on same day
-    bool subjectAlreadyOnDay = allLessons.any((l) =>
-        l.id != lesson.id &&
-        l.classroom.value?.id == lesson.classroom.value?.id &&
-        l.subject.value?.id == lesson.subject.value?.id &&
-        l.dayIndex == newDay);
+    // Check subject max periods per day
+    if (lesson.subject.value != null && lesson.classroom.value != null) {
+      final constraints = await isar.subjectConstraints.where().findAll();
+      int maxAllowed = 1;
+      for (var constraint in constraints) {
+        if (constraint.grade == lesson.classroom.value!.grade && constraint.subjectName == lesson.subject.value!.name) {
+          maxAllowed = constraint.maxPeriodsPerDay;
+          break;
+        }
+      }
 
-    if (subjectAlreadyOnDay) return (false, "لا يمكن النقل: مادة (${lesson.subject.value?.name}) مقررة مسبقاً لهذا الصف في نفس اليوم");
+      int subjectCountOnNewDay = allLessons.where((l) =>
+          l.id != lesson.id &&
+          l.classroom.value?.id == lesson.classroom.value?.id &&
+          l.subject.value?.id == lesson.subject.value?.id &&
+          l.dayIndex == newDay).length;
+
+      if (subjectCountOnNewDay >= maxAllowed) {
+        return (false, "لا يمكن النقل: تجاوز الحد الأقصى ($maxAllowed حصص) لمادة (${lesson.subject.value?.name}) في هذا اليوم");
+      }
+    }
 
     // Check teacher daily limit (if moving to a new day)
     if (lesson.dayIndex != newDay && lesson.teacher.value != null) {
@@ -382,23 +400,45 @@ class TimetableNotifier extends _$TimetableNotifier {
       return (false, "لا يمكن التبديل: أحد الصفوف مشغول بالفعل في الحصة المقترحة");
     }
 
-    // Check same subject on same day for Swap
-    bool l1SubjectConflict = allLessons.any((l) =>
-        l.id != lesson1.id &&
-        l.id != lesson2.id &&
-        l.classroom.value?.id == lesson1.classroom.value?.id &&
-        l.subject.value?.id == lesson1.subject.value?.id &&
-        l.dayIndex == lesson2.dayIndex);
+    // Check subject max periods per day for Swap
+    if (lesson1.dayIndex != lesson2.dayIndex) {
+      final constraints = await isar.subjectConstraints.where().findAll();
 
-    bool l2SubjectConflict = allLessons.any((l) =>
-        l.id != lesson1.id &&
-        l.id != lesson2.id &&
-        l.classroom.value?.id == lesson2.classroom.value?.id &&
-        l.subject.value?.id == lesson2.subject.value?.id &&
-        l.dayIndex == lesson1.dayIndex);
+      if (lesson1.subject.value != null && lesson1.classroom.value != null) {
+        int maxAllowed = 1;
+        for (var constraint in constraints) {
+          if (constraint.grade == lesson1.classroom.value!.grade && constraint.subjectName == lesson1.subject.value!.name) {
+            maxAllowed = constraint.maxPeriodsPerDay;
+            break;
+          }
+        }
+        int l1SubjectCountNewDay = allLessons.where((l) =>
+            l.id != lesson1.id && l.id != lesson2.id &&
+            l.classroom.value?.id == lesson1.classroom.value?.id &&
+            l.subject.value?.id == lesson1.subject.value?.id &&
+            l.dayIndex == lesson2.dayIndex).length;
+        if (l1SubjectCountNewDay >= maxAllowed) {
+          return (false, "لا يمكن التبديل: سيؤدي ذلك لتجاوز الحد الأقصى ($maxAllowed حصص) لمادة (${lesson1.subject.value?.name}) للصف في اليوم المقترح");
+        }
+      }
 
-    if (l1SubjectConflict || l2SubjectConflict) {
-      return (false, "لا يمكن التبديل: سيؤدي ذلك إلى تكرار نفس المادة للصف في نفس اليوم");
+      if (lesson2.subject.value != null && lesson2.classroom.value != null) {
+        int maxAllowed = 1;
+        for (var constraint in constraints) {
+          if (constraint.grade == lesson2.classroom.value!.grade && constraint.subjectName == lesson2.subject.value!.name) {
+            maxAllowed = constraint.maxPeriodsPerDay;
+            break;
+          }
+        }
+        int l2SubjectCountNewDay = allLessons.where((l) =>
+            l.id != lesson1.id && l.id != lesson2.id &&
+            l.classroom.value?.id == lesson2.classroom.value?.id &&
+            l.subject.value?.id == lesson2.subject.value?.id &&
+            l.dayIndex == lesson1.dayIndex).length;
+        if (l2SubjectCountNewDay >= maxAllowed) {
+           return (false, "لا يمكن التبديل: سيؤدي ذلك لتجاوز الحد الأقصى ($maxAllowed حصص) لمادة (${lesson2.subject.value?.name}) للصف في اليوم المقترح");
+        }
+      }
     }
 
     // Check teacher day off constraint
@@ -472,6 +512,7 @@ class GenerationPayload {
   final List<ClassroomEntity> classrooms;
   final AppSettingsEntity settings;
   final List<LessonEntity> existingLessons;
+  final List<SubjectConstraintEntity> subjectConstraints;
 
   const GenerationPayload({
     required this.teachers,
@@ -479,6 +520,7 @@ class GenerationPayload {
     required this.classrooms,
     required this.settings,
     required this.existingLessons,
+    required this.subjectConstraints,
   });
 }
 
@@ -495,6 +537,7 @@ List<LessonEntity> _generateInIsolate(GenerationPayload payload) {
     classrooms: payload.classrooms,
     settings: payload.settings,
     existingLessons: payload.existingLessons,
+    subjectConstraints: payload.subjectConstraints,
   );
   return generator.generate();
 }

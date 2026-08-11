@@ -7,6 +7,7 @@ import '../models/subject.dart';
 import '../models/classroom.dart';
 import '../models/lesson.dart';
 import '../models/settings.dart';
+import '../models/subject_constraint.dart';
 
 part 'database_provider.g.dart';
 
@@ -20,6 +21,7 @@ Future<Isar> isarDatabase(IsarDatabaseRef ref) async {
       ClassroomSchema,
       LessonSchema,
       AppSettingsSchema,
+      SubjectConstraintSchema,
     ],
     directory: dir.path,
   );
