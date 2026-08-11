@@ -4,6 +4,7 @@ import '../../../../core/entities/teacher_entity.dart';
 import '../../../../core/entities/subject_entity.dart';
 import '../../../../core/entities/classroom_entity.dart';
 import '../../../../core/entities/app_settings_entity.dart';
+import '../../../../core/entities/subject_constraint_entity.dart';
 import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
 import 'pre_validation_engine.dart';
 
@@ -13,6 +14,7 @@ class TimetableGenerator {
   final List<ClassroomEntity> classrooms;
   final AppSettingsEntity settings;
   final List<LessonEntity> existingLessons;
+  final List<SubjectConstraintEntity> subjectConstraints;
 
   TimetableGenerator({
     required this.teachers,
@@ -20,7 +22,22 @@ class TimetableGenerator {
     required this.classrooms,
     required this.settings,
     required this.existingLessons,
+    this.subjectConstraints = const [],
   });
+
+  int _getMaxAllowedSubjectPerDay(int subjectId, int classroomId) {
+    if (subjectConstraints.isEmpty) return 1;
+
+    final subject = subjects.firstWhere((s) => s.id == subjectId, orElse: () => subjects.first);
+    final classroom = classrooms.firstWhere((c) => c.id == classroomId, orElse: () => classrooms.first);
+
+    for (var constraint in subjectConstraints) {
+      if (constraint.grade == classroom.grade && constraint.subjectName == subject.name) {
+        return constraint.maxPeriodsPerDay;
+      }
+    }
+    return 1;
+  }
 
   void _runPreValidation() {
     final engine = PreValidationEngine(
@@ -28,6 +45,8 @@ class TimetableGenerator {
       teachers: teachers,
       classrooms: classrooms,
       settings: settings,
+      subjects: subjects,
+      subjectConstraints: subjectConstraints,
     );
     final errors = engine.validateAll();
     if (errors.isNotEmpty) {
@@ -235,7 +254,7 @@ class TimetableGenerator {
 
     Map<int, Set<int>> teacherSlots = {};
     Map<int, Map<int, int>> teacherDailyCounts = {};
-    Map<int, Map<int, Set<int>>> classroomDailySubjects = {};
+    Map<int, Map<int, Map<int, int>>> classroomDailySubjectsCounts = {};
     Map<int, Set<int>> classroomSlots = {};
 
     for (var lesson in state) {
@@ -282,13 +301,20 @@ class TimetableGenerator {
         String sName = lesson.subject!.name;
         String cName = lesson.classroom!.name;
 
-        classroomDailySubjects.putIfAbsent(cId, () => {});
-        classroomDailySubjects[cId]!.putIfAbsent(day, () => {});
+        classroomDailySubjectsCounts.putIfAbsent(cId, () => {});
+        classroomDailySubjectsCounts[cId]!.putIfAbsent(day, () => {});
 
-        if (classroomDailySubjects[cId]![day]!.contains(sId)) {
-          conflicts.add('تكرار مادة "$sName" في نفس اليوم ${day + 1} للفصل "$cName"');
+        int maxAllowed = _getMaxAllowedSubjectPerDay(sId, cId);
+        int currentCount = classroomDailySubjectsCounts[cId]![day]![sId] ?? 0;
+
+        if (currentCount >= maxAllowed) {
+          if (maxAllowed == 1) {
+             conflicts.add('تكرار مادة "$sName" في نفس اليوم ${day + 1} للفصل "$cName"');
+          } else {
+             conflicts.add('تجاوز الحد الأقصى ($maxAllowed حصص) لمادة "$sName" في اليوم ${day + 1} للفصل "$cName"');
+          }
         } else {
-          classroomDailySubjects[cId]![day]!.add(sId);
+          classroomDailySubjectsCounts[cId]![day]![sId] = currentCount + 1;
         }
       }
     }
@@ -305,8 +331,10 @@ class TimetableGenerator {
     // teacherId -> map of {day -> count}
     Map<int, Map<int, int>> teacherDailyCounts = {};
 
-    // classroomId -> map of {day -> set of subjectIds}
-    Map<int, Map<int, Set<int>>> classroomDailySubjects = {};
+    // classroomId -> map of {day -> map of {subjectId -> count}}
+    Map<int, Map<int, Map<int, int>>> classroomDailySubjectsCounts = {};
+    // classroomId -> map of {day -> map of {subjectId -> list of periods}}
+    Map<int, Map<int, Map<int, List<int>>>> classroomDailySubjectsPeriods = {};
 
     // classroomId -> set of (day * 100 + period)
     Map<int, Set<int>> classroomSlots = {};
@@ -357,23 +385,48 @@ class TimetableGenerator {
         }
       }
 
-      // Soft Constraint: Subject Spread
+      // Soft Constraint / Hard Constraint: Subject Spread & Limits
       if (lesson.classroom != null && lesson.subject != null) {
         int cId = lesson.classroom!.id;
         int sId = lesson.subject!.id;
 
-        classroomDailySubjects.putIfAbsent(cId, () => {});
-        classroomDailySubjects[cId]!.putIfAbsent(day, () => {});
+        classroomDailySubjectsCounts.putIfAbsent(cId, () => {});
+        classroomDailySubjectsCounts[cId]!.putIfAbsent(day, () => {});
 
-        if (classroomDailySubjects[cId]![day]!.contains(sId)) {
-          cost += 1000; // Same subject twice in one day (Strict Hard Constraint)
+        classroomDailySubjectsPeriods.putIfAbsent(cId, () => {});
+        classroomDailySubjectsPeriods[cId]!.putIfAbsent(day, () => {});
+        classroomDailySubjectsPeriods[cId]![day]!.putIfAbsent(sId, () => []);
+
+        int maxAllowed = _getMaxAllowedSubjectPerDay(sId, cId);
+        int currentCount = classroomDailySubjectsCounts[cId]![day]![sId] ?? 0;
+
+        if (currentCount >= maxAllowed) {
+          cost += 1000; // Hard Constraint: Exceeded max allowed per day
         } else {
-          classroomDailySubjects[cId]![day]!.add(sId);
+          classroomDailySubjectsCounts[cId]![day]![sId] = currentCount + 1;
+          classroomDailySubjectsPeriods[cId]![day]![sId]!.add(period);
         }
 
         // Subject allowed periods
         if (lesson.subject!.allowedPeriods.isNotEmpty && !lesson.subject!.allowedPeriods.contains(period)) {
           cost += 1000; // Treated as hard constraint
+        }
+      }
+    }
+
+    // Soft Constraint: Encourage consecutive periods for multiple subject lessons in a day
+    for (var cId in classroomDailySubjectsPeriods.keys) {
+      for (var day in classroomDailySubjectsPeriods[cId]!.keys) {
+        for (var sId in classroomDailySubjectsPeriods[cId]![day]!.keys) {
+          var periods = classroomDailySubjectsPeriods[cId]![day]![sId]!;
+          if (periods.length > 1) {
+            periods.sort();
+            for (int i = 0; i < periods.length - 1; i++) {
+              if (periods[i + 1] - periods[i] != 1) {
+                cost += 50; // Soft penalty for non-consecutive periods of the same subject in the same day
+              }
+            }
+          }
         }
       }
     }
