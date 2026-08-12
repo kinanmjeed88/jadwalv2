@@ -1,67 +1,91 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jadwal_v2/core/entities/lesson_entity.dart';
-import 'package:jadwal_v2/core/entities/teacher_entity.dart';
-import 'package:jadwal_v2/core/entities/subject_entity.dart';
-import 'package:jadwal_v2/core/entities/classroom_entity.dart';
 import 'package:jadwal_v2/core/entities/app_settings_entity.dart';
-import 'package:jadwal_v2/core/entities/subject_constraint_entity.dart';
+import 'package:jadwal_v2/core/entities/classroom_entity.dart';
+import 'package:jadwal_v2/core/entities/lesson_entity.dart';
 import 'package:jadwal_v2/features/timetable/domain/usecases/pre_validation_engine.dart';
+import 'package:jadwal_v2/core/exceptions/conflict_reason.dart';
+import 'package:jadwal_v2/core/entities/subject_entity.dart';
 
 void main() {
-  test('PreValidationEngine checks for subject constraints over max limit', () {
-    final settings = AppSettingsEntity(
-      periodsPerDay: 7,
-      daysPerWeek: 5,
-      schoolName: 'Test',
-      principalName: 'Test',
-      exportPageSize: 'A4',
-      exportOrientation: 'Portrait',
-      exportAutoScale: true,
-    );
+  group('PreValidationEngine', () {
+    test('Should return GenericSolverFailure when assigned lessons exceed classroom capacity', () {
+      final settings = AppSettingsEntity(daysPerWeek: 5, periodsPerDay: 7, schoolName: '', principalName: '', exportAutoScale: true, exportOrientation: 'Landscape', exportPageSize: 'A4'); // Capacity = 35
+      final classroom = ClassroomEntity(id: 1, name: 'Grade 1', grade: '1');
+      final subject = SubjectEntity(id: 1, name: 'Math', allowedPeriods: [], lessonsPerWeek: 5, preferEarlyPeriods: false);
 
-    final classroom = ClassroomEntity(id: 1, name: 'Grade 1', grade: 'Grade 1');
-    final subject = SubjectEntity(id: 1, name: 'Arabic', lessonsPerWeek: 6, preferEarlyPeriods: false, allowedPeriods: []);
-    final teacher = TeacherEntity(id: 1, name: 'T1', specialization: 'Gen', maxLessonsPerDay: 4, maxLessonsPerWeek: 20, unavailableDays: [], allowedPeriods: []);
+      final lessons = List.generate(36, (index) => LessonEntity(
+        id: index,
+        classroom: classroom,
+        subject: subject,
+        isPinned: false,
+      ));
 
-    // 6 lessons assigned
-    final lessons = List<LessonEntity>.generate(6, (i) => LessonEntity(
-      id: i,
-      teacher: teacher,
-      classroom: classroom,
-      subject: subject,
-      isPinned: false,
-    ));
+      final engine = PreValidationEngine(
+        existingLessons: lessons,
+        teachers: [],
+        classrooms: [classroom],
+        settings: settings,
+        subjects: [subject],
+      );
 
-    // Fill the rest up to 35 (capacity)
-    final otherSubject = SubjectEntity(id: 2, name: 'Other', lessonsPerWeek: 29, preferEarlyPeriods: false, allowedPeriods: []);
-    final otherLessons = List<LessonEntity>.generate(29, (i) => LessonEntity(
-      id: i + 6,
-      teacher: teacher,
-      classroom: classroom,
-      subject: otherSubject,
-      isPinned: false,
-    ));
+      final conflicts = engine.validateAll();
+      expect(conflicts.length, greaterThan(0));
+      expect(conflicts.any((c) => c is GenericSolverFailure && c.details.contains('36')), isTrue);
+    });
 
-    final existingLessons = [...lessons, ...otherLessons];
+    test('Should return GenericSolverFailure when assigned lessons are less than classroom capacity', () {
+      final settings = AppSettingsEntity(daysPerWeek: 5, periodsPerDay: 7, schoolName: '', principalName: '', exportAutoScale: true, exportOrientation: 'Landscape', exportPageSize: 'A4'); // Capacity = 35
+      final classroom = ClassroomEntity(id: 1, name: 'Grade 1', grade: '1');
+      final subject = SubjectEntity(id: 1, name: 'Math', allowedPeriods: [], lessonsPerWeek: 5, preferEarlyPeriods: false);
 
-    final constraints = [
-      SubjectConstraintEntity(grade: 'Grade 1', subjectName: 'Arabic', maxPeriodsPerDay: 1)
-    ];
+      final lessons = List.generate(34, (index) => LessonEntity(
+        id: index,
+        classroom: classroom,
+        subject: subject,
+        isPinned: false,
+      ));
 
-    final engine = PreValidationEngine(
-      existingLessons: existingLessons,
-      teachers: [teacher],
-      classrooms: [classroom],
-      settings: settings,
-      subjects: [subject, otherSubject],
-      subjectConstraints: constraints,
-    );
+      final engine = PreValidationEngine(
+        existingLessons: lessons,
+        teachers: [],
+        classrooms: [classroom],
+        settings: settings,
+        subjects: [subject],
+      );
 
-    final errors = engine.validateAll();
+      final conflicts = engine.validateAll();
+      expect(conflicts.length, greaterThan(0));
+      expect(conflicts.any((c) => c is GenericSolverFailure && c.details.contains('34')), isTrue);
+    });
 
-    // Max per day is 1. Days per week is 5. Total max per week = 5.
-    // 6 lessons were assigned.
-    expect(errors.isNotEmpty, isTrue);
-    expect(errors.first.contains('استحالة رياضية: الصف "Grade 1" مطلوب له 6 حصص لمادة "Arabic" أسبوعياً، ولكن الحد الأقصى المسموح يومياً هو 1 حصة، مما يجعل الحد الأقصى الأسبوعي 5 حصة فقط'), isTrue);
+    test('Should return empty list when assigned lessons perfectly match classroom capacity', () {
+      final settings = AppSettingsEntity(daysPerWeek: 5, periodsPerDay: 7, schoolName: '', principalName: '', exportAutoScale: true, exportOrientation: 'Landscape', exportPageSize: 'A4'); // Capacity = 35
+      final classroom = ClassroomEntity(id: 1, name: 'Grade 1', grade: '1');
+      final subject = SubjectEntity(id: 1, name: 'Math', allowedPeriods: [], lessonsPerWeek: 5, preferEarlyPeriods: false);
+
+      final subjects = List.generate(7, (i) => SubjectEntity(id: i+1, name: 'Subj$i', allowedPeriods: [], lessonsPerWeek: 5, preferEarlyPeriods: false));
+      final lessons = [];
+      for(int i=0; i<7; i++) {
+        for(int j=0; j<5; j++) {
+           lessons.add(LessonEntity(
+            id: i*5 + j,
+            classroom: classroom,
+            subject: subjects[i],
+            isPinned: false,
+          ));
+        }
+      }
+
+      final engine = PreValidationEngine(
+        existingLessons: lessons.cast<LessonEntity>(),
+        teachers: [],
+        classrooms: [classroom],
+        settings: settings,
+        subjects: subjects,
+      );
+
+      final conflicts = engine.validateAll();
+      expect(conflicts, isEmpty);
+    });
   });
 }

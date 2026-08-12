@@ -4,6 +4,7 @@ import '../../../../core/entities/classroom_entity.dart';
 import '../../../../core/entities/app_settings_entity.dart';
 import '../../../../core/entities/subject_entity.dart';
 import '../../../../core/entities/subject_constraint_entity.dart';
+import '../../../../core/exceptions/conflict_reason.dart';
 
 class PreValidationEngine {
   final List<LessonEntity> existingLessons;
@@ -22,8 +23,8 @@ class PreValidationEngine {
     this.subjectConstraints = const [],
   });
 
-  List<String> validateAll() {
-    List<String> errors = [];
+  List<ConflictReason> validateAll() {
+    List<ConflictReason> conflicts = [];
 
     // 1. Classroom Capacity Validation (Exact Match)
     int maxClassroomCapacity = settings.periodsPerDay * settings.daysPerWeek;
@@ -31,9 +32,13 @@ class PreValidationEngine {
     for (var classroom in classrooms) {
       int assignedLessons = existingLessons.where((l) => l.classroom?.id == classroom.id).length;
       if (assignedLessons > maxClassroomCapacity) {
-        errors.add('استحالة رياضية: الصف "${classroom.name}" مُسند إليه $assignedLessons حصة، بينما سعة الجدول الأسبوعي هي $maxClassroomCapacity حصة فقط (أيام الدوام × الحصص اليومية). الحل: تقليل حصص الصف أو زيادة أيام/حصص الدوام.');
+        conflicts.add(GenericSolverFailure(
+          'الصف "${classroom.name}" مُسند إليه $assignedLessons حصة، بينما سعة الجدول الأسبوعي هي $maxClassroomCapacity حصة فقط.',
+        ));
       } else if (assignedLessons < maxClassroomCapacity) {
-        errors.add('نقص في بيانات الإسناد: الصف "${classroom.name}" مسند إليه $assignedLessons حصة فقط، بينما المطلوب لملء جدوله الأسبوعي هو $maxClassroomCapacity حصة. يرجى إسناد المواد الناقصة لهذا الصف قبل توليد الجدول.');
+        conflicts.add(GenericSolverFailure(
+          'الصف "${classroom.name}" مسند إليه $assignedLessons حصة فقط، بينما المطلوب لملء جدوله الأسبوعي هو $maxClassroomCapacity حصة.',
+        ));
       }
 
       // Check subject max constraints
@@ -59,7 +64,7 @@ class PreValidationEngine {
 
         int maxPerWeek = maxPerDay * settings.daysPerWeek;
         if (count > maxPerWeek) {
-           errors.add('استحالة رياضية: الصف "${classroom.name}" مطلوب له $count حصص لمادة "${subject.name}" أسبوعياً، ولكن الحد الأقصى المسموح يومياً هو $maxPerDay حصة، مما يجعل الحد الأقصى الأسبوعي $maxPerWeek حصة فقط (في ${settings.daysPerWeek} أيام).');
+           conflicts.add(InsufficientDaysForSubject(subject.name, count, maxPerWeek));
         }
       }
     }
@@ -75,10 +80,10 @@ class PreValidationEngine {
       int absoluteMaxCapacity = teacher.maxLessonsPerWeek < maxCapacityDays ? teacher.maxLessonsPerWeek : maxCapacityDays;
 
       if (assignedLessons > absoluteMaxCapacity) {
-        errors.add('استحالة رياضية: المعلم "${teacher.name}" مطلوب منه $assignedLessons حصة. لكن حده الأقصى أو أيام تفرغه تسمح له بتدريس $absoluteMaxCapacity حصة فقط كحد أقصى. الحل: رفع الحد الأقصى للمعلم، تقليل إجازاته، أو نقل بعض حصصه لمعلم آخر.');
+        conflicts.add(TeacherLoadExceeded(teacher.name, assignedLessons, absoluteMaxCapacity));
       }
     }
 
-    return errors;
+    return conflicts;
   }
 }
