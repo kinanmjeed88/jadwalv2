@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:isar/isar.dart';
 import '../../../../core/providers/database_provider.dart';
 import '../../../../core/models/subject_constraint.dart';
 import '../../../../core/models/subject.dart';
@@ -64,7 +63,7 @@ class _SubjectConstraintsPageState extends ConsumerState<SubjectConstraintsPage>
     _loadData();
   }
 
-  Future<void> _deleteConstraint(int id) async {
+  Future<void> _deleteConstraint(Id id) async {
     final isar = await ref.read(isarDatabaseProvider.future);
     await isar.writeTxn(() async {
       await isar.subjectConstraints.delete(id);

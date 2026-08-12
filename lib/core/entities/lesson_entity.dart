@@ -39,5 +39,17 @@ class LessonEntity {
     );
   }
 
+  LessonEntity clone() {
+    return LessonEntity(
+      id: id,
+      teacher: teacher,
+      subject: subject,
+      classroom: classroom,
+      dayIndex: dayIndex,
+      periodIndex: periodIndex,
+      isPinned: isPinned,
+    );
+  }
+
   bool get isUnassigned => dayIndex == null || periodIndex == null;
 }
