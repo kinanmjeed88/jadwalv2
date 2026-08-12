@@ -308,12 +308,41 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           return Center(child: Text('حدث خطأ: $err'));
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          ref.read(timetableNotifierProvider.notifier).clearTimetable();
-        },
-        backgroundColor: Colors.red,
-        child: const Icon(Icons.delete_sweep, color: Colors.white),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          FloatingActionButton(
+            heroTag: "btn_zoom_in",
+            onPressed: () {
+              final currentScale = _transformationController.value.getMaxScaleOnAxis();
+              final newScale = (currentScale + 0.1).clamp(0.1, 5.0);
+              _transformationController.value = Matrix4.identity()..scale(newScale);
+            },
+            tooltip: 'تكبير',
+            child: const Icon(Icons.zoom_in),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
+            heroTag: "btn_zoom_out",
+            onPressed: () {
+              final currentScale = _transformationController.value.getMaxScaleOnAxis();
+              final newScale = (currentScale - 0.1).clamp(0.1, 5.0);
+              _transformationController.value = Matrix4.identity()..scale(newScale);
+            },
+            tooltip: 'تصغير',
+            child: const Icon(Icons.zoom_out),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton.extended(
+            heroTag: "btn_generate",
+            onPressed: () {
+              ref.read(timetableNotifierProvider.notifier).generateTimetable();
+            },
+            label: const Text('توليد الجدول'),
+            icon: const Icon(Icons.autorenew),
+          ),
+        ],
       ),
     );
   }
@@ -506,8 +535,24 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
+    final unassigned = lessons.where((l) => l.isUnassigned).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (unassigned.isNotEmpty)
+          Container(
+            color: Colors.red.shade100,
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+                'يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
+                style: const TextStyle(
+                    color: Colors.red, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
+          ),
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
         return Stack(
           children: [
             Positioned(
@@ -549,6 +594,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           ],
         );
       },
+    ),
+        ),
+      ],
     );
   }
 
