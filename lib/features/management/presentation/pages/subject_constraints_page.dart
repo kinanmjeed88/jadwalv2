@@ -64,7 +64,7 @@ class _SubjectConstraintsPageState extends ConsumerState<SubjectConstraintsPage>
     _loadData();
   }
 
-  Future<void> _deleteConstraint(Id id) async {
+  Future<void> _deleteConstraint(int id) async {
     final isar = await ref.read(isarDatabaseProvider.future);
     await isar.writeTxn(() async {
       await isar.subjectConstraints.delete(id);
