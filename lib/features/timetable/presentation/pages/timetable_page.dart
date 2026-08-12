@@ -38,7 +38,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
   Future<void> _exportToExcel() async {
     final isar = await ref.read(isarDatabaseProvider.future);
-    final settings = await isar.settings.where().findFirst() ?? Settings();
+    final settings = await isar.appSettings.where().findFirst() ?? AppSettings();
     final lessons = await isar.lessons.where().findAll();
     final classrooms = await isar.classrooms.where().findAll();
 
@@ -48,10 +48,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       lesson.teacher.loadSync();
     }
 
-    final excelData = await ExcelExportUseCase().execute(
-      lessons: lessons,
-      classrooms: classrooms,
-      settings: settings,
+    final excelData = await ExcelExportUseCase().generateTimetableExcel(
+      lessons,
+      classrooms,
+      settings,
     );
 
     String? outputFile = await FilePicker.platform.saveFile(
@@ -74,10 +74,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
   Future<void> _exportToPDF() async {
     final isar = await ref.read(isarDatabaseProvider.future);
-    final settings = await isar.settings.where().findFirst() ?? Settings();
+    final settings = await isar.appSettings.where().findFirst() ?? AppSettings();
     final lessons = await isar.lessons.where().findAll();
     final classrooms = await isar.classrooms.where().findAll();
-    final teachers = await isar.teachers.where().findAll();
 
     for (var lesson in lessons) {
       lesson.classroom.loadSync();
@@ -85,11 +84,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       lesson.teacher.loadSync();
     }
 
-    final pdfData = await PdfExportUseCase().execute(
-      lessons: lessons,
-      classrooms: classrooms,
-      teachers: teachers,
-      settings: settings,
+    final pdfData = await PdfExportUseCase().generateTimetablePdf(
+      lessons,
+      classrooms,
+      settings,
     );
 
     String? outputFile = await FilePicker.platform.saveFile(
@@ -112,10 +110,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
   Future<void> _sharePDF() async {
     final isar = await ref.read(isarDatabaseProvider.future);
-    final settings = await isar.settings.where().findFirst() ?? Settings();
+    final settings = await isar.appSettings.where().findFirst() ?? AppSettings();
     final lessons = await isar.lessons.where().findAll();
     final classrooms = await isar.classrooms.where().findAll();
-    final teachers = await isar.teachers.where().findAll();
 
     for (var lesson in lessons) {
       lesson.classroom.loadSync();
@@ -123,11 +120,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       lesson.teacher.loadSync();
     }
 
-    final pdfData = await PdfExportUseCase().execute(
-      lessons: lessons,
-      classrooms: classrooms,
-      teachers: teachers,
-      settings: settings,
+    final pdfData = await PdfExportUseCase().generateTimetablePdf(
+      lessons,
+      classrooms,
+      settings,
     );
 
     final dir = await getTemporaryDirectory();
@@ -259,8 +255,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       ),
       body: lessonsAsync.when(
         data: (lessons) {
-          return FutureBuilder<Settings>(
-            future: ref.read(isarDatabaseProvider.future).then((isar) => isar.settings.where().findFirst().then((value) => value ?? Settings())),
+          return FutureBuilder<AppSettings>(
+            future: ref.read(isarDatabaseProvider.future).then((isar) => isar.appSettings.where().findFirst().then((value) => value ?? AppSettings())),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -388,7 +384,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-  Widget _buildTimetableGrid(List<Lesson> lessons, List<Classroom> classrooms, Settings settings) {
+  Widget _buildTimetableGrid(List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) {
     if (classrooms.isEmpty) return const Center(child: Text('لا توجد فصول دراسية'));
 
     final masterKeyId = classrooms.first.id;
