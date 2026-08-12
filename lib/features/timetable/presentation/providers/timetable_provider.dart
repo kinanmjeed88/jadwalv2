@@ -1,52 +1,79 @@
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:isar/isar.dart';
 import 'dart:isolate';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../../../core/providers/database_provider.dart';
-import '../../../../core/models/lesson.dart';
 import '../../../../core/models/teacher.dart';
 import '../../../../core/models/subject.dart';
 import '../../../../core/models/classroom.dart';
+import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
-import '../../../../core/models/subject_constraint.dart';
-import '../../domain/usecases/timetable_generator.dart';
-import '../../../../core/exceptions/timetable_generation_exception.dart';
 import '../../../../core/entities/lesson_entity.dart';
 import '../../../../core/entities/teacher_entity.dart';
+import '../../../../core/entities/subject_entity.dart';
 import '../../../../core/entities/classroom_entity.dart';
 import '../../../../core/entities/app_settings_entity.dart';
-import '../../../../core/entities/subject_entity.dart';
+import '../../../../core/models/subject_constraint.dart';
 import '../../../../core/entities/subject_constraint_entity.dart';
+
+import '../../domain/usecases/timetable_generator.dart';
+import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
 
 part 'timetable_provider.g.dart';
 
 @riverpod
 class TimetableNotifier extends _$TimetableNotifier {
   @override
-  AsyncValue<List<Lesson>> build() {
-    _loadLessons();
-    return const AsyncValue.loading();
-  }
-
-  Future<void> _loadLessons() async {
-    try {
-      final isar = await ref.read(isarDatabaseProvider.future);
-      final lessons = await isar.lessons.where().findAll();
-
-      for (var lesson in lessons) {
-        lesson.classroom.loadSync();
-        lesson.subject.loadSync();
-        lesson.teacher.loadSync();
-      }
-
-      state = AsyncValue.data(lessons);
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
+  Future<List<Lesson>> build() async {
+    final isar = await ref.watch(isarDatabaseProvider.future);
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
     }
+    return lessons;
   }
 
   Future<(bool, String?)> assignLessonsToPool(
       Classroom classroom, Subject subject, Teacher teacher) async {
     final isar = await ref.read(isarDatabaseProvider.future);
+
+    final allLessons = await isar.lessons.where().findAll();
+
+    // Check duplicate assignment
+    bool duplicateAssignment = allLessons.any((l) =>
+      l.classroom.value?.id == classroom.id &&
+      l.subject.value?.id == subject.id);
+
+    if (duplicateAssignment) {
+      return (false, "تم إسناد هذه المادة لهذا الصف مسبقاً");
+    }
+
+    // Check real-time classroom capacity overload
+    final settingsList = await isar.appSettings.where().findAll();
+    final settings = settingsList.isNotEmpty ? settingsList.first : (AppSettings()..periodsPerDay = 7);
+    int maxClassroomCapacity = settings.periodsPerDay * settings.daysPerWeek;
+
+    int classAssignedLessons = allLessons.where((l) => l.classroom.value?.id == classroom.id).length;
+    int proposedClassTotal = classAssignedLessons + subject.lessonsPerWeek;
+
+    if (proposedClassTotal > maxClassroomCapacity) {
+      return (false, "تحذير: لا يمكن الإسناد. الصف ${classroom.name} سيصل إلى $proposedClassTotal حصة، مما يتجاوز السعة القصوى للجدول الأسبوعي ($maxClassroomCapacity حصة).");
+    }
+
+    // Check real-time teacher capacity overload
+    int teacherAssignedLessons = allLessons.where((l) => l.teacher.value?.id == teacher.id).length;
+    int proposedTeacherTotal = teacherAssignedLessons + subject.lessonsPerWeek;
+
+    int activeUnavailableDays = teacher.unavailableDays.where((day) => day < settings.daysPerWeek).length;
+    int availableDays = settings.daysPerWeek - activeUnavailableDays;
+
+    int maxCapacityDays = teacher.maxLessonsPerDay * availableDays;
+    int absoluteMaxCapacity = teacher.maxLessonsPerWeek < maxCapacityDays ? teacher.maxLessonsPerWeek : maxCapacityDays;
+
+    if (proposedTeacherTotal > absoluteMaxCapacity) {
+      return (false, "تحذير: لا يمكن إسناد هذه المادة. المعلم ${teacher.name} سيصل إلى $proposedTeacherTotal حصة، مما يتجاوز حده المسموح ($absoluteMaxCapacity حصة). يرجى اختيار معلم آخر.");
+    }
 
     final newLessons = <Lesson>[];
     for (int i = 0; i < subject.lessonsPerWeek; i++) {
@@ -66,26 +93,46 @@ class TimetableNotifier extends _$TimetableNotifier {
       }
     });
 
-    _loadLessons();
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    state = AsyncValue.data(lessons);
     return (true, null);
   }
 
   Future<void> deleteAssignment(int classroomId, int subjectId) async {
     final isar = await ref.read(isarDatabaseProvider.future);
     final allLessons = await isar.lessons.where().findAll();
-    final toDelete = allLessons.where((l) => l.classroom.value?.id == classroomId && l.subject.value?.id == subjectId).toList();
+    final toDelete = allLessons
+        .where((l) =>
+            l.classroom.value?.id == classroomId &&
+            l.subject.value?.id == subjectId)
+        .toList();
 
     isar.writeTxnSync(() {
       isar.lessons.deleteAllSync(toDelete.map((e) => e.id).toList());
     });
-
-    _loadLessons();
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    state = AsyncValue.data(lessons);
   }
 
-  Future<void> updateAssignment(int classroomId, int subjectId, Teacher newTeacher) async {
+  Future<void> updateAssignment(
+      int classroomId, int subjectId, Teacher newTeacher) async {
     final isar = await ref.read(isarDatabaseProvider.future);
     final allLessons = await isar.lessons.where().findAll();
-    final toUpdate = allLessons.where((l) => l.classroom.value?.id == classroomId && l.subject.value?.id == subjectId).toList();
+    final toUpdate = allLessons
+        .where((l) =>
+            l.classroom.value?.id == classroomId &&
+            l.subject.value?.id == subjectId)
+        .toList();
 
     isar.writeTxnSync(() {
       for (var lesson in toUpdate) {
@@ -94,105 +141,87 @@ class TimetableNotifier extends _$TimetableNotifier {
         lesson.teacher.saveSync();
       }
     });
-
-    _loadLessons();
-  }
-
-  Future<void> clearTimetable() async {
-    final isar = await ref.read(isarDatabaseProvider.future);
-    await isar.writeTxn(() async {
-      final allLessons = await isar.lessons.where().findAll();
-      for (var lesson in allLessons) {
-        if (!lesson.isPinned) {
-          lesson.dayIndex = null;
-          lesson.periodIndex = null;
-          await isar.lessons.put(lesson);
-        }
-      }
-    });
-    _loadLessons();
-  }
-
-  Future<void> togglePin(Lesson lesson) async {
-    final isar = await ref.read(isarDatabaseProvider.future);
-    await isar.writeTxn(() async {
-      lesson.isPinned = !lesson.isPinned;
-      await isar.lessons.put(lesson);
-    });
-    _loadLessons();
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    state = AsyncValue.data(lessons);
   }
 
   Future<void> generateTimetable() async {
     state = const AsyncValue.loading();
+
     try {
       final isar = await ref.read(isarDatabaseProvider.future);
+
       final teachers = await isar.teachers.where().findAll();
       final subjects = await isar.subjects.where().findAll();
       final classrooms = await isar.classrooms.where().findAll();
-      final settings = await isar.appSettings.where().findFirst() ?? AppSettings();
+      final constraints = await isar.subjectConstraints.where().findAll();
+      final settingsList = await isar.appSettings.where().findAll();
+      final settings = settingsList.isNotEmpty
+          ? settingsList.first
+          : (AppSettings()..periodsPerDay = 7);
+
+      // Clear existing schedule assignments by resetting indexes
       final existingLessons = await isar.lessons.where().findAll();
-      final subjectConstraints = await isar.subjectConstraints.where().findAll();
+
+      // Map Isar to DTOs
+      final teachersMap = {for (var t in teachers) t.id: TeacherEntity.fromIsar(t)};
+      final subjectsMap = {for (var s in subjects) s.id: SubjectEntity.fromIsar(s)};
+      final classroomsMap = {for (var c in classrooms) c.id: ClassroomEntity.fromIsar(c)};
+
+      final existingLessonsEntity = existingLessons
+          .map((l) => LessonEntity.fromIsar(l, teachersMap, subjectsMap, classroomsMap))
+          .toList();
+
+      final settingsEntity = AppSettingsEntity.fromIsar(settings);
+
+      final teachersEntityList = teachersMap.values.toList();
+      final subjectsEntityList = subjectsMap.values.toList();
+      final classroomsEntityList = classroomsMap.values.toList();
+      final constraintsEntityList = constraints.map((c) => SubjectConstraintEntity.fromIsar(c)).toList();
+
+      // Create payload to avoid capturing anything from lexical scope
+      final payload = GenerationPayload(
+        teachers: teachersEntityList,
+        subjects: subjectsEntityList,
+        classrooms: classroomsEntityList,
+        settings: settingsEntity,
+        existingLessons: existingLessonsEntity,
+        subjectConstraints: constraintsEntityList,
+      );
+
+      // Run Generator in an Isolate using a top-level function to avoid capturing `this`
+      final resultEntities = await _spawnIsolateAndGenerate(payload);
+
+      // Map DTOs back to existingLessons
+      for (var lessonDto in resultEntities) {
+        final lesson = existingLessons.firstWhere((l) => l.id == lessonDto.id);
+        lesson.dayIndex = lessonDto.dayIndex;
+        lesson.periodIndex = lessonDto.periodIndex;
+      }
+
+      // Ensure that we save the entire modified pool (even those unplaced/unscheduled)
+      // Since generator modifies existingLessons in-place and returns it.
+      isar.writeTxnSync(() {
+        isar.lessons.putAllSync(existingLessons);
+        for (var lesson in existingLessons) {
+          lesson.teacher.saveSync();
+          lesson.subject.saveSync();
+          lesson.classroom.saveSync();
+        }
+      });
 
       for (var lesson in existingLessons) {
         lesson.classroom.loadSync();
         lesson.subject.loadSync();
         lesson.teacher.loadSync();
       }
-
-      // Convert Isar Models to pure Entities for the domain layer (Isolate safe)
-      final teacherEntitiesMap = {for (var t in teachers) t.id: TeacherEntity.fromIsar(t)};
-      final teacherEntities = teacherEntitiesMap.values.toList();
-
-      final subjectEntitiesMap = {for (var s in subjects) s.id: SubjectEntity.fromIsar(s)};
-      final subjectEntities = subjectEntitiesMap.values.toList();
-
-      final classroomEntitiesMap = {for (var c in classrooms) c.id: ClassroomEntity.fromIsar(c)};
-      final classroomEntities = classroomEntitiesMap.values.toList();
-
-      final settingsEntity = AppSettingsEntity.fromIsar(settings);
-
-      final lessonEntities = existingLessons.map((l) => LessonEntity.fromIsar(
-        l,
-        teacherEntitiesMap,
-        subjectEntitiesMap,
-        classroomEntitiesMap,
-      )).toList();
-
-      final subjectConstraintEntities = subjectConstraints.map((sc) => SubjectConstraintEntity.fromIsar(sc)).toList();
-
-      final payload = GenerationPayload(
-        teachers: teacherEntities,
-        subjects: subjectEntities,
-        classrooms: classroomEntities,
-        settings: settingsEntity,
-        existingLessons: lessonEntities,
-        subjectConstraints: subjectConstraintEntities,
-      );
-
-      // Run generation in a separate isolate
-      final generatedLessonEntities = await _spawnIsolateAndGenerate(payload);
-
-      // Save generated state back to database
-      await isar.writeTxn(() async {
-        for (var entity in generatedLessonEntities) {
-          if (!entity.isPinned) {
-             var isarLesson = existingLessons.firstWhere((l) => l.id == entity.id);
-             isarLesson.dayIndex = entity.dayIndex;
-             isarLesson.periodIndex = entity.periodIndex;
-             await isar.lessons.put(isarLesson);
-          }
-        }
-      });
-
-      // Reload lessons with all links to update the UI correctly
-      final newLessons = await isar.lessons.where().findAll();
-      for (var lesson in newLessons) {
-        lesson.classroom.loadSync();
-        lesson.subject.loadSync();
-        lesson.teacher.loadSync();
-      }
-      state = AsyncValue.data(newLessons);
-    } on TimetableGenerationException catch (e) {
+      state = AsyncValue.data(existingLessons);
+    } on UnsolvableTimetableException catch (e) {
       // Restore valid data state to avoid generic error widget
       final isar = await ref.read(isarDatabaseProvider.future);
       final lessons = await isar.lessons.where().findAll();
@@ -204,26 +233,54 @@ class TimetableNotifier extends _$TimetableNotifier {
       state = AsyncValue.data(lessons);
 
       // Rethrow to the UI try-catch block
-      throw e; // Dart 3 throws correctly
+      throw Exception(e.message);
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
   }
 
+  Future<void> togglePin(Lesson lesson) async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+    isar.writeTxnSync(() {
+      lesson.isPinned = !lesson.isPinned;
+      isar.lessons.putSync(lesson);
+    });
+    final lessons = await isar.lessons.where().findAll();
+    for (var lesson in lessons) {
+      lesson.classroom.loadSync();
+      lesson.subject.loadSync();
+      lesson.teacher.loadSync();
+    }
+    state = AsyncValue.data(lessons);
+  }
+
   Future<(bool, String?)> moveLessonToEmpty(Lesson lesson, int newDay, int newPeriod) async {
+    if (lesson.isPinned) return (false, "لا يمكن تحريك درس مقفل");
+
     final isar = await ref.read(isarDatabaseProvider.future);
     final allLessons = await isar.lessons.where().findAll();
 
     // Check teacher conflict
-    bool hasTeacherConflict = allLessons.any((l) =>
+    bool teacherConflict = allLessons.any((l) =>
         l.id != lesson.id &&
+        l.teacher.value != null && // null teacher won't conflict with another null
+        lesson.teacher.value != null &&
         l.teacher.value?.id == lesson.teacher.value?.id &&
         l.dayIndex == newDay &&
         l.periodIndex == newPeriod);
 
-    if (lesson.teacher.value != null && hasTeacherConflict) {
-      return (false, "لا يمكن النقل: الأستاذ لديه حصة أخرى في هذا الوقت");
+    if (teacherConflict) {
+      return (false, "لا يمكن النقل: الأستاذ (${lesson.teacher.value?.name ?? ''}) لديه حصة في نفس الوقت (${newPeriod + 1})");
     }
+
+    // Check classroom conflict
+    bool classroomConflict = allLessons.any((l) =>
+        l.id != lesson.id &&
+        l.classroom.value?.id == lesson.classroom.value?.id &&
+        l.dayIndex == newDay &&
+        l.periodIndex == newPeriod);
+
+    if (classroomConflict) return (false, "لا يمكن النقل: الصف مشغول بالفعل في هذه الحصة");
 
     // Check subject max periods per day
     if (lesson.subject.value != null && lesson.classroom.value != null) {

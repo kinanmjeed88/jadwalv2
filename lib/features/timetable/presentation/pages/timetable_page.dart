@@ -1,29 +1,25 @@
-import 'package:isar/isar.dart';
-import 'dart:io';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../../core/models/lesson.dart';
-import '../../../../core/models/classroom.dart';
-import '../../../../core/models/settings.dart';
-import '../../../../core/providers/database_provider.dart';
-import '../../../../core/exceptions/timetable_generation_exception.dart';
-import '../providers/timetable_provider.dart';
-import '../mappers/conflict_message_mapper.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:ui' as ui;
-import 'package:flutter/rendering.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:gal/gal.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import '../../domain/usecases/excel_export_usecase.dart';
-import '../../domain/usecases/pdf_export_usecase.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:io';
+import 'package:path/path.dart' as path;
+import 'dart:ui' as ui;
+import 'dart:typed_data';
 
-extension StringExtension on String {
-  String cleanSubjectName() {
-    return replaceAll(RegExp(r'\s*\([^)]*\)'), '').trim();
-  }
-}
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:isar/isar.dart';
+
+import '../../../../core/models/lesson.dart';
+import '../../../../core/models/settings.dart';
+import '../../../../core/models/classroom.dart';
+import '../../../../core/models/teacher.dart';
+import '../../../../core/providers/database_provider.dart';
+import '../../domain/usecases/pdf_export_usecase.dart';
+import '../../domain/usecases/excel_export_usecase.dart';
+import '../providers/timetable_provider.dart';
+import '../../../../core/utils/string_utils.dart';
 
 class TimetablePage extends ConsumerStatefulWidget {
   const TimetablePage({super.key});
@@ -34,290 +30,360 @@ class TimetablePage extends ConsumerStatefulWidget {
 
 class _TimetablePageState extends ConsumerState<TimetablePage> {
   final Map<int, GlobalKey> _classroomKeys = {};
+  final GlobalKey _exportKey = GlobalKey();
   final TransformationController _transformationController = TransformationController();
 
-  Future<void> _exportToExcel() async {
-    final isar = await ref.read(isarDatabaseProvider.future);
-    final settings = await isar.appSettings.where().findFirst() ?? AppSettings();
-    final lessons = await isar.lessons.where().findAll();
-    final classrooms = await isar.classrooms.where().findAll();
-
-    for (var lesson in lessons) {
-      lesson.classroom.loadSync();
-      lesson.subject.loadSync();
-      lesson.teacher.loadSync();
-    }
-
-    final excelData = await ExcelExportUseCase().generateTimetableExcel(
-      lessons,
-      classrooms,
-      settings,
-    );
-
-    String? outputFile = await FilePicker.platform.saveFile(
-      dialogTitle: 'Please select an output file:',
-      fileName: 'timetable.xlsx',
-      type: FileType.custom,
-      allowedExtensions: ['xlsx'],
-    );
-
-    if (outputFile != null) {
-      final file = File(outputFile);
-      await file.writeAsBytes(excelData);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تصدير الجدول إلى Excel بنجاح')),
-        );
-      }
-    }
+  @override
+  void initState() {
+    super.initState();
   }
 
-  Future<void> _exportToPDF() async {
-    final isar = await ref.read(isarDatabaseProvider.future);
-    final settings = await isar.appSettings.where().findFirst() ?? AppSettings();
-    final lessons = await isar.lessons.where().findAll();
-    final classrooms = await isar.classrooms.where().findAll();
-
-    for (var lesson in lessons) {
-      lesson.classroom.loadSync();
-      lesson.subject.loadSync();
-      lesson.teacher.loadSync();
-    }
-
-    final pdfData = await PdfExportUseCase().generateTimetablePdf(
-      lessons,
-      classrooms,
-      settings,
-    );
-
-    String? outputFile = await FilePicker.platform.saveFile(
-      dialogTitle: 'Please select an output file:',
-      fileName: 'timetable.pdf',
-      type: FileType.custom,
-      allowedExtensions: ['pdf'],
-    );
-
-    if (outputFile != null) {
-      final file = File(outputFile);
-      await file.writeAsBytes(pdfData);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تصدير الجداول إلى PDF بنجاح')),
-        );
-      }
-    }
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
   }
 
-  Future<void> _sharePDF() async {
-    final isar = await ref.read(isarDatabaseProvider.future);
-    final settings = await isar.appSettings.where().findFirst() ?? AppSettings();
-    final lessons = await isar.lessons.where().findAll();
-    final classrooms = await isar.classrooms.where().findAll();
-
-    for (var lesson in lessons) {
-      lesson.classroom.loadSync();
-      lesson.subject.loadSync();
-      lesson.teacher.loadSync();
-    }
-
-    final pdfData = await PdfExportUseCase().generateTimetablePdf(
-      lessons,
-      classrooms,
-      settings,
-    );
-
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/timetable.pdf');
-    await file.writeAsBytes(pdfData);
-
-    Share.shareXFiles([XFile(file.path)], text: 'جداول الحصص المدرسية');
-  }
-
-  Future<void> _exportAsImage(int classroomId, String classroomName) async {
-    final key = _classroomKeys[classroomId];
-    if (key == null) return;
-
+  Future<void> _exportTeacherPdf() async {
     try {
-      RenderRepaintBoundary boundary = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      final pngBytes = byteData!.buffer.asUint8List();
+      final isar = await ref.read(isarDatabaseProvider.future);
 
-      bool hasAccess = await Gal.hasAccess();
-      if (!hasAccess) {
-        hasAccess = await Gal.requestAccess();
-      }
-
-      if (hasAccess) {
-        final tempDir = await getTemporaryDirectory();
-        final file = File('${tempDir.path}/timetable_$classroomName.png');
-        await file.writeAsBytes(pngBytes);
-        await Gal.putImage(file.path, album: 'Jadwal');
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('تم حفظ جدول $classroomName كصورة في المعرض')),
-          );
+      final List<Lesson> lessons = isar.txnSync(() {
+        final all = isar.lessons.where().findAllSync();
+        for (var lesson in all) {
+          lesson.classroom.loadSync();
+          lesson.subject.loadSync();
+          lesson.teacher.loadSync();
         }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('يرجى منح صلاحية الوصول إلى المعرض لحفظ الصورة')),
-          );
-        }
+        return all;
+      });
+
+      final teachers = await isar.collection<Teacher>().where().findAll();
+      final settingsList = await isar.appSettings.where().findAll();
+      final settings = settingsList.isNotEmpty
+          ? settingsList.first
+          : (AppSettings()..periodsPerDay = 7);
+
+      final pdfUsecase = PdfExportUseCase();
+      final pdfBytes =
+          await pdfUsecase.generateTeacherTimetablePdf(lessons, teachers, settings);
+
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'حفظ ملف PDF',
+        fileName: 'teachers_timetable.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        bytes: pdfBytes,
+      );
+
+      if (outputFile != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم حفظ الملف بنجاح: $outputFile'),
+            backgroundColor: Colors.green,
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ أثناء حفظ الصورة: $e')),
+          SnackBar(
+            content: Text('حدث خطأ أثناء التصدير: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
   }
 
-  Future<void> _shareAsImage(int classroomId, String classroomName) async {
-     final key = _classroomKeys[classroomId];
-    if (key == null) return;
-
+  Future<void> _exportToPdf() async {
     try {
-      RenderRepaintBoundary boundary = key.currentContext!.findRenderObject() as RenderRepaintBoundary;
-      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-      final pngBytes = byteData!.buffer.asUint8List();
+      final isar = await ref.read(isarDatabaseProvider.future);
+
+      // Load and guarantee all links are resolved within a single transaction
+      final List<Lesson> lessons = isar.txnSync(() {
+        final all = isar.lessons.where().findAllSync();
+        for (var lesson in all) {
+          lesson.classroom.loadSync();
+          lesson.subject.loadSync();
+          lesson.teacher.loadSync();
+        }
+        return all;
+      });
+
+      final classRooms = await isar.collection<Classroom>().where().findAll();
+      final settingsList = await isar.appSettings.where().findAll();
+      final settings = settingsList.isNotEmpty
+          ? settingsList.first
+          : (AppSettings()..periodsPerDay = 7);
+
+      final pdfUsecase = PdfExportUseCase();
+      final pdfBytes =
+          await pdfUsecase.generateTimetablePdf(lessons, classRooms, settings);
+
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'حفظ ملف PDF',
+        fileName: 'timetable.pdf',
+        type: FileType.custom,
+        allowedExtensions: ['pdf'],
+        bytes: pdfBytes,
+      );
+
+      if (outputFile != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم حفظ الملف بنجاح: $outputFile'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('حدث خطأ أثناء التصدير: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _exportToExcel() async {
+    final settingsAsync = ref.read(timetableNotifierProvider);
+    final isarAsync = ref.read(isarDatabaseProvider);
+
+    if (settingsAsync is! AsyncData || isarAsync is! AsyncData) return;
+
+    final lessons = settingsAsync.value ?? [];
+    final isar = isarAsync.value;
+    if (isar == null) return;
+
+    final classrooms = await isar.classrooms.where().findAll();
+    final settingsList = await isar.appSettings.where().findAll();
+    final settings = settingsList.isNotEmpty ? settingsList.first : (AppSettings()..periodsPerDay = 7);
+
+    final usecase = ExcelExportUseCase();
+    final excelBytes = await usecase.generateTimetableExcel(lessons, classrooms, settings);
+
+    final tempDir = await getTemporaryDirectory();
+    final file = File(path.join(tempDir.path, 'timetable_export.xlsx'));
+    await file.writeAsBytes(excelBytes);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تصدير الجدول إلى Excel بنجاح')));
+      Share.shareXFiles([XFile(file.path)], text: 'جدول الفصول الأسبوعي');
+    }
+  }
+
+  Future<void> _exportToImage() async {
+    try {
+      final boundary = _exportKey.currentContext?.findRenderObject()
+          as RenderRepaintBoundary?;
+
+      if (boundary == null) throw 'تعذر العثور على منطقة الجدول لالتقاطها';
+
+      // Build the image with high pixel ratio for 300DPI-like quality
+      final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
+      final ByteData? byteData =
+          await image.toByteData(format: ui.ImageByteFormat.png);
+
+      if (byteData == null) throw 'فشل في تحويل الجدول إلى بيانات صورة';
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
 
       final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/timetable_$classroomName.png');
+      final file = File(path.join(tempDir.path, 'timetable_export.png'));
       await file.writeAsBytes(pngBytes);
 
-      Share.shareXFiles([XFile(file.path)], text: 'جدول حصص $classroomName');
-
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم التقاط الجدول بنجاح، جاري المشاركة...'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        await Share.shareXFiles([XFile(file.path)], text: 'جدول الدروس (صورة)');
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ أثناء مشاركة الصورة: $e')),
+          SnackBar(
+            content: Text('حدث خطأ أثناء تصدير الصورة: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
-  }
-
-  void _zoomIn() {
-    final matrix = _transformationController.value.clone();
-    matrix.scale(1.2);
-    _transformationController.value = matrix;
-  }
-
-  void _zoomOut() {
-    final matrix = _transformationController.value.clone();
-    matrix.scale(1 / 1.2);
-    _transformationController.value = matrix;
-  }
-
-  void _resetZoom() {
-    _transformationController.value = Matrix4.identity();
   }
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<AsyncValue<List<Lesson>>>(timetableNotifierProvider, (previous, next) {
+      next.whenOrNull(
+        error: (error, stackTrace) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error.toString()),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 8),
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+        },
+      );
+    });
+
     final lessonsAsync = ref.watch(timetableNotifierProvider);
+    final isarAsync = ref.watch(isarDatabaseProvider);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('جدول الحصص'),
+        title: const Text('جدول الدروس'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.share),
-            tooltip: 'مشاركة PDF',
-            onPressed: _sharePDF,
-          ),
-          IconButton(
-            icon: const FaIcon(FontAwesomeIcons.filePdf),
-            tooltip: 'تصدير PDF',
-            onPressed: _exportToPDF,
-          ),
-          IconButton(
-            icon: const FaIcon(FontAwesomeIcons.fileExcel),
-            tooltip: 'تصدير Excel',
+            icon: const Icon(Icons.table_chart),
+            tooltip: 'تصدير كـ Excel',
             onPressed: _exportToExcel,
           ),
           IconButton(
-            icon: const Icon(Icons.zoom_in),
-            onPressed: _zoomIn,
+            icon: const Icon(Icons.picture_as_pdf),
+            tooltip: 'تصدير جدول الفصول كـ PDF',
+            onPressed: _exportToPdf,
           ),
           IconButton(
-            icon: const Icon(Icons.zoom_out),
-            onPressed: _zoomOut,
+            icon: const Icon(Icons.person_pin_circle),
+            tooltip: 'تصدير جدول المدرسين كـ PDF',
+            onPressed: _exportTeacherPdf,
           ),
           IconButton(
-            icon: const Icon(Icons.restore),
-            onPressed: _resetZoom,
+            icon: const Icon(Icons.image),
+            tooltip: 'تصدير كـ صورة',
+            onPressed: _exportToImage,
           ),
         ],
       ),
-      body: lessonsAsync.when(
-        data: (lessons) {
-          return FutureBuilder<AppSettings>(
-            future: ref.read(isarDatabaseProvider.future).then((isar) => isar.appSettings.where().findFirst().then((value) => value ?? AppSettings())),
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final settings = snapshot.data!;
+      body: Stack(
+        children: [
+          lessonsAsync.when(
+            data: (lessons) {
+              return isarAsync.when(
+                data: (isar) => FutureBuilder(
+                  future: Future.wait([
+                    isar.appSettings.where().findAll(),
+                    isar.classrooms.where().findAll(),
+                  ]),
+                  builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final settingsList = snapshot.data?[0] as List<AppSettings>?;
+                    final settings = (settingsList != null && settingsList.isNotEmpty)
+                        ? settingsList.first
+                        : (AppSettings()..periodsPerDay = 7);
+                    final classrooms = (snapshot.data?[1] as List<Classroom>? ?? [])
+                        ..sort((a, b) => a.id.compareTo(b.id));
 
-              return FutureBuilder<List<Classroom>>(
-                future: ref.read(isarDatabaseProvider.future).then((isar) => isar.classrooms.where().findAll()),
-                builder: (context, classroomSnapshot) {
-                  if (classroomSnapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  final classrooms = classroomSnapshot.data!;
-
-                  if (classrooms.isEmpty) {
-                    return _buildEmptyState(context);
-                  }
-
-                  classrooms.sort((a, b) {
-                     final int gradeCmp = (a.grade ?? '').compareTo(b.grade ?? '');
-                     if (gradeCmp != 0) return gradeCmp;
-                     return a.name.compareTo(b.name);
-                  });
-
-                  for (var c in classrooms) {
-                    _classroomKeys.putIfAbsent(c.id, () => GlobalKey());
-                  }
-
-                  return _buildTimetableGrid(lessons, classrooms, settings);
-                },
+                    return _buildTimetableGrid(context, lessons, classrooms, settings);
+                  },
+                ),
+                loading: () => const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text('جاري تحليل ملايين الاحتمالات لإيجاد أفضل جدول... يرجى الانتظار (قد يستغرق دقيقة)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
+                    ],
+                  ),
+                ),
+                error: (e, st) => Center(child: Text('خطأ في جلب الإعدادات: $e')),
               );
             },
-          );
-        },
-        loading: () => const Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              CircularProgressIndicator(),
-              SizedBox(height: 16),
-              Text('جاري توليد الجدول، قد يستغرق الأمر بعض الوقت...'),
-            ],
+            loading: () => const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('جاري تحليل ملايين الاحتمالات لإيجاد أفضل جدول... يرجى الانتظار (قد يستغرق دقيقة)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
+                ],
+              ),
+            ),
+            error: (e, st) => Center(child: Text('حدث خطأ: $e')),
           ),
-        ),
-        error: (err, stack) {
-          if (err is TimetableGenerationException) {
-             return _buildEmptyState(context);
-          }
-          return Center(child: Text('حدث خطأ: $err'));
-        },
+
+          // Off-screen export widget that is painted but invisible and unconstrained
+          lessonsAsync.maybeWhen(
+            data: (lessons) => isarAsync.maybeWhen(
+              data: (isar) => FutureBuilder(
+                future: Future.wait([
+                  isar.appSettings.where().findAll(),
+                  isar.classrooms.where().findAll(),
+                ]),
+                builder: (context, AsyncSnapshot<List<dynamic>> snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const SizedBox.shrink();
+                  }
+                  final settingsList = snapshot.data?[0] as List<AppSettings>?;
+                  final settings = (settingsList != null && settingsList.isNotEmpty)
+                      ? settingsList.first
+                      : (AppSettings()..periodsPerDay = 7);
+                  final classrooms = (snapshot.data?[1] as List<Classroom>? ?? [])
+                      ..sort((a, b) => a.id.compareTo(b.id));
+
+                  return Positioned(
+                    top: -10000,
+                    left: -10000,
+                    child: IgnorePointer(
+                        child: UnconstrainedBox(
+                          clipBehavior: Clip.hardEdge,
+                        child: IntrinsicHeight(
+                          child: _buildExportGrid(lessons, classrooms, settings),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+              orElse: () => const SizedBox.shrink(),
+            ),
+            orElse: () => const SizedBox.shrink(),
+          ),
+        ],
       ),
       floatingActionButton: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           FloatingActionButton(
+            heroTag: "btn_zoom_reset",
+            onPressed: () {
+              _transformationController.value = Matrix4.identity();
+            },
+            tooltip: 'استعادة الحجم الأصلي',
+            child: const Icon(Icons.fit_screen),
+          ),
+          const SizedBox(height: 8),
+          FloatingActionButton(
             heroTag: "btn_zoom_in",
             onPressed: () {
-              final currentScale = _transformationController.value.getMaxScaleOnAxis();
-              final newScale = (currentScale + 0.1).clamp(0.1, 5.0);
-              _transformationController.value = Matrix4.identity()..scale(newScale);
+              final size = MediaQuery.of(context).size;
+              final center = Offset(size.width / 2, size.height / 2);
+              const scale = 1.2;
+
+              final Matrix4 matrix = _transformationController.value.clone();
+
+              // Validate maxScale (assuming 5.0 is the maxScale configured)
+              final currentScale = matrix.getMaxScaleOnAxis();
+              if (currentScale * scale > 5.0) return;
+
+              matrix.translate(center.dx, center.dy);
+              matrix.scale(scale, scale, 1.0);
+              matrix.translate(-center.dx, -center.dy);
+
+              _transformationController.value = matrix;
             },
             tooltip: 'تكبير',
             child: const Icon(Icons.zoom_in),
@@ -326,9 +392,21 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           FloatingActionButton(
             heroTag: "btn_zoom_out",
             onPressed: () {
-              final currentScale = _transformationController.value.getMaxScaleOnAxis();
-              final newScale = (currentScale - 0.1).clamp(0.1, 5.0);
-              _transformationController.value = Matrix4.identity()..scale(newScale);
+              final size = MediaQuery.of(context).size;
+              final center = Offset(size.width / 2, size.height / 2);
+              const scale = 1 / 1.2;
+
+              final Matrix4 matrix = _transformationController.value.clone();
+
+              // Validate minScale (assuming 0.1 is the minScale configured)
+              final currentScale = matrix.getMaxScaleOnAxis();
+              if (currentScale * scale < 0.1) return;
+
+              matrix.translate(center.dx, center.dy);
+              matrix.scale(scale, scale, 1.0);
+              matrix.translate(-center.dx, -center.dy);
+
+              _transformationController.value = matrix;
             },
             tooltip: 'تصغير',
             child: const Icon(Icons.zoom_out),
@@ -336,73 +414,25 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           const SizedBox(height: 8),
           FloatingActionButton.extended(
             heroTag: "btn_generate",
-            onPressed: () {
-              ref.read(timetableNotifierProvider.notifier).generateTimetable();
-            },
-            label: const Text('توليد الجدول'),
-            icon: const Icon(Icons.autorenew),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('لا يوجد جدول مولد حالياً'),
-          const SizedBox(height: 16),
-          ElevatedButton.icon(
             onPressed: () async {
               try {
                 await ref.read(timetableNotifierProvider.notifier).generateTimetable();
               } catch (e) {
                 if (!mounted) return;
-                if (e is TimetableGenerationException) {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('تعذر توليد الجدول للأسباب التالية:', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                      content: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          maxHeight: MediaQuery.of(context).size.height * 0.6,
-                        ),
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: e.reasons.map((r) => Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Text('• ${ConflictMessageMapper.toArabicMessage(r)}', style: const TextStyle(fontSize: 16, height: 1.5)),
-                            )).toList(),
-                          ),
-                        ),
+                String errorMessage = e.toString().replaceAll('Exception:', '').trim();
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('عذراً، تعذر توليد الجدول', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    content: Text(errorMessage, style: const TextStyle(fontSize: 16, height: 1.5)),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('حسناً', style: TextStyle(fontSize: 18)),
                       ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('حسناً', style: TextStyle(fontSize: 18)),
-                        ),
-                      ],
-                    ),
-                  );
-                } else {
-                  showDialog(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: const Text('خطأ', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                      content: Text(e.toString(), style: const TextStyle(fontSize: 16, height: 1.5)),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('حسناً', style: TextStyle(fontSize: 18)),
-                        ),
-                      ],
-                    ),
-                  );
-                }
+                    ],
+                  ),
+                );
               }
             },
             label: const Text('توليد الجدول'),
@@ -413,28 +443,26 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-  Widget _buildTimetableGrid(List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) {
-    if (classrooms.isEmpty) return const Center(child: Text('لا توجد فصول دراسية'));
+  Widget _buildExportGrid(List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) {
+    final assigned = lessons.where((l) => !l.isUnassigned).toList();
 
-    final masterKeyId = classrooms.first.id;
-    if (!_classroomKeys.containsKey(masterKeyId)) {
-        _classroomKeys[masterKeyId] = GlobalKey();
-    }
-
-    final displayDays = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'].sublist(0, settings.daysPerWeek);
-
-    Map<String, Lesson> lessonMap = {};
-    for (var lesson in lessons) {
-      if (lesson.dayIndex != null && lesson.periodIndex != null && lesson.classroom.value != null) {
-        lessonMap['${lesson.classroom.value!.id}_${lesson.dayIndex}_${lesson.periodIndex}'] = lesson;
+    final Map<String, Lesson> lessonMap = {};
+    for (var lesson in assigned) {
+      final cId = lesson.classroom.value?.id;
+      if (cId != null) {
+        lessonMap['${cId}_${lesson.dayIndex}_${lesson.periodIndex}'] = lesson;
       }
     }
 
+    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+    final displayDays = days.take(settings.daysPerWeek).toList();
+
     List<TableRow> rows = [];
 
+    // Header Row
     List<Widget> headerCells = [
-      Container(padding: const EdgeInsets.all(8.0), color: Colors.teal.shade200, child: const Center(child: Text('اليوم', style: TextStyle(fontWeight: FontWeight.bold)))),
-      Container(padding: const EdgeInsets.all(8.0), color: Colors.teal.shade200, child: const Center(child: Text('الحصة', style: TextStyle(fontWeight: FontWeight.bold)))),
+      const Center(child: Padding(padding: EdgeInsets.all(8.0), child: Text('اليوم', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+      const Center(child: Padding(padding: EdgeInsets.all(8.0), child: Text('الدرس', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
     ];
 
     for (int c = 0; c < classrooms.length; c++) {
@@ -447,17 +475,301 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       if (c == classrooms.length - 1 || ((classrooms[c + 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
         isLastInGrade = true;
       }
-
       headerCells.add(
         Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
           decoration: BoxDecoration(
-            color: Colors.teal.shade200,
             border: Border(
               right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
               left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
             ),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 8.0),
+          child: Center(
+            child: Text((classroom.name as String?) ?? 'فصل',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ),
+        )
+      );
+    }
+
+    rows.add(TableRow(
+      decoration: BoxDecoration(color: Colors.grey.shade200),
+      children: headerCells
+    ));
+
+    for (int d = 0; d < displayDays.length; d++) {
+      for (int p = 0; p < settings.periodsPerDay; p++) {
+        List<Widget> cells = [];
+
+        if (p == 0) {
+          cells.add(Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.all(8.0),
+            child: Text(displayDays[d],
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ));
+        } else {
+          cells.add(const SizedBox.shrink());
+        }
+
+        cells.add(Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.all(8.0),
+          child: Text((p + 1).toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        ));
+
+        for (int c = 0; c < classrooms.length; c++) {
+          var classroom = classrooms[c];
+          bool isFirstInGrade = false;
+          if (c == 0 || ((classrooms[c - 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
+            isFirstInGrade = true;
+          }
+          bool isLastInGrade = false;
+          if (c == classrooms.length - 1 || ((classrooms[c + 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
+            isLastInGrade = true;
+          }
+
+          final lesson = lessonMap['${classroom.id}_${d}_${p}'];
+          if (lesson != null) {
+            final subjectName = (lesson.subject.value?.name ?? 'غير محدد').cleanSubjectName();
+            final teacherName = lesson.teacher.value?.name.split(' ').first ?? 'فارغ';
+            cells.add(
+              Container(
+                alignment: Alignment.center,
+                padding: const EdgeInsets.all(4.0),
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+                    left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(subjectName,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                        textAlign: TextAlign.center),
+                    const SizedBox(height: 2),
+                    Text(teacherName,
+                        style: const TextStyle(fontSize: 8, color: Colors.grey),
+                        textAlign: TextAlign.center),
+                  ],
+                ),
+              )
+            );
+          } else {
+            cells.add(
+              Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+                    left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+                  ),
+                ),
+                child: const SizedBox(height: 40),
+              )
+            );
+          }
+        }
+
+        rows.add(TableRow(
+          decoration: BoxDecoration(
+            color: p % 2 == 0 ? Colors.grey.shade50 : Colors.white
+          ),
+          children: cells,
+        ));
+      }
+    }
+
+    final now = DateTime.now();
+    int startYear = now.month >= 9 ? now.year : now.year - 1;
+    final academicYear = '$startYear/${startYear + 1}';
+
+    return RepaintBoundary(
+      key: _exportKey,
+      child: Container(
+        color: Colors.white,
+        padding: const EdgeInsets.all(24.0),
+        child: IntrinsicWidth(
+          child: IntrinsicHeight(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+            Directionality(
+              textDirection: TextDirection.rtl,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Text(
+                      settings.schoolName,
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black),
+                      textAlign: TextAlign.right,
+                    ),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: Column(children: [
+                      const Text(
+                        'جدول الدروس الأسبوعي',
+                        style: TextStyle(
+                            fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'العام الدراسي: $academicYear',
+                        style: const TextStyle(fontSize: 16, color: Colors.black87),
+                        textAlign: TextAlign.center,
+                      ),
+                    ]),
+                  ),
+                  Expanded(
+                    flex: 1,
+                    child: Text(
+                      'المدير : ${settings.principalName}',
+                      style: const TextStyle(
+                          fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black),
+                      textAlign: TextAlign.left,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            Directionality(
+              textDirection: TextDirection.rtl,
+              child: Container(
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.black26),
+                ),
+                child: Table(
+                  border: TableBorder.all(color: Colors.black26),
+                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                  defaultColumnWidth: const IntrinsicColumnWidth(),
+                  columnWidths: const {
+                    0: IntrinsicColumnWidth(),
+                    1: IntrinsicColumnWidth(),
+                  },
+                  children: rows,
+                ),
+              ),
+            ),
+                const SizedBox(height: 24),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimetableGrid(
+      BuildContext context, List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) {
+    final assigned = lessons.where((l) => !l.isUnassigned).toList();
+    final unassigned = lessons.where((l) => l.isUnassigned).toList();
+
+    // ⚡ Bolt Optimization: O(n) pass to build a composite map for O(1) lookups
+    // Replaces O(d * p * c * n) rendering complexity with O(d * p * c)
+    final Map<String, Lesson> lessonMap = {};
+    for (var lesson in assigned) {
+      final cId = lesson.classroom.value?.id;
+      if (cId != null) {
+        lessonMap['${cId}_${lesson.dayIndex}_${lesson.periodIndex}'] = lesson;
+      }
+    }
+
+    if (classrooms.isEmpty && unassigned.isNotEmpty) {
+      return Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Center(
+              child:
+                  Text('جميع الدروس المضافة لم يتم جدولتها بعد. اضغط توليد.')),
+          const SizedBox(height: 16),
+          Text('(${unassigned.length} حصة بانتظار التوزيع)',
+              style: const TextStyle(color: Colors.red)),
+        ],
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (settings.schoolName.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Text(
+              settings.schoolName,
+              style: const TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        if (unassigned.isNotEmpty)
+          Container(
+            color: Colors.red.shade100,
+            padding: const EdgeInsets.all(8.0),
+            child: Text(
+                'يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
+                style: const TextStyle(
+                    color: Colors.red, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center),
+          ),
+        Expanded(
+          child: _buildMasterGrid(assigned, classrooms, settings, lessonMap),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMasterGrid(List<Lesson> assigned, List<Classroom> classrooms,
+      AppSettings settings, Map<String, Lesson> lessonMap) {
+    if (classrooms.isEmpty) {
+      return const Center(child: Text('لا يوجد بيانات لعرضها.'));
+    }
+
+    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+    final displayDays = days.take(settings.daysPerWeek).toList();
+    final int masterKeyId = 0; // use 0 for the master grid
+    if (!_classroomKeys.containsKey(masterKeyId)) {
+      _classroomKeys[masterKeyId] = GlobalKey();
+    }
+
+    // Build Rows for Table
+    List<TableRow> rows = [];
+
+    List<Widget> headerCells = [
+      const Center(child: Padding(padding: EdgeInsets.all(8.0), child: Text('اليوم', style: TextStyle(fontWeight: FontWeight.bold)))),
+      const Center(child: Padding(padding: EdgeInsets.all(8.0), child: Text('الدرس', style: TextStyle(fontWeight: FontWeight.bold)))),
+    ];
+
+    for (int c = 0; c < classrooms.length; c++) {
+      var classroom = classrooms[c];
+      bool isFirstInGrade = false;
+      if (c == 0 || ((classrooms[c - 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
+        isFirstInGrade = true;
+      }
+      bool isLastInGrade = false;
+      if (c == classrooms.length - 1 || ((classrooms[c + 1].grade as String?) ?? '') != ((classroom.grade as String?) ?? '')) {
+        isLastInGrade = true;
+      }
+      headerCells.add(
+        Container(
+          decoration: BoxDecoration(
+            border: Border(
+              right: isFirstInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+              left: isLastInGrade ? const BorderSide(color: Colors.black, width: 3.0) : BorderSide.none,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 8.0),
           child: Center(
             child: Text((classroom.name as String?) ?? 'فصل', style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
@@ -485,6 +797,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           cells.add(const SizedBox.shrink());
         }
 
+        // Sequence column
         cells.add(Container(
           alignment: Alignment.center,
           padding: const EdgeInsets.all(8.0),
@@ -492,6 +805,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               style: const TextStyle(fontWeight: FontWeight.bold)),
         ));
 
+        // Classrooms columns
         for (int c = 0; c < classrooms.length; c++) {
           var classroom = classrooms[c];
           bool isFirstInGrade = false;
@@ -524,6 +838,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           child: Table(
             border: TableBorder.all(color: Colors.grey.shade700, width: 1.5),
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+            // السر الأول: تثبيت العرض لكي لا ينهار الجدول
             defaultColumnWidth: const FixedColumnWidth(150.0), 
             columnWidths: const {
               0: FixedColumnWidth(60.0), 
@@ -535,24 +850,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       );
     }
 
-    final unassigned = lessons.where((l) => l.isUnassigned).toList();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (unassigned.isNotEmpty)
-          Container(
-            color: Colors.red.shade100,
-            padding: const EdgeInsets.all(8.0),
-            child: Text(
-                'يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
-                style: const TextStyle(
-                    color: Colors.red, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
-          ),
-        Expanded(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
         return Stack(
           children: [
             Positioned(
@@ -574,11 +873,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                   boundaryMargin: const EdgeInsets.all(5000.0),
                   minScale: 0.1,
                   maxScale: 5.0,
-                  constrained: false,
+                  constrained: false, // السر الثاني: السماح للمحتوى بأخذ مساحته
                   scaleEnabled: true,
                   panEnabled: true,
                   alignment: Alignment.center,
                   transformationController: _transformationController,
+                  // السر الثالث: إزالة SingleChildScrollView الكارثي واستخدام ConstrainedBox فقط
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
                       minWidth: constraints.maxWidth,
@@ -594,9 +894,6 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           ],
         );
       },
-    ),
-        ),
-      ],
     );
   }
 
