@@ -44,6 +44,60 @@ class TimetableNotifier extends _$TimetableNotifier {
     }
   }
 
+  Future<(bool, String?)> assignLessonsToPool(
+      Classroom classroom, Subject subject, Teacher teacher) async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+
+    final newLessons = <Lesson>[];
+    for (int i = 0; i < subject.lessonsPerWeek; i++) {
+      final lesson = Lesson()
+        ..classroom.value = classroom
+        ..subject.value = subject
+        ..teacher.value = teacher;
+      newLessons.add(lesson);
+    }
+
+    isar.writeTxnSync(() {
+      isar.lessons.putAllSync(newLessons);
+      for (var l in newLessons) {
+        l.classroom.saveSync();
+        l.subject.saveSync();
+        l.teacher.saveSync();
+      }
+    });
+
+    _loadLessons();
+    return (true, null);
+  }
+
+  Future<void> deleteAssignment(int classroomId, int subjectId) async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+    final allLessons = await isar.lessons.where().findAll();
+    final toDelete = allLessons.where((l) => l.classroom.value?.id == classroomId && l.subject.value?.id == subjectId).toList();
+
+    isar.writeTxnSync(() {
+      isar.lessons.deleteAllSync(toDelete.map((e) => e.id).toList());
+    });
+
+    _loadLessons();
+  }
+
+  Future<void> updateAssignment(int classroomId, int subjectId, Teacher newTeacher) async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+    final allLessons = await isar.lessons.where().findAll();
+    final toUpdate = allLessons.where((l) => l.classroom.value?.id == classroomId && l.subject.value?.id == subjectId).toList();
+
+    isar.writeTxnSync(() {
+      for (var lesson in toUpdate) {
+        lesson.teacher.value = newTeacher;
+        isar.lessons.putSync(lesson);
+        lesson.teacher.saveSync();
+      }
+    });
+
+    _loadLessons();
+  }
+
   Future<void> clearTimetable() async {
     final isar = await ref.read(isarDatabaseProvider.future);
     await isar.writeTxn(() async {
@@ -75,7 +129,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       final teachers = await isar.teachers.where().findAll();
       final subjects = await isar.subjects.where().findAll();
       final classrooms = await isar.classrooms.where().findAll();
-      final settings = await isar.settings.where().findFirst() ?? Settings();
+      final settings = await isar.appSettings.where().findFirst() ?? AppSettings();
       final existingLessons = await isar.lessons.where().findAll();
       final subjectConstraints = await isar.subjectConstraints.where().findAll();
 
@@ -86,48 +140,25 @@ class TimetableNotifier extends _$TimetableNotifier {
       }
 
       // Convert Isar Models to pure Entities for the domain layer (Isolate safe)
-      final teacherEntities = teachers.map((t) => TeacherEntity(
-        id: t.id,
-        name: t.name,
-        maxLessonsPerDay: t.maxLessonsPerDay,
-        maxLessonsPerWeek: t.maxLessonsPerWeek,
-        unavailableDays: t.unavailableDays,
-        allowedPeriods: t.allowedPeriods,
+      final teacherEntitiesMap = {for (var t in teachers) t.id: TeacherEntity.fromIsar(t)};
+      final teacherEntities = teacherEntitiesMap.values.toList();
+
+      final subjectEntitiesMap = {for (var s in subjects) s.id: SubjectEntity.fromIsar(s)};
+      final subjectEntities = subjectEntitiesMap.values.toList();
+
+      final classroomEntitiesMap = {for (var c in classrooms) c.id: ClassroomEntity.fromIsar(c)};
+      final classroomEntities = classroomEntitiesMap.values.toList();
+
+      final settingsEntity = AppSettingsEntity.fromIsar(settings);
+
+      final lessonEntities = existingLessons.map((l) => LessonEntity.fromIsar(
+        l,
+        teacherEntitiesMap,
+        subjectEntitiesMap,
+        classroomEntitiesMap,
       )).toList();
 
-      final subjectEntities = subjects.map((s) => SubjectEntity(
-        id: s.id,
-        name: s.name,
-        allowedPeriods: s.allowedPeriods,
-      )).toList();
-
-      final classroomEntities = classrooms.map((c) => ClassroomEntity(
-        id: c.id,
-        name: c.name,
-        grade: c.grade,
-      )).toList();
-
-      final settingsEntity = AppSettingsEntity(
-        daysPerWeek: settings.daysPerWeek,
-        periodsPerDay: settings.periodsPerDay,
-      );
-
-      final lessonEntities = existingLessons.map((l) => LessonEntity(
-        id: l.id,
-        dayIndex: l.dayIndex,
-        periodIndex: l.periodIndex,
-        isPinned: l.isPinned,
-        teacher: l.teacher.value != null ? teacherEntities.firstWhere((t) => t.id == l.teacher.value!.id) : null,
-        subject: l.subject.value != null ? subjectEntities.firstWhere((s) => s.id == l.subject.value!.id) : null,
-        classroom: l.classroom.value != null ? classroomEntities.firstWhere((c) => c.id == l.classroom.value!.id) : null,
-      )).toList();
-
-      final subjectConstraintEntities = subjectConstraints.map((sc) => SubjectConstraintEntity(
-         id: sc.id,
-         grade: sc.grade,
-         subjectName: sc.subjectName,
-         maxPeriodsPerDay: sc.maxPeriodsPerDay,
-      )).toList();
+      final subjectConstraintEntities = subjectConstraints.map((sc) => SubjectConstraintEntity.fromIsar(sc)).toList();
 
       final payload = GenerationPayload(
         teachers: teacherEntities,
