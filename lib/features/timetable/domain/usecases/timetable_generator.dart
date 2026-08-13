@@ -5,7 +5,6 @@ import '../../../../core/entities/subject_entity.dart';
 import '../../../../core/entities/classroom_entity.dart';
 import '../../../../core/entities/app_settings_entity.dart';
 import '../../../../core/entities/subject_constraint_entity.dart';
-import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
 import '../../../../core/exceptions/timetable_generation_exception.dart';
 import 'pre_validation_engine.dart';
 
@@ -51,7 +50,7 @@ class TimetableGenerator {
     );
     final errors = engine.validateAll();
     if (errors.isNotEmpty) {
-      throw UnsolvableTimetableException(errors.join('\n\n'));
+      throw TimetableGenerationException([GenericSolverFailure(errors.join('\n\n'))]);
     }
   }
 
@@ -247,6 +246,8 @@ class TimetableGenerator {
     return bestSchedule;
   }
 
+  // ⚠️ عقد معماري: أي تعديل هنا يجب أن ينعكس في الدالة المقابلة.
+  // كل شرط يرفع التكلفة (cost > 0) يجب أن يقابله إضافة تعارض (conflict.add) مماثل.
   List<ConflictReason> _getConflicts(List<LessonEntity> state, int maxDays, int maxPeriods) {
     List<ConflictReason> conflicts = [];
 
@@ -345,9 +346,15 @@ class TimetableGenerator {
       }
     }
 
+    if (conflicts.isEmpty) {
+      conflicts.add(const GenericSolverFailure('توجد تعارضات خفية في توزيع الحصص أو قيود المعلمين لم يتم تحديدها بدقة.'));
+    }
+
     return conflicts.toSet().toList();
   }
 
+  // ⚠️ عقد معماري: أي تعديل هنا يجب أن ينعكس في الدالة المقابلة.
+  // كل شرط يرفع التكلفة (cost > 0) يجب أن يقابله إضافة تعارض (conflict.add) مماثل.
   // 2. The Cost Function (Penalty Calculation)
   int _calculateCost(List<LessonEntity> state, int maxDays, int maxPeriods) {
     int cost = 0;
