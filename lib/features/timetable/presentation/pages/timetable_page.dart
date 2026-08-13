@@ -272,6 +272,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     });
 
     final lessonsAsync = ref.watch(timetableNotifierProvider);
+    final autoFixState = ref.watch(timetableAutoFixStateProvider);
     final isarAsync = ref.watch(isarDatabaseProvider);
 
     return Scaffold(
@@ -463,6 +464,42 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             tooltip: 'تصغير',
             child: const Icon(Icons.zoom_out),
           ),
+          if (autoFixState.isPreview) ...[
+            FloatingActionButton.extended(
+              heroTag: "btn_auto_fix",
+              onPressed: autoFixState.canFix
+                  ? () async {
+                      final resolved = await ref
+                          .read(timetableNotifierProvider.notifier)
+                          .runSmartAutoFix();
+                      if (!mounted || resolved) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'تعذر حل جميع القيود تلقائياً. تم الاحتفاظ بأفضل معاينة متاحة.',
+                          ),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                    }
+                  : null,
+              label: Text(
+                autoFixState.isFixing
+                    ? 'جاري الحل...'
+                    : autoFixState.status == TimetableAutoFixStatus.failed
+                        ? 'إعادة حل القيود'
+                        : 'حل القيود تلقائياً',
+              ),
+              icon: autoFixState.isFixing
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_fix_high),
+            ),
+            const SizedBox(height: 8),
+          ],
           const SizedBox(height: 8),
           FloatingActionButton.extended(
             heroTag: "btn_generate",

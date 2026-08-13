@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:isar/isar.dart';
 import 'dart:isolate';
@@ -16,12 +17,54 @@ import '../../../../core/models/subject_constraint.dart';
 import '../../../../core/entities/subject_constraint_entity.dart';
 
 import '../../domain/usecases/timetable_generator.dart';
+import '../../domain/usecases/smart_auto_fix_usecase.dart';
 import '../../../../core/exceptions/timetable_generation_exception.dart';
 
 part 'timetable_provider.g.dart';
 
+enum TimetableAutoFixStatus { idle, ready, fixing, failed }
+
+class TimetableAutoFixState {
+  final TimetableAutoFixStatus status;
+  final int bestCost;
+  final List<ConflictDiagnostic> diagnostics;
+
+  const TimetableAutoFixState({
+    this.status = TimetableAutoFixStatus.idle,
+    this.bestCost = 0,
+    this.diagnostics = const [],
+  });
+
+  bool get isPreview =>
+      status == TimetableAutoFixStatus.ready ||
+      status == TimetableAutoFixStatus.fixing ||
+      status == TimetableAutoFixStatus.failed;
+
+  bool get canFix => isPreview && status != TimetableAutoFixStatus.fixing;
+
+  bool get isFixing => status == TimetableAutoFixStatus.fixing;
+
+  TimetableAutoFixState copyWith({
+    TimetableAutoFixStatus? status,
+    int? bestCost,
+    List<ConflictDiagnostic>? diagnostics,
+  }) {
+    return TimetableAutoFixState(
+      status: status ?? this.status,
+      bestCost: bestCost ?? this.bestCost,
+      diagnostics: diagnostics ?? this.diagnostics,
+    );
+  }
+}
+
+final timetableAutoFixStateProvider = StateProvider<TimetableAutoFixState>(
+    (ref) => const TimetableAutoFixState());
+
 @riverpod
 class TimetableNotifier extends _$TimetableNotifier {
+  GenerationPayload? _lastPayload;
+  List<LessonEntity>? _previewEntities;
+
   @override
   Future<List<Lesson>> build() async {
     final isar = await ref.watch(isarDatabaseProvider.future);
@@ -166,6 +209,9 @@ class TimetableNotifier extends _$TimetableNotifier {
 
   Future<void> generateTimetable() async {
     state = const AsyncValue.loading();
+    _previewEntities = null;
+    ref.read(timetableAutoFixStateProvider.notifier).state =
+        const TimetableAutoFixState();
 
     try {
       final isar = await ref.read(isarDatabaseProvider.future);
@@ -215,6 +261,7 @@ class TimetableNotifier extends _$TimetableNotifier {
         existingLessons: existingLessonsEntity,
         subjectConstraints: constraintsEntityList,
       );
+      _lastPayload = payload;
 
       // Run Generator in an Isolate using a top-level function to avoid capturing `this`
       final resultEntities = await _spawnIsolateAndGenerate(payload);
@@ -243,7 +290,9 @@ class TimetableNotifier extends _$TimetableNotifier {
         lesson.teacher.loadSync();
       }
       state = AsyncValue.data(existingLessons);
-    } on TimetableGenerationException {
+      ref.read(timetableAutoFixStateProvider.notifier).state =
+          const TimetableAutoFixState();
+    } on TimetableGenerationException catch (exception) {
       // Restore valid data state to avoid generic error widget
       final isar = await ref.read(isarDatabaseProvider.future);
       final lessons = await isar.lessons.where().findAll();
@@ -252,13 +301,166 @@ class TimetableNotifier extends _$TimetableNotifier {
         lesson.subject.loadSync();
         lesson.teacher.loadSync();
       }
-      state = AsyncValue.data(lessons);
+
+      final snapshot = exception.bestSchedule;
+      if (_lastPayload != null && snapshot != null) {
+        _previewEntities = _applySnapshot(
+          _lastPayload!.existingLessons,
+          snapshot,
+        );
+        final previewLessons = _previewEntities!
+            .map((lesson) => _toPreviewLesson(lesson, lessons))
+            .toList();
+        state = AsyncValue.data(previewLessons);
+        ref.read(timetableAutoFixStateProvider.notifier).state =
+            TimetableAutoFixState(
+          status: TimetableAutoFixStatus.ready,
+          bestCost: exception.bestCost,
+          diagnostics: exception.diagnostics,
+        );
+      } else {
+        state = AsyncValue.data(lessons);
+      }
 
       // Rethrow to the UI try-catch block
       rethrow;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
     }
+  }
+
+  Future<bool> runSmartAutoFix() async {
+    final payload = _lastPayload;
+    final preview = _previewEntities;
+    final autoFixState = ref.read(timetableAutoFixStateProvider);
+    if (payload == null || preview == null || !autoFixState.canFix) {
+      return false;
+    }
+
+    ref.read(timetableAutoFixStateProvider.notifier).state =
+        autoFixState.copyWith(status: TimetableAutoFixStatus.fixing);
+
+    try {
+      final result = await _spawnIsolateAndAutoFix(
+        AutoFixPayload(
+          teachers: payload.teachers,
+          subjects: payload.subjects,
+          classrooms: payload.classrooms,
+          settings: payload.settings,
+          existingLessons: preview,
+          subjectConstraints: payload.subjectConstraints,
+          diagnostics: autoFixState.diagnostics,
+        ),
+      );
+
+      final isar = await ref.read(isarDatabaseProvider.future);
+      final persistedLessons = await isar.lessons.where().findAll();
+
+      if (result.isResolved) {
+        final placements = {
+          for (final lesson in result.schedule) lesson.id: lesson,
+        };
+        for (final lesson in persistedLessons) {
+          final placement = placements[lesson.id];
+          if (placement == null) continue;
+          lesson.dayIndex = placement.dayIndex;
+          lesson.periodIndex = placement.periodIndex;
+        }
+
+        isar.writeTxnSync(() {
+          isar.lessons.putAllSync(persistedLessons);
+        });
+
+        for (final lesson in persistedLessons) {
+          lesson.classroom.loadSync();
+          lesson.subject.loadSync();
+          lesson.teacher.loadSync();
+        }
+        _previewEntities = null;
+        ref.read(timetableAutoFixStateProvider.notifier).state =
+            const TimetableAutoFixState();
+        state = AsyncValue.data(persistedLessons);
+        return true;
+      }
+
+      _previewEntities = result.schedule;
+      final previewLessons = result.schedule
+          .map((entity) => _toPreviewLesson(entity, persistedLessons))
+          .toList();
+      state = AsyncValue.data(previewLessons);
+      ref.read(timetableAutoFixStateProvider.notifier).state =
+          TimetableAutoFixState(
+        status: TimetableAutoFixStatus.failed,
+        bestCost: result.bestCost,
+        diagnostics: result.diagnostics,
+      );
+      return false;
+    } catch (error, stackTrace) {
+      ref.read(timetableAutoFixStateProvider.notifier).state =
+          autoFixState.copyWith(status: TimetableAutoFixStatus.failed);
+
+      // Keep the best failed preview visible so the user can inspect it or retry
+      // after a transient isolate/database failure. Never persist this preview.
+      try {
+        final isar = await ref.read(isarDatabaseProvider.future);
+        final persistedLessons = await isar.lessons.where().findAll();
+        for (final lesson in persistedLessons) {
+          lesson.classroom.loadSync();
+          lesson.subject.loadSync();
+          lesson.teacher.loadSync();
+        }
+        final preview = _previewEntities;
+        if (preview != null) {
+          state = AsyncValue.data(
+            preview
+                .map((entity) => _toPreviewLesson(entity, persistedLessons))
+                .toList(),
+          );
+        } else {
+          state = AsyncValue.error(error, stackTrace);
+        }
+      } catch (_) {
+        state = AsyncValue.error(error, stackTrace);
+      }
+      return false;
+    }
+  }
+
+  List<LessonEntity> _applySnapshot(
+    List<LessonEntity> source,
+    TimetableScheduleSnapshot snapshot,
+  ) {
+    final placements = {
+      for (final placement in snapshot.placements)
+        placement.lessonId: placement,
+    };
+    return source.map(
+      (lesson) {
+        final placement = placements[lesson.id];
+        return LessonEntity(
+          id: lesson.id,
+          teacher: lesson.teacher,
+          subject: lesson.subject,
+          classroom: lesson.classroom,
+          dayIndex: placement?.dayIndex ?? lesson.dayIndex,
+          periodIndex: placement?.periodIndex ?? lesson.periodIndex,
+          isPinned: lesson.isPinned,
+        );
+      },
+    ).toList();
+  }
+
+  Lesson _toPreviewLesson(LessonEntity entity, List<Lesson> persistedLessons) {
+    final source =
+        persistedLessons.firstWhere((lesson) => lesson.id == entity.id);
+    return Lesson()
+      ..id = source.id
+      ..dayIndex = entity.dayIndex
+      ..periodIndex = entity.periodIndex
+      ..isPinned = source.isPinned
+      ..teacher.value = source.teacher.value
+      ..subject.value = source.subject.value
+      ..classroom.value = source.classroom.value;
   }
 
   Future<void> togglePin(Lesson lesson) async {
@@ -624,4 +826,44 @@ List<LessonEntity> _generateInIsolate(GenerationPayload payload) {
     subjectConstraints: payload.subjectConstraints,
   );
   return generator.generate();
+}
+
+class AutoFixPayload {
+  final List<TeacherEntity> teachers;
+  final List<SubjectEntity> subjects;
+  final List<ClassroomEntity> classrooms;
+  final AppSettingsEntity settings;
+  final List<LessonEntity> existingLessons;
+  final List<SubjectConstraintEntity> subjectConstraints;
+  final List<ConflictDiagnostic> diagnostics;
+
+  const AutoFixPayload({
+    required this.teachers,
+    required this.subjects,
+    required this.classrooms,
+    required this.settings,
+    required this.existingLessons,
+    required this.subjectConstraints,
+    required this.diagnostics,
+  });
+}
+
+Future<SmartAutoFixResult> _spawnIsolateAndAutoFix(
+    AutoFixPayload payload) async {
+  return Isolate.run(() => _runAutoFixInIsolate(payload));
+}
+
+SmartAutoFixResult _runAutoFixInIsolate(AutoFixPayload payload) {
+  final useCase = SmartAutoFixUseCase(
+    teachers: payload.teachers,
+    subjects: payload.subjects,
+    classrooms: payload.classrooms,
+    settings: payload.settings,
+    subjectLessons: payload.existingLessons,
+    subjectConstraints: payload.subjectConstraints,
+  );
+  return useCase.execute(
+    initialSchedule: payload.existingLessons,
+    initialDiagnostics: payload.diagnostics,
+  );
 }

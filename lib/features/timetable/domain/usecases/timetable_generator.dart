@@ -5,6 +5,7 @@ import '../../../../core/entities/subject_entity.dart';
 import '../../../../core/entities/classroom_entity.dart';
 import '../../../../core/entities/app_settings_entity.dart';
 import '../../../../core/entities/subject_constraint_entity.dart';
+import '../../../../core/models/subject_consecutiveness.dart';
 import '../../../../core/exceptions/timetable_generation_exception.dart';
 import 'pre_validation_engine.dart';
 
@@ -119,8 +120,17 @@ class TimetableGenerator {
 
     stopwatch.stop();
     final failedSchedule = bestFailedSchedule ?? _cloneState(existingLessons);
-    final conflicts = _getConflicts(failedSchedule, maxDays, maxPeriods);
-    throw TimetableGenerationException(conflicts);
+    final diagnostics =
+        _getConflictDiagnostics(failedSchedule, maxDays, maxPeriods);
+    final failedCost = bestFailedSchedule == null
+        ? _calculateCost(failedSchedule, maxDays, maxPeriods)
+        : bestFailedCost;
+    throw TimetableGenerationException(
+      diagnostics.map((diagnostic) => diagnostic.reason).toList(),
+      diagnostics: diagnostics,
+      bestSchedule: _snapshot(failedSchedule),
+      bestCost: failedCost,
+    );
   }
 
   _GenerationAttemptResult _generateAttempt({
@@ -552,118 +562,188 @@ class TimetableGenerator {
         .toList();
   }
 
+  List<ConflictDiagnostic> diagnose(List<LessonEntity> state) {
+    return _getConflictDiagnostics(
+      state,
+      settings.daysPerWeek,
+      settings.periodsPerDay,
+    );
+  }
+
+  int calculateCost(List<LessonEntity> state) {
+    return _calculateCost(state, settings.daysPerWeek, settings.periodsPerDay);
+  }
+
+  TimetableScheduleSnapshot snapshot(List<LessonEntity> state) {
+    return _snapshot(state);
+  }
+
   // ⚠️ عقد معماري: أي تعديل هنا يجب أن ينعكس في الدالة المقابلة.
   // كل شرط يرفع التكلفة (cost > 0) يجب أن يقابله إضافة تعارض (conflict.add) مماثل.
-  List<ConflictReason> _getConflicts(
+  List<ConflictDiagnostic> _getConflictDiagnostics(
       List<LessonEntity> state, int maxDays, int maxPeriods) {
-    List<ConflictReason> conflicts = [];
+    final diagnostics = <ConflictDiagnostic>[];
 
-    Map<int, Set<int>> teacherSlots = {};
-    Map<int, Map<int, int>> teacherDailyCounts = {};
-    Map<int, Map<int, Map<int, int>>> classroomDailySubjectsCounts = {};
-    Map<int, Map<int, Map<int, List<int>>>> classroomDailySubjectsPeriods = {};
-    Map<int, Set<int>> classroomSlots = {};
+    final classroomSlotOwners = <int, Map<int, int>>{};
+    final teacherSlotOwners = <int, Map<int, int>>{};
+    final teacherDailyLessons = <int, Map<int, List<int>>>{};
+    final classroomDailySubjectLessons =
+        <int, Map<int, Map<int, List<LessonEntity>>>>{};
+    final classroomDailySubjectCounts = <int, Map<int, Map<int, int>>>{};
 
-    for (var lesson in state) {
+    void addDiagnostic(
+      ConflictReason reason, {
+      List<int> lessonIds = const [],
+      bool isHard = true,
+    }) {
+      diagnostics.add(
+        ConflictDiagnostic(
+          reason: reason,
+          lessonIds: lessonIds,
+          isHard: isHard,
+        ),
+      );
+    }
+
+    for (final lesson in state) {
       if (lesson.dayIndex == null || lesson.periodIndex == null) continue;
 
-      int day = lesson.dayIndex!;
-      int period = lesson.periodIndex!;
-      int timeKey = day * 100 + period;
+      final day = lesson.dayIndex!;
+      final period = lesson.periodIndex!;
+      final timeKey = day * 100 + period;
 
       if (lesson.classroom != null) {
-        int cId = lesson.classroom!.id;
-        if (classroomSlots.containsKey(cId) &&
-            classroomSlots[cId]!.contains(timeKey)) {
-          conflicts.add(
-              ClassroomTimeSlotConflict(lesson.classroom!.name, day, period));
+        final classroomId = lesson.classroom!.id;
+        final owners = classroomSlotOwners.putIfAbsent(classroomId, () => {});
+        final previousOwner = owners[timeKey];
+        if (previousOwner != null) {
+          addDiagnostic(
+            ClassroomTimeSlotConflict(lesson.classroom!.name, day, period),
+            lessonIds: [previousOwner, lesson.id],
+          );
         } else {
-          classroomSlots.putIfAbsent(cId, () => {}).add(timeKey);
+          owners[timeKey] = lesson.id;
         }
       }
 
       if (lesson.teacher != null) {
-        int tId = lesson.teacher!.id;
-        String tName = lesson.teacher!.name;
-
-        if (teacherSlots.containsKey(tId) &&
-            teacherSlots[tId]!.contains(timeKey)) {
-          conflicts.add(TeacherTimeSlotConflict(tName, day, period));
+        final teacherId = lesson.teacher!.id;
+        final slotOwners = teacherSlotOwners.putIfAbsent(teacherId, () => {});
+        final previousOwner = slotOwners[timeKey];
+        if (previousOwner != null) {
+          addDiagnostic(
+            TeacherTimeSlotConflict(lesson.teacher!.name, day, period),
+            lessonIds: [previousOwner, lesson.id],
+          );
         } else {
-          teacherSlots.putIfAbsent(tId, () => {}).add(timeKey);
+          slotOwners[timeKey] = lesson.id;
         }
 
-        teacherDailyCounts.putIfAbsent(tId, () => {});
-        teacherDailyCounts[tId]![day] =
-            (teacherDailyCounts[tId]![day] ?? 0) + 1;
-
-        if (teacherDailyCounts[tId]![day]! > lesson.teacher!.maxLessonsPerDay) {
-          conflicts.add(TeacherLoadExceeded(
-              tName,
-              teacherDailyCounts[tId]![day]!,
-              lesson.teacher!.maxLessonsPerDay));
+        final dailyLessons = teacherDailyLessons
+            .putIfAbsent(teacherId, () => {})
+            .putIfAbsent(day, () => []);
+        dailyLessons.add(lesson.id);
+        if (dailyLessons.length > lesson.teacher!.maxLessonsPerDay) {
+          addDiagnostic(
+            TeacherLoadExceeded(
+              lesson.teacher!.name,
+              dailyLessons.length,
+              lesson.teacher!.maxLessonsPerDay,
+            ),
+            lessonIds: List<int>.from(dailyLessons),
+          );
         }
 
         if (lesson.teacher!.unavailableDays.contains(day)) {
-          conflicts.add(TeacherUnavailableDayConflict(tName, day));
+          addDiagnostic(
+            TeacherUnavailableDayConflict(lesson.teacher!.name, day),
+            lessonIds: [lesson.id],
+          );
         }
 
         if (lesson.teacher!.allowedPeriods.isNotEmpty &&
             !lesson.teacher!.allowedPeriods.contains(period)) {
-          conflicts.add(TeacherNotAllowedPeriodConflict(tName, period));
+          addDiagnostic(
+            TeacherNotAllowedPeriodConflict(lesson.teacher!.name, period),
+            lessonIds: [lesson.id],
+          );
         }
       }
 
       if (lesson.subject != null && lesson.classroom != null) {
-        int sId = lesson.subject!.id;
-        int cId = lesson.classroom!.id;
-        String sName = lesson.subject!.name;
-        String cName = lesson.classroom!.name;
-
-        classroomDailySubjectsCounts.putIfAbsent(cId, () => {});
-        classroomDailySubjectsCounts[cId]!.putIfAbsent(day, () => {});
-
-        classroomDailySubjectsPeriods.putIfAbsent(cId, () => {});
-        classroomDailySubjectsPeriods[cId]!.putIfAbsent(day, () => {});
-        classroomDailySubjectsPeriods[cId]![day]!.putIfAbsent(sId, () => []);
-
-        int maxAllowed = _getMaxAllowedSubjectPerDay(sId, cId);
-        int currentCount = classroomDailySubjectsCounts[cId]![day]![sId] ?? 0;
+        final subjectId = lesson.subject!.id;
+        final classroomId = lesson.classroom!.id;
+        final subjectCounts = classroomDailySubjectCounts
+            .putIfAbsent(classroomId, () => {})
+            .putIfAbsent(day, () => {});
+        final currentCount = subjectCounts[subjectId] ?? 0;
+        final maxAllowed = _getMaxAllowedSubjectPerDay(subjectId, classroomId);
+        final subjectLessons = classroomDailySubjectLessons
+            .putIfAbsent(classroomId, () => {})
+            .putIfAbsent(day, () => {})
+            .putIfAbsent(subjectId, () => []);
 
         if (currentCount >= maxAllowed) {
-          conflicts.add(SubjectMaxPerDayExceeded(
-              sName, cName, day, maxAllowed, currentCount + 1));
+          addDiagnostic(
+            SubjectMaxPerDayExceeded(
+              lesson.subject!.name,
+              lesson.classroom!.name,
+              day,
+              maxAllowed,
+              currentCount + 1,
+            ),
+            lessonIds: [
+              ...subjectLessons.map((scheduledLesson) => scheduledLesson.id),
+              lesson.id,
+            ],
+          );
         } else {
-          classroomDailySubjectsCounts[cId]![day]![sId] = currentCount + 1;
-          classroomDailySubjectsPeriods[cId]![day]![sId]!.add(period);
+          subjectCounts[subjectId] = currentCount + 1;
+          subjectLessons.add(lesson);
         }
 
         if (lesson.subject!.allowedPeriods.isNotEmpty &&
             !lesson.subject!.allowedPeriods.contains(period)) {
-          conflicts.add(SubjectNotAllowedPeriodConflict(sName, period));
+          addDiagnostic(
+            SubjectNotAllowedPeriodConflict(lesson.subject!.name, period),
+            lessonIds: [lesson.id],
+          );
         }
       }
     }
 
-    for (var cId in classroomDailySubjectsPeriods.keys) {
-      for (var day in classroomDailySubjectsPeriods[cId]!.keys) {
-        for (var sId in classroomDailySubjectsPeriods[cId]![day]!.keys) {
-          var periods = classroomDailySubjectsPeriods[cId]![day]![sId]!;
-          if (periods.length > 1) {
-            periods.sort();
-            for (int i = 0; i < periods.length - 1; i++) {
-              if (periods[i + 1] - periods[i] != 1) {
-                String sName = subjects
-                    .firstWhere((s) => s.id == sId,
-                        orElse: () => subjects.first)
-                    .name;
-                String cName = classrooms
-                    .firstWhere((c) => c.id == cId,
-                        orElse: () => classrooms.first)
-                    .name;
-                conflicts.add(
-                    NonConsecutiveSubjectPeriodsConflict(sName, cName, day));
-              }
+    for (final classroomEntry in classroomDailySubjectLessons.entries) {
+      for (final dayEntry in classroomEntry.value.entries) {
+        for (final subjectLessons in dayEntry.value.values) {
+          if (subjectLessons.length < 2) continue;
+
+          subjectLessons.sort(
+            (a, b) => a.periodIndex!.compareTo(b.periodIndex!),
+          );
+          final subject = subjectLessons.first.subject;
+          if (subject == null ||
+              subject.consecutiveness != SubjectConsecutiveness.consecutive) {
+            continue;
+          }
+
+          for (var index = 0; index < subjectLessons.length - 1; index++) {
+            final first = subjectLessons[index];
+            final second = subjectLessons[index + 1];
+            if (second.periodIndex! - first.periodIndex! != 1) {
+              addDiagnostic(
+                NonConsecutiveSubjectPeriodsConflict(
+                  subject.name,
+                  classrooms
+                      .firstWhere(
+                        (classroom) => classroom.id == classroomEntry.key,
+                        orElse: () => classrooms.first,
+                      )
+                      .name,
+                  dayEntry.key,
+                ),
+                lessonIds: [first.id, second.id],
+                isHard: false,
+              );
             }
           }
         }
@@ -671,15 +751,35 @@ class TimetableGenerator {
     }
 
     final finalCost = _calculateCost(state, maxDays, maxPeriods);
-    if (finalCost > 0 && conflicts.isEmpty) {
-      conflicts.add(
+    if (finalCost > 0 && diagnostics.isEmpty) {
+      addDiagnostic(
         const GenericSolverFailure(
           'توجد تعارضات خفية في توزيع الحصص أو قيود المعلمين لم يتم تحديدها بدقة.',
         ),
       );
     }
 
-    return conflicts.toSet().toList();
+    final unique = <String, ConflictDiagnostic>{};
+    for (final diagnostic in diagnostics) {
+      final key =
+          '${diagnostic.reason}|${diagnostic.lessonIds}|${diagnostic.isHard}';
+      unique[key] = diagnostic;
+    }
+    return unique.values.toList();
+  }
+
+  TimetableScheduleSnapshot _snapshot(List<LessonEntity> state) {
+    return TimetableScheduleSnapshot(
+      state
+          .map(
+            (lesson) => LessonPlacement(
+              lessonId: lesson.id,
+              dayIndex: lesson.dayIndex,
+              periodIndex: lesson.periodIndex,
+            ),
+          )
+          .toList(growable: false),
+    );
   }
 
   // 2. The Cost Function (Penalty Calculation)
@@ -789,7 +889,13 @@ class TimetableGenerator {
           if (periods.length > 1) {
             periods.sort();
             for (int i = 0; i < periods.length - 1; i++) {
-              if (periods[i + 1] - periods[i] != 1) {
+              final subject = subjects.firstWhere(
+                (s) => s.id == sId,
+                orElse: () => subjects.first,
+              );
+              if (subject.consecutiveness ==
+                      SubjectConsecutiveness.consecutive &&
+                  periods[i + 1] - periods[i] != 1) {
                 cost +=
                     50; // Soft penalty for non-consecutive periods of the same subject in the same day
               }

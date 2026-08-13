@@ -22,18 +22,24 @@ const SubjectSchema = CollectionSchema(
       name: r'allowedPeriods',
       type: IsarType.longList,
     ),
-    r'lessonsPerWeek': PropertySchema(
+    r'consecutiveness': PropertySchema(
       id: 1,
+      name: r'consecutiveness',
+      type: IsarType.string,
+      enumMap: _SubjectconsecutivenessEnumValueMap,
+    ),
+    r'lessonsPerWeek': PropertySchema(
+      id: 2,
       name: r'lessonsPerWeek',
       type: IsarType.long,
     ),
     r'name': PropertySchema(
-      id: 2,
+      id: 3,
       name: r'name',
       type: IsarType.string,
     ),
     r'preferEarlyPeriods': PropertySchema(
-      id: 3,
+      id: 4,
       name: r'preferEarlyPeriods',
       type: IsarType.bool,
     )
@@ -59,6 +65,7 @@ int _subjectEstimateSize(
 ) {
   var bytesCount = offsets.last;
   bytesCount += 3 + object.allowedPeriods.length * 8;
+  bytesCount += 3 + object.consecutiveness.name.length * 3;
   bytesCount += 3 + object.name.length * 3;
   return bytesCount;
 }
@@ -70,9 +77,10 @@ void _subjectSerialize(
   Map<Type, List<int>> allOffsets,
 ) {
   writer.writeLongList(offsets[0], object.allowedPeriods);
-  writer.writeLong(offsets[1], object.lessonsPerWeek);
-  writer.writeString(offsets[2], object.name);
-  writer.writeBool(offsets[3], object.preferEarlyPeriods);
+  writer.writeString(offsets[1], object.consecutiveness.name);
+  writer.writeLong(offsets[2], object.lessonsPerWeek);
+  writer.writeString(offsets[3], object.name);
+  writer.writeBool(offsets[4], object.preferEarlyPeriods);
 }
 
 Subject _subjectDeserialize(
@@ -83,10 +91,13 @@ Subject _subjectDeserialize(
 ) {
   final object = Subject();
   object.allowedPeriods = reader.readLongList(offsets[0]) ?? [];
+  object.consecutiveness = _SubjectconsecutivenessValueEnumMap[
+          reader.readStringOrNull(offsets[1])] ??
+      SubjectConsecutiveness.any;
   object.id = id;
-  object.lessonsPerWeek = reader.readLong(offsets[1]);
-  object.name = reader.readString(offsets[2]);
-  object.preferEarlyPeriods = reader.readBool(offsets[3]);
+  object.lessonsPerWeek = reader.readLong(offsets[2]);
+  object.name = reader.readString(offsets[3]);
+  object.preferEarlyPeriods = reader.readBool(offsets[4]);
   return object;
 }
 
@@ -100,15 +111,30 @@ P _subjectDeserializeProp<P>(
     case 0:
       return (reader.readLongList(offset) ?? []) as P;
     case 1:
-      return (reader.readLong(offset)) as P;
+      return (_SubjectconsecutivenessValueEnumMap[
+              reader.readStringOrNull(offset)] ??
+          SubjectConsecutiveness.any) as P;
     case 2:
-      return (reader.readString(offset)) as P;
+      return (reader.readLong(offset)) as P;
     case 3:
+      return (reader.readString(offset)) as P;
+    case 4:
       return (reader.readBool(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
 }
+
+const _SubjectconsecutivenessEnumValueMap = {
+  r'any': r'any',
+  r'consecutive': r'consecutive',
+  r'nonConsecutive': r'nonConsecutive',
+};
+const _SubjectconsecutivenessValueEnumMap = {
+  r'any': SubjectConsecutiveness.any,
+  r'consecutive': SubjectConsecutiveness.consecutive,
+  r'nonConsecutive': SubjectConsecutiveness.nonConsecutive,
+};
 
 Id _subjectGetId(Subject object) {
   return object.id;
@@ -341,6 +367,140 @@ extension SubjectQueryFilter
         upper,
         includeUpper,
       );
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition> consecutivenessEqualTo(
+    SubjectConsecutiveness value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'consecutiveness',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      consecutivenessGreaterThan(
+    SubjectConsecutiveness value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'consecutiveness',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition> consecutivenessLessThan(
+    SubjectConsecutiveness value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'consecutiveness',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition> consecutivenessBetween(
+    SubjectConsecutiveness lower,
+    SubjectConsecutiveness upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'consecutiveness',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      consecutivenessStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'consecutiveness',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition> consecutivenessEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'consecutiveness',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition> consecutivenessContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'consecutiveness',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition> consecutivenessMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'consecutiveness',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      consecutivenessIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'consecutiveness',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterFilterCondition>
+      consecutivenessIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'consecutiveness',
+        value: '',
+      ));
     });
   }
 
@@ -598,6 +758,18 @@ extension SubjectQueryLinks
     on QueryBuilder<Subject, Subject, QFilterCondition> {}
 
 extension SubjectQuerySortBy on QueryBuilder<Subject, Subject, QSortBy> {
+  QueryBuilder<Subject, Subject, QAfterSortBy> sortByConsecutiveness() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'consecutiveness', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterSortBy> sortByConsecutivenessDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'consecutiveness', Sort.desc);
+    });
+  }
+
   QueryBuilder<Subject, Subject, QAfterSortBy> sortByLessonsPerWeek() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'lessonsPerWeek', Sort.asc);
@@ -637,6 +809,18 @@ extension SubjectQuerySortBy on QueryBuilder<Subject, Subject, QSortBy> {
 
 extension SubjectQuerySortThenBy
     on QueryBuilder<Subject, Subject, QSortThenBy> {
+  QueryBuilder<Subject, Subject, QAfterSortBy> thenByConsecutiveness() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'consecutiveness', Sort.asc);
+    });
+  }
+
+  QueryBuilder<Subject, Subject, QAfterSortBy> thenByConsecutivenessDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'consecutiveness', Sort.desc);
+    });
+  }
+
   QueryBuilder<Subject, Subject, QAfterSortBy> thenById() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.asc);
@@ -694,6 +878,14 @@ extension SubjectQueryWhereDistinct
     });
   }
 
+  QueryBuilder<Subject, Subject, QDistinct> distinctByConsecutiveness(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'consecutiveness',
+          caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<Subject, Subject, QDistinct> distinctByLessonsPerWeek() {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'lessonsPerWeek');
@@ -725,6 +917,13 @@ extension SubjectQueryProperty
   QueryBuilder<Subject, List<int>, QQueryOperations> allowedPeriodsProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'allowedPeriods');
+    });
+  }
+
+  QueryBuilder<Subject, SubjectConsecutiveness, QQueryOperations>
+      consecutivenessProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'consecutiveness');
     });
   }
 
