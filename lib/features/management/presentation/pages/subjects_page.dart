@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/models/subject.dart';
+import '../../../../core/models/subject_consecutiveness.dart';
 import '../../../../core/utils/period_mapper.dart';
 import '../providers/management_provider.dart';
 
@@ -99,6 +100,7 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
   late int _lessonsPerWeek;
   late bool _preferEarlyPeriods;
   late List<int> _allowedPeriods;
+  late SubjectConsecutiveness _consecutiveness;
 
   @override
   void initState() {
@@ -107,6 +109,8 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
     _lessonsPerWeek = widget.existingSubject?.lessonsPerWeek ?? 1;
     _preferEarlyPeriods = widget.existingSubject?.preferEarlyPeriods ?? false;
     _allowedPeriods = List.from(widget.existingSubject?.allowedPeriods ?? []);
+    _consecutiveness =
+        widget.existingSubject?.consecutiveness ?? SubjectConsecutiveness.any;
   }
 
   @override
@@ -125,7 +129,8 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                 initialValue: _name,
                 decoration: const InputDecoration(
                     labelText: 'اسم المادة', helperText: 'مثال: رياضيات, علوم'),
-                validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
+                validator: (val) =>
+                    val == null || val.trim().isEmpty ? 'مطلوب' : null,
                 onSaved: (val) => _name = val!,
               ),
               const SizedBox(height: 10),
@@ -135,7 +140,9 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                     labelText: 'الدروس الأسبوعية',
                     helperText: 'عدد الدروس المطلوبة خلال الأسبوع'),
                 keyboardType: TextInputType.number,
-                validator: (val) => val == null || val.trim().isEmpty || int.tryParse(val.trim()) == null
+                validator: (val) => val == null ||
+                        val.trim().isEmpty ||
+                        int.tryParse(val.trim()) == null
                     ? 'أدخل رقماً صحيحاً'
                     : null,
                 onSaved: (val) => _lessonsPerWeek = int.parse(val!),
@@ -146,6 +153,32 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                 value: _preferEarlyPeriods,
                 onChanged: (val) =>
                     setState(() => _preferEarlyPeriods = val ?? false),
+              ),
+              const SizedBox(height: 10),
+              DropdownButtonFormField<SubjectConsecutiveness>(
+                value: _consecutiveness,
+                decoration: const InputDecoration(
+                  labelText: 'تتابع حصص المادة',
+                  helperText:
+                      'يؤثر خيار متتالي على ترتيب حصص المادة في اليوم نفسه',
+                ),
+                items: const [
+                  SubjectConsecutiveness.consecutive,
+                  SubjectConsecutiveness.nonConsecutive,
+                  SubjectConsecutiveness.any,
+                ]
+                    .map(
+                      (option) => DropdownMenuItem<SubjectConsecutiveness>(
+                        value: option,
+                        child: Text(option.label),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _consecutiveness = value);
+                  }
+                },
               ),
               const SizedBox(height: 10),
               const ListTile(
@@ -204,7 +237,8 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
         ..name = _name
         ..lessonsPerWeek = _lessonsPerWeek
         ..preferEarlyPeriods = _preferEarlyPeriods
-        ..allowedPeriods = _allowedPeriods;
+        ..allowedPeriods = _allowedPeriods
+        ..consecutiveness = _consecutiveness;
 
       ref.read(subjectsNotifierProvider.notifier).addSubject(subject);
       Navigator.pop(context);

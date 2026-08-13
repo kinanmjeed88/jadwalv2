@@ -1,4 +1,5 @@
 import '../models/subject.dart';
+import '../models/subject_consecutiveness.dart';
 
 class SubjectEntity {
   final int id;
@@ -6,6 +7,7 @@ class SubjectEntity {
   final int lessonsPerWeek;
   final bool preferEarlyPeriods;
   final List<int> allowedPeriods;
+  final SubjectConsecutiveness consecutiveness;
 
   SubjectEntity({
     required this.id,
@@ -13,6 +15,7 @@ class SubjectEntity {
     required this.lessonsPerWeek,
     required this.preferEarlyPeriods,
     required this.allowedPeriods,
+    this.consecutiveness = SubjectConsecutiveness.any,
   });
 
   factory SubjectEntity.fromIsar(Subject subject) {
@@ -22,6 +25,7 @@ class SubjectEntity {
       lessonsPerWeek: subject.lessonsPerWeek,
       preferEarlyPeriods: subject.preferEarlyPeriods,
       allowedPeriods: List.from(subject.allowedPeriods),
+      consecutiveness: subject.consecutiveness,
     );
   }
 }

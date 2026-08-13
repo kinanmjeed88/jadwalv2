@@ -1,5 +1,6 @@
 import '../../../../core/models/teacher.dart';
 import '../../../../core/models/subject.dart';
+import '../../../../core/models/subject_consecutiveness.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
@@ -39,6 +40,7 @@ class SubjectDto {
   final int lessonsPerWeek;
   final bool preferEarlyPeriods;
   final List<int> allowedPeriods;
+  final SubjectConsecutiveness consecutiveness;
 
   SubjectDto({
     required this.id,
@@ -46,6 +48,7 @@ class SubjectDto {
     required this.lessonsPerWeek,
     required this.preferEarlyPeriods,
     required this.allowedPeriods,
+    this.consecutiveness = SubjectConsecutiveness.any,
   });
 
   factory SubjectDto.fromIsar(Subject subject) {
@@ -55,6 +58,7 @@ class SubjectDto {
       lessonsPerWeek: subject.lessonsPerWeek,
       preferEarlyPeriods: subject.preferEarlyPeriods,
       allowedPeriods: subject.allowedPeriods.map((e) => e).toList(),
+      consecutiveness: subject.consecutiveness,
     );
   }
 }
@@ -120,9 +124,15 @@ class LessonDto {
   ) {
     return LessonDto(
       id: lesson.id,
-      teacher: lesson.teacher.value != null ? teachersMap[lesson.teacher.value!.id] : null,
-      subject: lesson.subject.value != null ? subjectsMap[lesson.subject.value!.id] : null,
-      classroom: lesson.classroom.value != null ? classroomsMap[lesson.classroom.value!.id] : null,
+      teacher: lesson.teacher.value != null
+          ? teachersMap[lesson.teacher.value!.id]
+          : null,
+      subject: lesson.subject.value != null
+          ? subjectsMap[lesson.subject.value!.id]
+          : null,
+      classroom: lesson.classroom.value != null
+          ? classroomsMap[lesson.classroom.value!.id]
+          : null,
       dayIndex: lesson.dayIndex,
       periodIndex: lesson.periodIndex,
       isPinned: lesson.isPinned,

@@ -6,6 +6,7 @@ import '../models/subject.dart';
 import '../models/classroom.dart';
 import '../models/lesson.dart';
 import '../models/settings.dart';
+import '../models/subject_consecutiveness.dart';
 
 class BackupService {
   final Isar _isar;
@@ -37,6 +38,7 @@ class BackupService {
                 'lessonsPerWeek': s.lessonsPerWeek,
                 'preferEarlyPeriods': s.preferEarlyPeriods,
                 'allowedPeriods': s.allowedPeriods,
+                'consecutiveness': s.consecutiveness.storageName,
               })
           .toList(),
       'classrooms': classrooms
@@ -123,7 +125,9 @@ class BackupService {
               ..name = s['name']
               ..lessonsPerWeek = s['lessonsPerWeek']
               ..preferEarlyPeriods = s['preferEarlyPeriods']
-              ..allowedPeriods = List<int>.from(s['allowedPeriods'] ?? []))
+              ..allowedPeriods = List<int>.from(s['allowedPeriods'] ?? [])
+              ..consecutiveness =
+                  subjectConsecutivenessFromStorage(s['consecutiveness']))
             .toList();
         await _isar.subjects.putAll(newSubjects);
         for (final s in newSubjects) {
