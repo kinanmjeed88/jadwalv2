@@ -1,22 +1,14 @@
-1.  **Update Database Layer (Isar):**
-    *   Create a new collection `SubjectConstraint` to store per-grade, per-subject daily constraints (`maxPeriodsPerDay`).
-    *   Update `database_provider.dart` to open the database with the new schema.
-    *   Create entity and mapper classes for `SubjectConstraint` (`SubjectConstraintEntity`).
-    *   Run `build_runner` to generate Isar boilerplate.
-2.  **Update Timetable Generator Engine:**
-    *   Inject `subjectConstraints` into `TimetableGenerator`.
-    *   Update `_calculateCost` to apply dynamic maximum period constraints based on the new configurations. Add soft constraints to prioritize consecutive periods for duplicated subjects in the same day.
-    *   Update `_getConflicts` to respect dynamic constraints instead of the strict one-per-day rule.
-3.  **Update Pre-Validation Engine:**
-    *   Update `PreValidationEngine` to accept `subjectConstraints`.
-    *   Add validation to catch "mathematical impossibilities" early: e.g., if total weekly lessons assigned for a subject exceed `maxPeriodsPerDay * daysPerWeek`.
-4.  **Update Timetable State & Provider:**
-    *   Inject constraints into the isolate generator payload.
-    *   Update manual swap and move validations (`moveLessonToEmpty`, `swapLessons`) in `timetable_provider.dart` to check against dynamic subject daily limits rather than the strict single period per day constraint.
-5.  **Update Management UI:**
-    *   Create a new UI page `SubjectConstraintsPage` allowing users to configure constraints by grade and subject.
-    *   Add a tab in `ManagementPage` to route to the newly created constraints configuration page.
-6.  **Pre-commit & Tests:**
-    *   Write a unit test for `PreValidationEngine` verifying the new max constraint validation.
-    *   Run all tests, including generator tests, to assure stability and backward compatibility.
-    *   Follow `pre_commit_instructions` and finalize the solution.
+1. **Domain Layer:**
+   - Delete `UnsolvableTimetableException`.
+   - Create `TimetableGenerationException` and `ConflictReason` sealed class as specified with exclusive sub-types.
+2. **Generators & Validations:**
+   - Modify `PreValidationEngine` to collect errors, construct the `ConflictReason` models, and throw `TimetableGenerationException` when validation fails. Ensure all checks run to gather all errors (Collect-All).
+   - Modify `TimetableGenerator`'s `_getConflicts` to return `List<ConflictReason>`, then update `generate()` to throw `TimetableGenerationException` populated with those reasons.
+3. **Presentation Layer:**
+   - Create `ConflictMessageMapper` class in presentation to map `ConflictReason` objects to localized Arabic Strings.
+   - Update `timetable_page.dart` inside the `catch` block (and ONLY inside the catch block) to build an `AlertDialog` using `ConstrainedBox` (maxHeight 60% of screen height) containing a `SingleChildScrollView` displaying errors translated by `ConflictMessageMapper` as bullet points.
+4. **Testing:**
+   - Create tests for `ConflictMessageMapper`.
+   - Create tests for `PreValidationEngine` ensuring `Collect-All` behavior is preserved and it maps errors to correct `ConflictReason` sub-types.
+5. **Clean up & Pre-commit check:**
+   - Ensure `flutter analyze` and `flutter test` pass before proceeding to submission.
