@@ -16,10 +16,40 @@ import '../../../../core/models/settings.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/teacher.dart';
 import '../../../../core/providers/database_provider.dart';
+import '../../../../core/exceptions/timetable_generation_exception.dart';
 import '../../domain/usecases/pdf_export_usecase.dart';
 import '../../domain/usecases/excel_export_usecase.dart';
 import '../providers/timetable_provider.dart';
 import '../../../../core/utils/string_utils.dart';
+
+class ConflictMessageMapper {
+  static String map(ConflictReason reason) {
+    if (reason is TeacherLoadExceeded) {
+      return 'المعلم "${reason.teacherName}": تجاوز الحد الأقصى للحصص (${reason.currentLoad} / ${reason.maxLoad}).';
+    } else if (reason is InsufficientDaysForSubject) {
+      return 'مادة "${reason.subjectName}": تحتاج ${reason.requiredLessons} حصص ولكن متاح ${reason.availableDays} أيام فقط.';
+    } else if (reason is TeacherTimeSlotConflict) {
+      return 'المعلم "${reason.teacherName}": تعارض في اليوم ${reason.day + 1} الحصة ${reason.period + 1}.';
+    } else if (reason is UnassignedSubject) {
+      return 'مادة "${reason.subjectName}": ${reason.details}';
+    } else if (reason is GenericSolverFailure) {
+      return 'خطأ عام: ${reason.details}';
+    } else if (reason is ClassroomTimeSlotConflict) {
+      return 'الفصل "${reason.classroomName}": تعارض في اليوم ${reason.day + 1} الحصة ${reason.period + 1}.';
+    } else if (reason is TeacherUnavailableDayConflict) {
+      return 'المعلم "${reason.teacherName}": غير متوفر في اليوم ${reason.day + 1}.';
+    } else if (reason is TeacherNotAllowedPeriodConflict) {
+      return 'المعلم "${reason.teacherName}": غير مسموح له بالتدريس في الحصة ${reason.period + 1}.';
+    } else if (reason is SubjectMaxPerDayExceeded) {
+      return 'مادة "${reason.subjectName}" (الفصل "${reason.classroomName}"): تجاوز الحد الأقصى في اليوم ${reason.day + 1} (${reason.currentCount} حصص، المسموح ${reason.maxAllowed}).';
+    } else if (reason is SubjectNotAllowedPeriodConflict) {
+      return 'مادة "${reason.subjectName}": غير مسموح بتدريسها في الحصة ${reason.period + 1}.';
+    } else if (reason is NonConsecutiveSubjectPeriodsConflict) {
+      return 'مادة "${reason.subjectName}" (الفصل "${reason.classroomName}"): الحصص غير متتالية في اليوم ${reason.day + 1}.';
+    }
+    return 'سبب غير معروف للصراع.';
+  }
+}
 
 class TimetablePage extends ConsumerStatefulWidget {
   const TimetablePage({super.key});
@@ -417,6 +447,42 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             onPressed: () async {
               try {
                 await ref.read(timetableNotifierProvider.notifier).generateTimetable();
+              } on TimetableGenerationException catch (e) {
+                if (!mounted) return;
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('القيود تتعارض مع بعضها', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    content: ConstrainedBox(
+                      constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.6),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: e.reasons.map((reason) {
+                            final message = ConflictMessageMapper.map(reason);
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 4.0),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('• ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                                  Expanded(child: Text(message, style: const TextStyle(fontSize: 14))),
+                                ],
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('حسناً', style: TextStyle(fontSize: 18)),
+                      ),
+                    ],
+                  ),
+                );
               } catch (e) {
                 if (!mounted) return;
                 String errorMessage = e.toString().replaceAll('Exception:', '').trim();

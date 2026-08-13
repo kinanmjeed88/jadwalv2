@@ -6,6 +6,7 @@ import '../../../../core/entities/classroom_entity.dart';
 import '../../../../core/entities/app_settings_entity.dart';
 import '../../../../core/entities/subject_constraint_entity.dart';
 import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
+import '../../../../core/exceptions/timetable_generation_exception.dart';
 import 'pre_validation_engine.dart';
 
 class TimetableGenerator {
@@ -240,21 +241,19 @@ class TimetableGenerator {
 
     stopwatch.stop();
     if (bestCost > 0) {
-      List<String> conflicts = _getConflicts(bestSchedule, maxDays, maxPeriods);
-      String errorMessage = conflicts.isNotEmpty
-          ? 'القيود الحالية صارمة جداً وتتعارض مع بعضها. التعارضات المتبقية:\n\n${conflicts.map((c) => '- $c').join('\n')}'
-          : 'تعذر توليد الجدول (بسبب قيود صارمة).';
-      throw UnsolvableTimetableException(errorMessage);
+      List<ConflictReason> conflicts = _getConflicts(bestSchedule, maxDays, maxPeriods);
+      throw TimetableGenerationException(conflicts);
     }
     return bestSchedule;
   }
 
-  List<String> _getConflicts(List<LessonEntity> state, int maxDays, int maxPeriods) {
-    List<String> conflicts = [];
+  List<ConflictReason> _getConflicts(List<LessonEntity> state, int maxDays, int maxPeriods) {
+    List<ConflictReason> conflicts = [];
 
     Map<int, Set<int>> teacherSlots = {};
     Map<int, Map<int, int>> teacherDailyCounts = {};
     Map<int, Map<int, Map<int, int>>> classroomDailySubjectsCounts = {};
+    Map<int, Map<int, Map<int, List<int>>>> classroomDailySubjectsPeriods = {};
     Map<int, Set<int>> classroomSlots = {};
 
     for (var lesson in state) {
@@ -267,7 +266,7 @@ class TimetableGenerator {
       if (lesson.classroom != null) {
         int cId = lesson.classroom!.id;
         if (classroomSlots.containsKey(cId) && classroomSlots[cId]!.contains(timeKey)) {
-          conflicts.add('تعارض في الفصل "${lesson.classroom!.name}": أكثر من حصة في اليوم ${day + 1} الحصة ${period + 1}');
+          conflicts.add(ClassroomTimeSlotConflict(lesson.classroom!.name, day, period));
         } else {
           classroomSlots.putIfAbsent(cId, () => {}).add(timeKey);
         }
@@ -278,7 +277,7 @@ class TimetableGenerator {
         String tName = lesson.teacher!.name;
 
         if (teacherSlots.containsKey(tId) && teacherSlots[tId]!.contains(timeKey)) {
-          conflicts.add('تعارض للمعلم "$tName": أكثر من حصة في اليوم ${day + 1} الحصة ${period + 1}');
+          conflicts.add(TeacherTimeSlotConflict(tName, day, period));
         } else {
           teacherSlots.putIfAbsent(tId, () => {}).add(timeKey);
         }
@@ -287,11 +286,15 @@ class TimetableGenerator {
         teacherDailyCounts[tId]![day] = (teacherDailyCounts[tId]![day] ?? 0) + 1;
 
         if (teacherDailyCounts[tId]![day]! > lesson.teacher!.maxLessonsPerDay) {
-          conflicts.add('تجاوز الحد الأقصى للمعلم "$tName" في اليوم ${day + 1}');
+          conflicts.add(TeacherLoadExceeded(tName, teacherDailyCounts[tId]![day]!, lesson.teacher!.maxLessonsPerDay));
         }
 
         if (lesson.teacher!.unavailableDays.contains(day)) {
-          conflicts.add('المعلم "$tName" غير متوفر في اليوم ${day + 1}');
+          conflicts.add(TeacherUnavailableDayConflict(tName, day));
+        }
+
+        if (lesson.teacher!.allowedPeriods.isNotEmpty && !lesson.teacher!.allowedPeriods.contains(period)) {
+          conflicts.add(TeacherNotAllowedPeriodConflict(tName, period));
         }
       }
 
@@ -304,17 +307,40 @@ class TimetableGenerator {
         classroomDailySubjectsCounts.putIfAbsent(cId, () => {});
         classroomDailySubjectsCounts[cId]!.putIfAbsent(day, () => {});
 
+        classroomDailySubjectsPeriods.putIfAbsent(cId, () => {});
+        classroomDailySubjectsPeriods[cId]!.putIfAbsent(day, () => {});
+        classroomDailySubjectsPeriods[cId]![day]!.putIfAbsent(sId, () => []);
+
         int maxAllowed = _getMaxAllowedSubjectPerDay(sId, cId);
         int currentCount = classroomDailySubjectsCounts[cId]![day]![sId] ?? 0;
 
         if (currentCount >= maxAllowed) {
-          if (maxAllowed == 1) {
-             conflicts.add('تكرار مادة "$sName" في نفس اليوم ${day + 1} للفصل "$cName"');
-          } else {
-             conflicts.add('تجاوز الحد الأقصى ($maxAllowed حصص) لمادة "$sName" في اليوم ${day + 1} للفصل "$cName"');
-          }
+          conflicts.add(SubjectMaxPerDayExceeded(sName, cName, day, maxAllowed, currentCount + 1));
         } else {
           classroomDailySubjectsCounts[cId]![day]![sId] = currentCount + 1;
+          classroomDailySubjectsPeriods[cId]![day]![sId]!.add(period);
+        }
+
+        if (lesson.subject!.allowedPeriods.isNotEmpty && !lesson.subject!.allowedPeriods.contains(period)) {
+          conflicts.add(SubjectNotAllowedPeriodConflict(sName, period));
+        }
+      }
+    }
+
+    for (var cId in classroomDailySubjectsPeriods.keys) {
+      for (var day in classroomDailySubjectsPeriods[cId]!.keys) {
+        for (var sId in classroomDailySubjectsPeriods[cId]![day]!.keys) {
+          var periods = classroomDailySubjectsPeriods[cId]![day]![sId]!;
+          if (periods.length > 1) {
+            periods.sort();
+            for (int i = 0; i < periods.length - 1; i++) {
+              if (periods[i + 1] - periods[i] != 1) {
+                String sName = subjects.firstWhere((s) => s.id == sId, orElse: () => subjects.first).name;
+                String cName = classrooms.firstWhere((c) => c.id == cId, orElse: () => classrooms.first).name;
+                conflicts.add(NonConsecutiveSubjectPeriodsConflict(sName, cName, day));
+              }
+            }
+          }
         }
       }
     }
