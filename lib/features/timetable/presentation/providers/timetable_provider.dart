@@ -17,6 +17,7 @@ import '../../../../core/entities/subject_constraint_entity.dart';
 
 import '../../domain/usecases/timetable_generator.dart';
 import '../../../../core/exceptions/unsolvable_timetable_exception.dart';
+import '../../../../core/exceptions/timetable_generation_exception.dart';
 
 part 'timetable_provider.g.dart';
 
@@ -221,6 +222,19 @@ class TimetableNotifier extends _$TimetableNotifier {
         lesson.teacher.loadSync();
       }
       state = AsyncValue.data(existingLessons);
+    } on TimetableGenerationException {
+      // Restore valid data state to avoid generic error widget
+      final isar = await ref.read(isarDatabaseProvider.future);
+      final lessons = await isar.lessons.where().findAll();
+      for (var lesson in lessons) {
+        lesson.classroom.loadSync();
+        lesson.subject.loadSync();
+        lesson.teacher.loadSync();
+      }
+      state = AsyncValue.data(lessons);
+
+      // Rethrow to the UI try-catch block
+      rethrow;
     } on UnsolvableTimetableException catch (e) {
       // Restore valid data state to avoid generic error widget
       final isar = await ref.read(isarDatabaseProvider.future);
