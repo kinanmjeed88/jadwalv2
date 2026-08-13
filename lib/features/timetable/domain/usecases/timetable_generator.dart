@@ -28,11 +28,14 @@ class TimetableGenerator {
   int _getMaxAllowedSubjectPerDay(int subjectId, int classroomId) {
     if (subjectConstraints.isEmpty) return 1;
 
-    final subject = subjects.firstWhere((s) => s.id == subjectId, orElse: () => subjects.first);
-    final classroom = classrooms.firstWhere((c) => c.id == classroomId, orElse: () => classrooms.first);
+    final subject = subjects.firstWhere((s) => s.id == subjectId,
+        orElse: () => subjects.first);
+    final classroom = classrooms.firstWhere((c) => c.id == classroomId,
+        orElse: () => classrooms.first);
 
     for (var constraint in subjectConstraints) {
-      if (constraint.grade == classroom.grade && constraint.subjectName == subject.name) {
+      if (constraint.grade == classroom.grade &&
+          constraint.subjectName == subject.name) {
         return constraint.maxPeriodsPerDay;
       }
     }
@@ -50,7 +53,9 @@ class TimetableGenerator {
     );
     final errors = engine.validateAll();
     if (errors.isNotEmpty) {
-      throw TimetableGenerationException([GenericSolverFailure(errors.join('\n\n'))]);
+      final reasons =
+          errors.map((error) => GenericSolverFailure(error)).toList();
+      throw TimetableGenerationException(reasons);
     }
   }
 
@@ -66,7 +71,9 @@ class TimetableGenerator {
     Map<int, List<LessonEntity>> classroomLessons = {};
     for (var lesson in existingLessons) {
       if (lesson.classroom != null) {
-        classroomLessons.putIfAbsent(lesson.classroom!.id, () => []).add(lesson);
+        classroomLessons
+            .putIfAbsent(lesson.classroom!.id, () => [])
+            .add(lesson);
       }
     }
 
@@ -81,7 +88,9 @@ class TimetableGenerator {
       Set<int> occupiedSlots = {};
 
       for (var lesson in lessons) {
-        if (lesson.isPinned && lesson.dayIndex != null && lesson.periodIndex != null) {
+        if (lesson.isPinned &&
+            lesson.dayIndex != null &&
+            lesson.periodIndex != null) {
           currentSchedule.add(lesson);
           occupiedSlots.add(lesson.dayIndex! * 100 + lesson.periodIndex!);
         } else {
@@ -102,7 +111,8 @@ class TimetableGenerator {
       availableSlots.shuffle(random);
 
       int unpinnedIndex = 0;
-      while (unpinnedIndex < unpinned.length && unpinnedIndex < availableSlots.length) {
+      while (unpinnedIndex < unpinned.length &&
+          unpinnedIndex < availableSlots.length) {
         var lesson = unpinned[unpinnedIndex];
         int slot = availableSlots[unpinnedIndex];
         lesson.dayIndex = slot ~/ 100;
@@ -123,7 +133,8 @@ class TimetableGenerator {
     }
 
     // Lessons without a classroom (if any) are added randomly
-    var orphanLessons = existingLessons.where((l) => l.classroom == null).toList();
+    var orphanLessons =
+        existingLessons.where((l) => l.classroom == null).toList();
     for (var l in orphanLessons) {
       if (l.isPinned && l.dayIndex != null && l.periodIndex != null) {
         currentSchedule.add(l);
@@ -136,15 +147,17 @@ class TimetableGenerator {
 
     // Helper: Clone state
     List<LessonEntity> cloneState(List<LessonEntity> source) {
-      return source.map((l) => LessonEntity(
-        id: l.id,
-        teacher: l.teacher,
-        subject: l.subject,
-        classroom: l.classroom,
-        dayIndex: l.dayIndex,
-        periodIndex: l.periodIndex,
-        isPinned: l.isPinned,
-      )).toList();
+      return source
+          .map((l) => LessonEntity(
+                id: l.id,
+                teacher: l.teacher,
+                subject: l.subject,
+                classroom: l.classroom,
+                dayIndex: l.dayIndex,
+                periodIndex: l.periodIndex,
+                isPinned: l.isPinned,
+              ))
+          .toList();
     }
 
     int currentCost = _calculateCost(currentSchedule, maxDays, maxPeriods);
@@ -179,12 +192,15 @@ class TimetableGenerator {
       }).toList();
 
       if (validClassroomIds.isNotEmpty) {
-        int randomClassroomId = validClassroomIds[random.nextInt(validClassroomIds.length)];
+        int randomClassroomId =
+            validClassroomIds[random.nextInt(validClassroomIds.length)];
         var classroomLessons = neighborClassrooms[randomClassroomId]!;
-        List<LessonEntity> unpinnedClassroomLessons = classroomLessons.where((l) => !l.isPinned).toList();
+        List<LessonEntity> unpinnedClassroomLessons =
+            classroomLessons.where((l) => !l.isPinned).toList();
 
         // Pick a random unpinned lesson
-        LessonEntity targetLesson = unpinnedClassroomLessons[random.nextInt(unpinnedClassroomLessons.length)];
+        LessonEntity targetLesson = unpinnedClassroomLessons[
+            random.nextInt(unpinnedClassroomLessons.length)];
 
         // Pick a random destination slot
         int newDay = random.nextInt(maxDays);
@@ -192,7 +208,8 @@ class TimetableGenerator {
 
         // Check if destination slot is occupied by another lesson in the SAME classroom
         // We can only swap if it's unpinned.
-        var occupyingLessonOpt = classroomLessons.where((l) => l.dayIndex == newDay && l.periodIndex == newPeriod);
+        var occupyingLessonOpt = classroomLessons
+            .where((l) => l.dayIndex == newDay && l.periodIndex == newPeriod);
 
         if (occupyingLessonOpt.isNotEmpty) {
           var occupyingLesson = occupyingLessonOpt.first;
@@ -240,7 +257,8 @@ class TimetableGenerator {
 
     stopwatch.stop();
     if (bestCost > 0) {
-      List<ConflictReason> conflicts = _getConflicts(bestSchedule, maxDays, maxPeriods);
+      List<ConflictReason> conflicts =
+          _getConflicts(bestSchedule, maxDays, maxPeriods);
       throw TimetableGenerationException(conflicts);
     }
     return bestSchedule;
@@ -248,7 +266,8 @@ class TimetableGenerator {
 
   // ⚠️ عقد معماري: أي تعديل هنا يجب أن ينعكس في الدالة المقابلة.
   // كل شرط يرفع التكلفة (cost > 0) يجب أن يقابله إضافة تعارض (conflict.add) مماثل.
-  List<ConflictReason> _getConflicts(List<LessonEntity> state, int maxDays, int maxPeriods) {
+  List<ConflictReason> _getConflicts(
+      List<LessonEntity> state, int maxDays, int maxPeriods) {
     List<ConflictReason> conflicts = [];
 
     Map<int, Set<int>> teacherSlots = {};
@@ -266,8 +285,10 @@ class TimetableGenerator {
 
       if (lesson.classroom != null) {
         int cId = lesson.classroom!.id;
-        if (classroomSlots.containsKey(cId) && classroomSlots[cId]!.contains(timeKey)) {
-          conflicts.add(ClassroomTimeSlotConflict(lesson.classroom!.name, day, period));
+        if (classroomSlots.containsKey(cId) &&
+            classroomSlots[cId]!.contains(timeKey)) {
+          conflicts.add(
+              ClassroomTimeSlotConflict(lesson.classroom!.name, day, period));
         } else {
           classroomSlots.putIfAbsent(cId, () => {}).add(timeKey);
         }
@@ -277,24 +298,30 @@ class TimetableGenerator {
         int tId = lesson.teacher!.id;
         String tName = lesson.teacher!.name;
 
-        if (teacherSlots.containsKey(tId) && teacherSlots[tId]!.contains(timeKey)) {
+        if (teacherSlots.containsKey(tId) &&
+            teacherSlots[tId]!.contains(timeKey)) {
           conflicts.add(TeacherTimeSlotConflict(tName, day, period));
         } else {
           teacherSlots.putIfAbsent(tId, () => {}).add(timeKey);
         }
 
         teacherDailyCounts.putIfAbsent(tId, () => {});
-        teacherDailyCounts[tId]![day] = (teacherDailyCounts[tId]![day] ?? 0) + 1;
+        teacherDailyCounts[tId]![day] =
+            (teacherDailyCounts[tId]![day] ?? 0) + 1;
 
         if (teacherDailyCounts[tId]![day]! > lesson.teacher!.maxLessonsPerDay) {
-          conflicts.add(TeacherLoadExceeded(tName, teacherDailyCounts[tId]![day]!, lesson.teacher!.maxLessonsPerDay));
+          conflicts.add(TeacherLoadExceeded(
+              tName,
+              teacherDailyCounts[tId]![day]!,
+              lesson.teacher!.maxLessonsPerDay));
         }
 
         if (lesson.teacher!.unavailableDays.contains(day)) {
           conflicts.add(TeacherUnavailableDayConflict(tName, day));
         }
 
-        if (lesson.teacher!.allowedPeriods.isNotEmpty && !lesson.teacher!.allowedPeriods.contains(period)) {
+        if (lesson.teacher!.allowedPeriods.isNotEmpty &&
+            !lesson.teacher!.allowedPeriods.contains(period)) {
           conflicts.add(TeacherNotAllowedPeriodConflict(tName, period));
         }
       }
@@ -316,13 +343,15 @@ class TimetableGenerator {
         int currentCount = classroomDailySubjectsCounts[cId]![day]![sId] ?? 0;
 
         if (currentCount >= maxAllowed) {
-          conflicts.add(SubjectMaxPerDayExceeded(sName, cName, day, maxAllowed, currentCount + 1));
+          conflicts.add(SubjectMaxPerDayExceeded(
+              sName, cName, day, maxAllowed, currentCount + 1));
         } else {
           classroomDailySubjectsCounts[cId]![day]![sId] = currentCount + 1;
           classroomDailySubjectsPeriods[cId]![day]![sId]!.add(period);
         }
 
-        if (lesson.subject!.allowedPeriods.isNotEmpty && !lesson.subject!.allowedPeriods.contains(period)) {
+        if (lesson.subject!.allowedPeriods.isNotEmpty &&
+            !lesson.subject!.allowedPeriods.contains(period)) {
           conflicts.add(SubjectNotAllowedPeriodConflict(sName, period));
         }
       }
@@ -336,9 +365,16 @@ class TimetableGenerator {
             periods.sort();
             for (int i = 0; i < periods.length - 1; i++) {
               if (periods[i + 1] - periods[i] != 1) {
-                String sName = subjects.firstWhere((s) => s.id == sId, orElse: () => subjects.first).name;
-                String cName = classrooms.firstWhere((c) => c.id == cId, orElse: () => classrooms.first).name;
-                conflicts.add(NonConsecutiveSubjectPeriodsConflict(sName, cName, day));
+                String sName = subjects
+                    .firstWhere((s) => s.id == sId,
+                        orElse: () => subjects.first)
+                    .name;
+                String cName = classrooms
+                    .firstWhere((c) => c.id == cId,
+                        orElse: () => classrooms.first)
+                    .name;
+                conflicts.add(
+                    NonConsecutiveSubjectPeriodsConflict(sName, cName, day));
               }
             }
           }
@@ -346,16 +382,21 @@ class TimetableGenerator {
       }
     }
 
-    if (conflicts.isEmpty) {
-      conflicts.add(const GenericSolverFailure('توجد تعارضات خفية في توزيع الحصص أو قيود المعلمين لم يتم تحديدها بدقة.'));
+    final finalCost = _calculateCost(state, maxDays, maxPeriods);
+    if (finalCost > 0 && conflicts.isEmpty) {
+      conflicts.add(
+        const GenericSolverFailure(
+          'توجد تعارضات خفية في توزيع الحصص أو قيود المعلمين لم يتم تحديدها بدقة.',
+        ),
+      );
     }
 
     return conflicts.toSet().toList();
   }
 
+  // 2. The Cost Function (Penalty Calculation)
   // ⚠️ عقد معماري: أي تعديل هنا يجب أن ينعكس في الدالة المقابلة.
   // كل شرط يرفع التكلفة (cost > 0) يجب أن يقابله إضافة تعارض (conflict.add) مماثل.
-  // 2. The Cost Function (Penalty Calculation)
   int _calculateCost(List<LessonEntity> state, int maxDays, int maxPeriods) {
     int cost = 0;
 
@@ -382,7 +423,8 @@ class TimetableGenerator {
       // Hard Constraint: Classroom Clash (Multiple lessons in same period)
       if (lesson.classroom != null) {
         int cId = lesson.classroom!.id;
-        if (classroomSlots.containsKey(cId) && classroomSlots[cId]!.contains(timeKey)) {
+        if (classroomSlots.containsKey(cId) &&
+            classroomSlots[cId]!.contains(timeKey)) {
           cost += 1000;
         } else {
           classroomSlots.putIfAbsent(cId, () => {}).add(timeKey);
@@ -393,7 +435,8 @@ class TimetableGenerator {
         int tId = lesson.teacher!.id;
 
         // Hard Constraint: Teacher Clash
-        if (teacherSlots.containsKey(tId) && teacherSlots[tId]!.contains(timeKey)) {
+        if (teacherSlots.containsKey(tId) &&
+            teacherSlots[tId]!.contains(timeKey)) {
           cost += 1000;
         } else {
           teacherSlots.putIfAbsent(tId, () => {}).add(timeKey);
@@ -401,7 +444,8 @@ class TimetableGenerator {
 
         // Hard Constraint: Teacher Daily Limit
         teacherDailyCounts.putIfAbsent(tId, () => {});
-        teacherDailyCounts[tId]![day] = (teacherDailyCounts[tId]![day] ?? 0) + 1;
+        teacherDailyCounts[tId]![day] =
+            (teacherDailyCounts[tId]![day] ?? 0) + 1;
 
         if (teacherDailyCounts[tId]![day]! > lesson.teacher!.maxLessonsPerDay) {
           cost += 1000;
@@ -413,7 +457,8 @@ class TimetableGenerator {
         }
 
         // Teacher allowed periods
-        if (lesson.teacher!.allowedPeriods.isNotEmpty && !lesson.teacher!.allowedPeriods.contains(period)) {
+        if (lesson.teacher!.allowedPeriods.isNotEmpty &&
+            !lesson.teacher!.allowedPeriods.contains(period)) {
           cost += 1000;
         }
       }
@@ -441,7 +486,8 @@ class TimetableGenerator {
         }
 
         // Subject allowed periods
-        if (lesson.subject!.allowedPeriods.isNotEmpty && !lesson.subject!.allowedPeriods.contains(period)) {
+        if (lesson.subject!.allowedPeriods.isNotEmpty &&
+            !lesson.subject!.allowedPeriods.contains(period)) {
           cost += 1000; // Treated as hard constraint
         }
       }
@@ -456,7 +502,8 @@ class TimetableGenerator {
             periods.sort();
             for (int i = 0; i < periods.length - 1; i++) {
               if (periods[i + 1] - periods[i] != 1) {
-                cost += 50; // Soft penalty for non-consecutive periods of the same subject in the same day
+                cost +=
+                    50; // Soft penalty for non-consecutive periods of the same subject in the same day
               }
             }
           }
