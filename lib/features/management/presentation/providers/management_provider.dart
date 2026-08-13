@@ -1,7 +1,11 @@
+import 'package:isar/isar.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../../../core/providers/database_provider.dart';
 import '../../../../core/providers/repository_provider.dart';
 import '../../../../core/models/teacher.dart';
 import '../../../../core/models/subject.dart';
+import '../../../../core/models/subject_consecutiveness.dart';
+import '../../../../core/models/subject_constraint.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/settings.dart';
 
@@ -39,6 +43,46 @@ class SubjectsNotifier extends _$SubjectsNotifier {
   Future<void> addSubject(Subject subject) async {
     final repo = await ref.read(managementRepositoryProvider.future);
     await repo.addSubject(subject);
+    state = AsyncValue.data(await repo.getSubjects());
+  }
+
+  Future<void> saveSubjectConstraint({
+    int? constraintId,
+    required String grade,
+    required String subjectName,
+    required int maxPeriodsPerDay,
+    required SubjectConsecutiveness consecutiveness,
+  }) async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+
+    await isar.writeTxn(() async {
+      SubjectConstraint? constraint;
+      if (constraintId != null) {
+        constraint = await isar.subjectConstraints.get(constraintId);
+      }
+      constraint ??= await isar.subjectConstraints
+          .filter()
+          .gradeEqualTo(grade)
+          .and()
+          .subjectNameEqualTo(subjectName)
+          .findFirst();
+
+      constraint ??= SubjectConstraint();
+      constraint
+        ..grade = grade
+        ..subjectName = subjectName
+        ..maxPeriodsPerDay = maxPeriodsPerDay;
+      await isar.subjectConstraints.put(constraint);
+
+      final subject =
+          await isar.subjects.filter().nameEqualTo(subjectName).findFirst();
+      if (subject != null) {
+        subject.consecutiveness = consecutiveness;
+        await isar.subjects.put(subject);
+      }
+    });
+
+    final repo = await ref.read(managementRepositoryProvider.future);
     state = AsyncValue.data(await repo.getSubjects());
   }
 

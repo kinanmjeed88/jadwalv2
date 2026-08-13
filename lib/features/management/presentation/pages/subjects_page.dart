@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/models/subject.dart';
-import '../../../../core/models/subject_consecutiveness.dart';
 import '../../../../core/utils/period_mapper.dart';
 import '../providers/management_provider.dart';
 
@@ -27,8 +26,7 @@ class SubjectsPage extends ConsumerWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: ListTile(
                   title: Text(subject.name),
-                  subtitle: Text(
-                      'الدروس الأسبوعية: ' + subject.lessonsPerWeek.toString()),
+                  subtitle: Text('الدروس الأسبوعية: ${subject.lessonsPerWeek}'),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete, color: Colors.red),
                     tooltip: 'حذف',
@@ -41,7 +39,7 @@ class SubjectsPage extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, st) => Center(child: Text('حدث خطأ: ' + e.toString())),
+        error: (e, st) => Center(child: Text('حدث خطأ: $e')),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showAddOrEditDialog(context, ref, null),
@@ -56,7 +54,7 @@ class SubjectsPage extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('حذف المادة'),
-        content: Text('هل أنت متأكد من حذف المادة "' + subject.name + '"؟'),
+        content: Text('هل أنت متأكد من حذف المادة "${subject.name}"؟'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -100,7 +98,6 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
   late int _lessonsPerWeek;
   late bool _preferEarlyPeriods;
   late List<int> _allowedPeriods;
-  late SubjectConsecutiveness _consecutiveness;
 
   @override
   void initState() {
@@ -109,8 +106,6 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
     _lessonsPerWeek = widget.existingSubject?.lessonsPerWeek ?? 1;
     _preferEarlyPeriods = widget.existingSubject?.preferEarlyPeriods ?? false;
     _allowedPeriods = List.from(widget.existingSubject?.allowedPeriods ?? []);
-    _consecutiveness =
-        widget.existingSubject?.consecutiveness ?? SubjectConsecutiveness.any;
   }
 
   @override
@@ -153,32 +148,6 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                 value: _preferEarlyPeriods,
                 onChanged: (val) =>
                     setState(() => _preferEarlyPeriods = val ?? false),
-              ),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<SubjectConsecutiveness>(
-                value: _consecutiveness,
-                decoration: const InputDecoration(
-                  labelText: 'تتابع حصص المادة',
-                  helperText:
-                      'يؤثر خيار متتالي على ترتيب حصص المادة في اليوم نفسه',
-                ),
-                items: const [
-                  SubjectConsecutiveness.consecutive,
-                  SubjectConsecutiveness.nonConsecutive,
-                  SubjectConsecutiveness.any,
-                ]
-                    .map(
-                      (option) => DropdownMenuItem<SubjectConsecutiveness>(
-                        value: option,
-                        child: Text(option.label),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _consecutiveness = value);
-                  }
-                },
               ),
               const SizedBox(height: 10),
               const ListTile(
@@ -237,8 +206,7 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
         ..name = _name
         ..lessonsPerWeek = _lessonsPerWeek
         ..preferEarlyPeriods = _preferEarlyPeriods
-        ..allowedPeriods = _allowedPeriods
-        ..consecutiveness = _consecutiveness;
+        ..allowedPeriods = _allowedPeriods;
 
       ref.read(subjectsNotifierProvider.notifier).addSubject(subject);
       Navigator.pop(context);
