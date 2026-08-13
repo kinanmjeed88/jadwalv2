@@ -2,7 +2,7 @@ import 'package:excel/excel.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/settings.dart';
-import '../../../../core/utils/string_utils.dart';
+import '../../../../core/utils/timetable_display_utils.dart';
 
 class ExcelExportUseCase {
   String getAcademicYear() {
@@ -11,7 +11,8 @@ class ExcelExportUseCase {
     return '$startYear/${startYear + 1}';
   }
 
-  Future<List<int>> generateTimetableExcel(List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) async {
+  Future<List<int>> generateTimetableExcel(List<Lesson> lessons,
+      List<Classroom> classrooms, AppSettings settings) async {
     final excel = Excel.createExcel();
     final sheetName = 'الجدول الأسبوعي';
     excel.rename('Sheet1', sheetName);
@@ -27,11 +28,11 @@ class ExcelExportUseCase {
       sheet.setColumnWidth(totalCols - 3 - i, 25.0); // Classrooms moving left
     }
 
-    // Set Header Row Heights
-    sheet.setRowHeight(0, 30.0);
-    sheet.setRowHeight(1, 30.0);
-    sheet.setRowHeight(2, 30.0);
-    sheet.setRowHeight(3, 30.0);
+    // Compact metadata and header rows to match the one-line cell layout.
+    sheet.setRowHeight(0, 24.0);
+    sheet.setRowHeight(1, 20.0);
+    sheet.setRowHeight(2, 6.0);
+    sheet.setRowHeight(3, 24.0);
 
     // Data Row Heights
     final int daysCount = settings.daysPerWeek;
@@ -39,7 +40,7 @@ class ExcelExportUseCase {
     final int totalLessonRows = daysCount * periodsCount;
 
     for (int r = 4; r < 4 + totalLessonRows; r++) {
-      sheet.setRowHeight(r, 45.0);
+      sheet.setRowHeight(r, 24.0);
     }
 
     String schoolName = (settings.schoolName as String?) ?? '';
@@ -55,7 +56,8 @@ class ExcelExportUseCase {
     // Row 0
     // School Name (Rightmost in standard, but Leftmost visually RTL mapping? Wait, let's look at issue:
     // "اليمين (العمود الأول Index 0): اكتب اسم المدرسة"
-    var cellSchool = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
+    var cellSchool =
+        sheet.cell(CellIndex.indexByColumnRow(columnIndex: 0, rowIndex: 0));
     cellSchool.value = TextCellValue('اسم المدرسة: $schoolName');
     cellSchool.cellStyle = CellStyle(
       bold: true,
@@ -65,17 +67,17 @@ class ExcelExportUseCase {
 
     // Title merged in center
     if (totalCols > 2) {
-      sheet.merge(
-        CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0),
-        CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: 0)
-      );
-      var cellTitle = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0));
+      sheet.merge(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0),
+          CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: 0));
+      var cellTitle =
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 0));
       cellTitle.value = TextCellValue('جدول الدروس الأسبوعي');
       cellTitle.cellStyle = centerMergeStyle;
     }
 
     // Principal Name (اليسار (العمود الأخير totalCols - 1): اكتب المدير)
-    var cellPrincipal = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 0));
+    var cellPrincipal = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 0));
     cellPrincipal.value = TextCellValue('المدير: $principalName');
     cellPrincipal.cellStyle = CellStyle(
       bold: true,
@@ -83,14 +85,12 @@ class ExcelExportUseCase {
       verticalAlign: VerticalAlign.Center,
     );
 
-
     // Row 1: Academic Year
     if (totalCols > 2) {
-      sheet.merge(
-        CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 1),
-        CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: 1)
-      );
-      var cellYear = sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 1));
+      sheet.merge(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 1),
+          CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: 1));
+      var cellYear =
+          sheet.cell(CellIndex.indexByColumnRow(columnIndex: 1, rowIndex: 1));
       cellYear.value = TextCellValue('العام الدراسي: $academicYear');
       cellYear.cellStyle = centerMergeStyle;
     }
@@ -109,18 +109,21 @@ class ExcelExportUseCase {
       rightBorder: Border(borderStyle: BorderStyle.Thin),
     );
 
-    var dayCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 3));
+    var dayCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: 3));
     dayCell.value = TextCellValue('اليوم');
     dayCell.cellStyle = headerStyle;
 
-    var periodCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: 3));
+    var periodCell = sheet.cell(
+        CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: 3));
     periodCell.value = TextCellValue('الدرس');
     periodCell.cellStyle = headerStyle;
 
     for (int i = 0; i < classrooms.length; i++) {
       var classroom = classrooms[i];
       String cName = (classroom.name as String?) ?? '';
-      var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 3 - i, rowIndex: 3));
+      var cell = sheet.cell(CellIndex.indexByColumnRow(
+          columnIndex: totalCols - 3 - i, rowIndex: 3));
       cell.value = TextCellValue(cName);
       cell.cellStyle = CellStyle(
         bold: true,
@@ -166,26 +169,31 @@ class ExcelExportUseCase {
           rightBorder: Border(borderStyle: BorderStyle.Thin),
         );
 
-        var dCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: rowIndex));
+        var dCell = sheet.cell(CellIndex.indexByColumnRow(
+            columnIndex: totalCols - 1, rowIndex: rowIndex));
         dCell.value = TextCellValue(displayDays[d]);
         dCell.cellStyle = baseStyle;
 
-        var pCell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 2, rowIndex: rowIndex));
+        var pCell = sheet.cell(CellIndex.indexByColumnRow(
+            columnIndex: totalCols - 2, rowIndex: rowIndex));
         pCell.value = TextCellValue((p + 1).toString());
         pCell.cellStyle = baseStyle;
 
         for (int c = 0; c < classrooms.length; c++) {
           var classroom = classrooms[c];
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
-          var cell = sheet.cell(CellIndex.indexByColumnRow(columnIndex: totalCols - 3 - c, rowIndex: rowIndex));
+          var cell = sheet.cell(CellIndex.indexByColumnRow(
+              columnIndex: totalCols - 3 - c, rowIndex: rowIndex));
 
           if (lesson != null) {
-            String subjectName = ((lesson.subject.value?.name as String?) ?? '-').cleanSubjectName();
-            String teacherName = '-';
-            if (lesson.teacher.value != null) {
-              teacherName = ((lesson.teacher.value!.name as String?) ?? '-').split(' ').first;
-            }
-            cell.value = TextCellValue('$subjectName\n$teacherName');
+            final subjectName = timetableSubjectDisplayName(
+              lesson.subject.value?.name,
+            );
+            final cellLabel = formatTimetableCellLabel(
+              subjectName: lesson.subject.value?.name,
+              companionName: firstTimetableName(lesson.teacher.value?.name),
+            );
+            cell.value = TextCellValue(cellLabel);
 
             String hexColor = _getSubjectColor(subjectName);
 
@@ -197,7 +205,7 @@ class ExcelExportUseCase {
               leftBorder: Border(borderStyle: BorderStyle.Thin),
               rightBorder: Border(borderStyle: BorderStyle.Thin),
               backgroundColorHex: ExcelColor.fromHexString(hexColor),
-              textWrapping: TextWrapping.WrapText,
+              textWrapping: TextWrapping.Clip,
             );
           } else {
             cell.cellStyle = baseStyle;
@@ -209,9 +217,10 @@ class ExcelExportUseCase {
       // Merge Day Cells
       if (rowIndex - 1 > startRowOfDay) {
         sheet.merge(
-          CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: startRowOfDay),
-          CellIndex.indexByColumnRow(columnIndex: totalCols - 1, rowIndex: rowIndex - 1)
-        );
+            CellIndex.indexByColumnRow(
+                columnIndex: totalCols - 1, rowIndex: startRowOfDay),
+            CellIndex.indexByColumnRow(
+                columnIndex: totalCols - 1, rowIndex: rowIndex - 1));
       }
     }
 
@@ -245,9 +254,9 @@ class ExcelExportUseCase {
             int rowStart = 4 + (d * periodsPerDay) + pStart;
             int rowEnd = 4 + (d * periodsPerDay) + pEnd;
             sheet.merge(
-              CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowStart),
-              CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowEnd)
-            );
+                CellIndex.indexByColumnRow(
+                    columnIndex: col, rowIndex: rowStart),
+                CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowEnd));
           }
 
           pStart = pEnd + 1;
@@ -259,8 +268,28 @@ class ExcelExportUseCase {
   }
 
   String _getSubjectColor(String subject) {
-    if (subject == '-') return '#FFFFFF';
-    final colors = ['#FFCDD2', '#F8BBD0', '#E1BEE7', '#D1C4E9', '#C5CAE9', '#BBDEFB', '#B3E5FC', '#B2EBF2', '#B2DFDB', '#C8E6C9', '#DCEDC8', '#F0F4C3', '#FFF9C4', '#FFECB3', '#FFE0B2', '#FFCCBC', '#D7CCC8', '#F5F5F5', '#CFD8DC'];
+    if (subject == timetableDisplayFallback) return '#FFFFFF';
+    final colors = [
+      '#FFCDD2',
+      '#F8BBD0',
+      '#E1BEE7',
+      '#D1C4E9',
+      '#C5CAE9',
+      '#BBDEFB',
+      '#B3E5FC',
+      '#B2EBF2',
+      '#B2DFDB',
+      '#C8E6C9',
+      '#DCEDC8',
+      '#F0F4C3',
+      '#FFF9C4',
+      '#FFECB3',
+      '#FFE0B2',
+      '#FFCCBC',
+      '#D7CCC8',
+      '#F5F5F5',
+      '#CFD8DC'
+    ];
     int hash = subject.hashCode.abs();
     return colors[hash % colors.length];
   }
