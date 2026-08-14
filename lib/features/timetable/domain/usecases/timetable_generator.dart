@@ -457,8 +457,24 @@ class TimetableGenerator {
     List<LessonEntity> assignedLessons, {
     required Random random,
   }) {
+    // Hard constraints are a feasibility filter, not merely a weighted penalty.
+    // If at least one valid slot remains, no invalid slot can be selected during
+    // initialization. When none remains, retain the legacy fallback so the
+    // search can report the impossible state through its normal cost/diagnostic
+    // path instead of looping forever or silently dropping the lesson.
+    final hardFeasibleSlots = availableSlots
+        .where((slot) => _isHardFeasibleSlot(
+              lesson,
+              slot ~/ 100,
+              slot % 100,
+              assignedLessons,
+            ))
+        .toList();
+    final candidateSlots =
+        hardFeasibleSlots.isNotEmpty ? hardFeasibleSlots : availableSlots;
+
     final scoredSlots = [
-      for (var slot in availableSlots)
+      for (var slot in candidateSlots)
         MapEntry(
           slot,
           _initialSlotPenalty(
@@ -479,43 +495,66 @@ class TimetableGenerator {
     return scoredSlots[random.nextInt(topCount)].key;
   }
 
+  bool _isHardFeasibleSlot(
+    LessonEntity lesson,
+    int day,
+    int period,
+    List<LessonEntity> assignedLessons,
+  ) {
+    final teacher = lesson.teacher;
+    if (teacher != null) {
+      if (assignedLessons.any((assigned) =>
+          assigned.teacher?.id == teacher.id &&
+          assigned.dayIndex == day &&
+          assigned.periodIndex == period)) {
+        return false;
+      }
+      if (teacher.unavailableDays.contains(day)) return false;
+      if (teacher.allowedPeriods.isNotEmpty &&
+          !teacher.allowedPeriods.contains(period)) {
+        return false;
+      }
+    }
+
+    final subject = lesson.subject;
+    if (subject != null &&
+        subject.allowedPeriods.isNotEmpty &&
+        !subject.allowedPeriods.contains(period)) {
+      return false;
+    }
+
+    return true;
+  }
+
   int _initialSlotPenalty(
     LessonEntity lesson,
     int day,
     int period,
     List<LessonEntity> assignedLessons,
   ) {
+    const hardConflictPenalty = 100000;
+    const dailyLimitPenalty = 10000;
+    const consecutivePenalty = 50;
+
     var penalty = 0;
     final teacher = lesson.teacher;
     final subject = lesson.subject;
 
+    if (!_isHardFeasibleSlot(lesson, day, period, assignedLessons)) {
+      penalty += hardConflictPenalty;
+    }
+
     if (teacher != null) {
-      if (assignedLessons.any((assigned) =>
-          assigned.teacher?.id == teacher.id &&
-          assigned.dayIndex == day &&
-          assigned.periodIndex == period)) {
-        penalty += 100000;
-      }
-      if (teacher.unavailableDays.contains(day)) {
-        penalty += 100000;
-      }
-      if (teacher.allowedPeriods.isNotEmpty &&
-          !teacher.allowedPeriods.contains(period)) {
-        penalty += 100000;
-      }
       final dailyLoad = assignedLessons
           .where((assigned) =>
               assigned.teacher?.id == teacher.id && assigned.dayIndex == day)
           .length;
       if (dailyLoad >= teacher.maxLessonsPerDay) {
-        penalty += 1000 * (dailyLoad - teacher.maxLessonsPerDay + 1);
+        // Keep daily load ahead of soft consecutiveness and early-period
+        // preference, while still allowing a fallback when every day is full.
+        penalty +=
+            dailyLimitPenalty * (dailyLoad - teacher.maxLessonsPerDay + 1);
       }
-    }
-
-    if (subject != null &&
-        subject.allowedPeriods.isNotEmpty &&
-        !subject.allowedPeriods.contains(period)) {
-      penalty += 100000;
     }
 
     if (subject != null && lesson.classroom != null) {
@@ -531,16 +570,18 @@ class TimetableGenerator {
           .toList();
       final maxAllowed = _getMaxAllowedSubjectPerDay(subjectId, classroomId);
       if (sameSubjectPeriods.length >= maxAllowed) {
-        penalty += 1000;
+        penalty += dailyLimitPenalty;
       }
       if (sameSubjectPeriods.isNotEmpty &&
           !sameSubjectPeriods
               .any((existingPeriod) => (existingPeriod - period).abs() == 1)) {
-        penalty += 50;
+        penalty += consecutivePenalty;
       }
     }
 
     if (subject?.preferEarlyPeriods == true) {
+      // This remains a soft preference: it guides ordering only and never
+      // removes a hard-feasible slot from the candidate set.
       penalty += period;
     }
     return penalty;
