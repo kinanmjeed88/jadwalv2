@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:isar/isar.dart';
+import 'dart:async';
 import 'dart:isolate';
 import '../../../../core/providers/database_provider.dart';
 import '../../../../core/models/teacher.dart';
@@ -28,11 +29,15 @@ class TimetableAutoFixState {
   final TimetableAutoFixStatus status;
   final int bestCost;
   final List<ConflictDiagnostic> diagnostics;
+  final int currentAttempt;
+  final int totalAttempts;
 
   const TimetableAutoFixState({
     this.status = TimetableAutoFixStatus.idle,
     this.bestCost = 0,
     this.diagnostics = const [],
+    this.currentAttempt = 0,
+    this.totalAttempts = SmartAutoFixUseCase.maxAttempts,
   });
 
   bool get isPreview =>
@@ -48,11 +53,15 @@ class TimetableAutoFixState {
     TimetableAutoFixStatus? status,
     int? bestCost,
     List<ConflictDiagnostic>? diagnostics,
+    int? currentAttempt,
+    int? totalAttempts,
   }) {
     return TimetableAutoFixState(
       status: status ?? this.status,
       bestCost: bestCost ?? this.bestCost,
       diagnostics: diagnostics ?? this.diagnostics,
+      currentAttempt: currentAttempt ?? this.currentAttempt,
+      totalAttempts: totalAttempts ?? this.totalAttempts,
     );
   }
 }
@@ -338,7 +347,11 @@ class TimetableNotifier extends _$TimetableNotifier {
     }
 
     ref.read(timetableAutoFixStateProvider.notifier).state =
-        autoFixState.copyWith(status: TimetableAutoFixStatus.fixing);
+        autoFixState.copyWith(
+      status: TimetableAutoFixStatus.fixing,
+      currentAttempt: 1,
+      totalAttempts: SmartAutoFixUseCase.maxAttempts,
+    );
 
     try {
       final result = await _spawnIsolateAndAutoFix(
@@ -351,6 +364,15 @@ class TimetableNotifier extends _$TimetableNotifier {
           subjectConstraints: payload.subjectConstraints,
           diagnostics: autoFixState.diagnostics,
         ),
+        (attempt, total) {
+          final current = ref.read(timetableAutoFixStateProvider);
+          if (!current.isFixing) return;
+          ref.read(timetableAutoFixStateProvider.notifier).state =
+              current.copyWith(
+            currentAttempt: attempt,
+            totalAttempts: total,
+          );
+        },
       );
 
       final isar = await ref.read(isarDatabaseProvider.future);
@@ -392,12 +414,18 @@ class TimetableNotifier extends _$TimetableNotifier {
           TimetableAutoFixState(
         status: TimetableAutoFixStatus.failed,
         bestCost: result.bestCost,
-        diagnostics: result.diagnostics,
+        // Keep the original diagnostics so a failed retry restores the
+        // complete conflict dialog that opened after generation failed.
+        diagnostics: autoFixState.diagnostics,
       );
       return false;
     } catch (error, stackTrace) {
       ref.read(timetableAutoFixStateProvider.notifier).state =
-          autoFixState.copyWith(status: TimetableAutoFixStatus.failed);
+          autoFixState.copyWith(
+        status: TimetableAutoFixStatus.failed,
+        currentAttempt: 0,
+        totalAttempts: SmartAutoFixUseCase.maxAttempts,
+      );
 
       // Keep the best failed preview visible so the user can inspect it or retry
       // after a transient isolate/database failure. Never persist this preview.
@@ -848,12 +876,65 @@ class AutoFixPayload {
   });
 }
 
-Future<SmartAutoFixResult> _spawnIsolateAndAutoFix(
-    AutoFixPayload payload) async {
-  return Isolate.run(() => _runAutoFixInIsolate(payload));
+class _AutoFixIsolateMessage {
+  final AutoFixPayload payload;
+  final SendPort resultPort;
+  final SendPort progressPort;
+
+  const _AutoFixIsolateMessage({
+    required this.payload,
+    required this.resultPort,
+    required this.progressPort,
+  });
 }
 
-SmartAutoFixResult _runAutoFixInIsolate(AutoFixPayload payload) {
+Future<SmartAutoFixResult> _spawnIsolateAndAutoFix(
+  AutoFixPayload payload,
+  void Function(int attempt, int total) onProgress,
+) async {
+  final resultPort = ReceivePort();
+  final progressPort = ReceivePort();
+  final errorPort = ReceivePort();
+  final isolate = await Isolate.spawn(
+    _runAutoFixInIsolate,
+    _AutoFixIsolateMessage(
+      payload: payload,
+      resultPort: resultPort.sendPort,
+      progressPort: progressPort.sendPort,
+    ),
+    onError: errorPort.sendPort,
+  );
+
+  final progressSubscription = progressPort.listen((message) {
+    if (message is List &&
+        message.length == 2 &&
+        message[0] is int &&
+        message[1] is int) {
+      onProgress(message[0] as int, message[1] as int);
+    }
+  });
+
+  try {
+    return await Future.any<SmartAutoFixResult>([
+      resultPort.first.then((message) {
+        if (message is SmartAutoFixResult) return message;
+        throw StateError('تعذر استلام نتيجة Smart Auto-Fix من isolate.');
+      }),
+      errorPort.first.then((message) {
+        throw StateError('فشل تنفيذ Smart Auto-Fix داخل isolate: $message');
+      }),
+    ]);
+  } finally {
+    await progressSubscription.cancel();
+    resultPort.close();
+    progressPort.close();
+    errorPort.close();
+    isolate.kill(priority: Isolate.immediate);
+  }
+}
+
+void _runAutoFixInIsolate(_AutoFixIsolateMessage message) {
+  final payload = message.payload;
   final useCase = SmartAutoFixUseCase(
     teachers: payload.teachers,
     subjects: payload.subjects,
@@ -862,8 +943,12 @@ SmartAutoFixResult _runAutoFixInIsolate(AutoFixPayload payload) {
     subjectLessons: payload.existingLessons,
     subjectConstraints: payload.subjectConstraints,
   );
-  return useCase.execute(
+  final result = useCase.execute(
     initialSchedule: payload.existingLessons,
     initialDiagnostics: payload.diagnostics,
+    onProgress: (attempt, total) {
+      message.progressPort.send([attempt, total]);
+    },
   );
+  message.resultPort.send(result);
 }

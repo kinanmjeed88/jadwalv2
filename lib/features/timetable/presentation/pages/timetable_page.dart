@@ -252,6 +252,50 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     }
   }
 
+  void _showAutoFixFailureDialog(List<ConflictDiagnostic> diagnostics) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('القيود تتعارض مع بعضها',
+            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        content: ConstrainedBox(
+          constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.6),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: diagnostics.map((diagnostic) {
+                final message = ConflictMessageMapper.map(diagnostic.reason);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4.0),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('• ',
+                          style: TextStyle(
+                              fontSize: 16, fontWeight: FontWeight.bold)),
+                      Expanded(
+                        child:
+                            Text(message, style: const TextStyle(fontSize: 14)),
+                      ),
+                    ],
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('حسناً', style: TextStyle(fontSize: 18)),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen<AsyncValue<List<Lesson>>>(timetableNotifierProvider,
@@ -472,15 +516,19 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                       final resolved = await ref
                           .read(timetableNotifierProvider.notifier)
                           .runSmartAutoFix();
-                      if (!mounted || resolved) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'تعذر حل جميع القيود تلقائياً. تم الاحتفاظ بأفضل معاينة متاحة.',
+                      if (!mounted) return;
+                      if (resolved) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('تم حل القيود واعتماد الجدول بنجاح.'),
+                            backgroundColor: Colors.green,
                           ),
-                          backgroundColor: Colors.orange,
-                        ),
-                      );
+                        );
+                        return;
+                      }
+                      final failedState =
+                          ref.read(timetableAutoFixStateProvider);
+                      _showAutoFixFailureDialog(failedState.diagnostics);
                     }
                   : null,
               label: Text(
@@ -498,6 +546,29 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                     )
                   : const Icon(Icons.auto_fix_high),
             ),
+            if (autoFixState.isFixing)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    child: Text(
+                      'جاري تنفيذ المحاولة ${autoFixState.currentAttempt} من ${autoFixState.totalAttempts}...',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ),
             const SizedBox(height: 8),
           ],
           const SizedBox(height: 8),
