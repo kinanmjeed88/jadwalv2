@@ -317,6 +317,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
     final lessonsAsync = ref.watch(timetableNotifierProvider);
     final autoFixState = ref.watch(timetableAutoFixStateProvider);
+    final conflictingLessonIds = {
+      for (final diagnostic in autoFixState.diagnostics)
+        if (diagnostic.isHard) ...diagnostic.lessonIds,
+    };
     final isarAsync = ref.watch(isarDatabaseProvider);
 
     return Scaffold(
@@ -370,7 +374,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                       ..sort((a, b) => a.id.compareTo(b.id));
 
                     return _buildTimetableGrid(
-                        context, lessons, classrooms, settings);
+                      context,
+                      lessons,
+                      classrooms,
+                      settings,
+                      conflictingLessonIds,
+                    );
                   },
                 ),
                 loading: () => const Center(
@@ -923,8 +932,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-  Widget _buildTimetableGrid(BuildContext context, List<Lesson> lessons,
-      List<Classroom> classrooms, AppSettings settings) {
+  Widget _buildTimetableGrid(
+    BuildContext context,
+    List<Lesson> lessons,
+    List<Classroom> classrooms,
+    AppSettings settings,
+    Set<int> conflictingLessonIds,
+  ) {
     final assigned = lessons.where((l) => !l.isUnassigned).toList();
     final unassigned = lessons.where((l) => l.isUnassigned).toList();
 
@@ -978,14 +992,25 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 textAlign: TextAlign.center),
           ),
         Expanded(
-          child: _buildMasterGrid(assigned, classrooms, settings, lessonMap),
+          child: _buildMasterGrid(
+            assigned,
+            classrooms,
+            settings,
+            lessonMap,
+            conflictingLessonIds,
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildMasterGrid(List<Lesson> assigned, List<Classroom> classrooms,
-      AppSettings settings, Map<String, Lesson> lessonMap) {
+  Widget _buildMasterGrid(
+    List<Lesson> assigned,
+    List<Classroom> classrooms,
+    AppSettings settings,
+    Map<String, Lesson> lessonMap,
+    Set<int> conflictingLessonIds,
+  ) {
     if (classrooms.isEmpty) {
       return const Center(child: Text('لا يوجد بيانات لعرضها.'));
     }
@@ -1090,7 +1115,14 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           }
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
           cells.add(_buildCell(
-              lesson, classroom, d, p, isFirstInGrade, isLastInGrade));
+            lesson,
+            classroom,
+            d,
+            p,
+            isFirstInGrade,
+            isLastInGrade,
+            lesson != null && conflictingLessonIds.contains(lesson.id),
+          ));
         }
 
         rows.add(TableRow(
@@ -1167,8 +1199,15 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     );
   }
 
-  Widget _buildCell(Lesson? lesson, Classroom classroom, int dayIndex,
-      int periodIndex, bool isFirstInGrade, bool isLastInGrade) {
+  Widget _buildCell(
+    Lesson? lesson,
+    Classroom classroom,
+    int dayIndex,
+    int periodIndex,
+    bool isFirstInGrade,
+    bool isLastInGrade,
+    bool isConflicting,
+  ) {
     if (lesson == null) {
       return DragTarget<Lesson>(
         onWillAcceptWithDetails: (details) {
@@ -1277,11 +1316,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
               decoration: BoxDecoration(
-                color: lesson.isPinned
-                    ? Colors.orange.shade100
-                    : (candidateData.isNotEmpty
-                        ? Colors.red.shade100
-                        : Colors.transparent),
+                color: isConflicting
+                    ? Colors.red.shade100
+                    : (lesson.isPinned
+                        ? Colors.orange.shade100
+                        : (candidateData.isNotEmpty
+                            ? Colors.red.shade100
+                            : Colors.transparent)),
                 border: Border(
                   right: isFirstInGrade
                       ? const BorderSide(color: Colors.black, width: 3.0)
