@@ -144,4 +144,66 @@ void main() {
     bool overlap = (uLesson.dayIndex == pLesson.dayIndex && uLesson.periodIndex == pLesson.periodIndex);
     expect(overlap, false);
   });
+
+  test('initialization chooses only hard-feasible teacher and subject slots', () {
+    final settings = AppSettingsEntity(
+      daysPerWeek: 3,
+      periodsPerDay: 4,
+      schoolName: '',
+      principalName: '',
+      exportPageSize: 'A4',
+      exportOrientation: 'Portrait',
+      exportAutoScale: true,
+    );
+
+    final teacher = TeacherEntity(
+      id: 1,
+      name: 'Teacher 1',
+      specialization: '',
+      maxLessonsPerWeek: 5,
+      maxLessonsPerDay: 2,
+      unavailableDays: [0],
+      allowedPeriods: [3],
+    );
+    final subject = SubjectEntity(
+      id: 1,
+      name: 'Math',
+      lessonsPerWeek: 1,
+      preferEarlyPeriods: true,
+      allowedPeriods: [3],
+    );
+    final classroom = ClassroomEntity(id: 1, name: 'Class A', grade: 'Grade 1');
+
+    final lessons = [
+      LessonEntity(
+        id: 1,
+        teacher: teacher,
+        subject: subject,
+        classroom: classroom,
+        isPinned: false,
+      ),
+      for (var id = 2; id <= 12; id++)
+        LessonEntity(
+          id: id,
+          teacher: null,
+          subject: null,
+          classroom: classroom,
+          isPinned: false,
+        ),
+    ];
+    final generator = TimetableGenerator(
+      teachers: [teacher],
+      subjects: [subject],
+      classrooms: [classroom],
+      settings: settings,
+      existingLessons: lessons,
+    );
+
+    final result = generator.generate();
+    final lesson = result.firstWhere((item) => item.id == 1);
+
+    expect(lesson.dayIndex, isIn([1, 2]));
+    expect(lesson.periodIndex, 3);
+    expect(generator.calculateCost(result), 0);
+  });
 }
