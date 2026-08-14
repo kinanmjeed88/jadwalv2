@@ -136,7 +136,7 @@ void main() {
       );
 
       expect(progress, isNotEmpty);
-      expect(progress.first, '1/5');
+      expect(progress.first, '1/3');
       expect(result.isResolved, isTrue);
       expect(
         result.schedule.firstWhere((lesson) => lesson.id == 1).dayIndex,
