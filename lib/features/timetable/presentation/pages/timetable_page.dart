@@ -61,6 +61,8 @@ class TimetablePage extends ConsumerStatefulWidget {
 class _TimetablePageState extends ConsumerState<TimetablePage> {
   final Map<int, GlobalKey> _classroomKeys = {};
   final GlobalKey _exportKey = GlobalKey();
+  final GlobalKey _timetableViewportKey = GlobalKey();
+  final GlobalKey _visibleTimetableKey = GlobalKey();
   final TransformationController _transformationController =
       TransformationController();
 
@@ -73,6 +75,40 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   void dispose() {
     _transformationController.dispose();
     super.dispose();
+  }
+
+  void _centerTimetableKeepingScale() {
+    final currentScale = _transformationController.value.getMaxScaleOnAxis();
+    if (!currentScale.isFinite || currentScale <= 0) return;
+
+    final viewportObject =
+        _timetableViewportKey.currentContext?.findRenderObject();
+    final contentObject =
+        _visibleTimetableKey.currentContext?.findRenderObject();
+
+    if (viewportObject is! RenderBox ||
+        contentObject is! RenderBox ||
+        !viewportObject.hasSize ||
+        !contentObject.hasSize) {
+      return;
+    }
+
+    final viewportOrigin = viewportObject.localToGlobal(Offset.zero);
+    final contentOrigin = contentObject.localToGlobal(Offset.zero);
+    final contentBottomRight = contentObject
+        .localToGlobal(contentObject.size.bottomRight(Offset.zero));
+    final contentRect = Rect.fromPoints(contentOrigin, contentBottomRight);
+    final viewportCenter = viewportOrigin +
+        Offset(viewportObject.size.width / 2, viewportObject.size.height / 2);
+    final translationDelta = viewportCenter - contentRect.center;
+
+    final centeredMatrix = _transformationController.value.clone();
+    centeredMatrix.setTranslationRaw(
+      centeredMatrix.storage[12] + translationDelta.dx,
+      centeredMatrix.storage[13] + translationDelta.dy,
+      centeredMatrix.storage[14],
+    );
+    _transformationController.value = centeredMatrix;
   }
 
   Future<void> _exportTeacherPdf() async {
@@ -465,10 +501,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         children: [
           FloatingActionButton(
             heroTag: "btn_zoom_reset",
-            onPressed: () {
-              _transformationController.value = Matrix4.identity();
-            },
-            tooltip: 'استعادة الحجم الأصلي',
+            onPressed: _centerTimetableKeepingScale,
+            tooltip: 'توسيط الجدول مع الحفاظ على المقياس',
             child: const Icon(Icons.fit_screen),
           ),
           const SizedBox(height: 8),
@@ -1170,6 +1204,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             ),
             Positioned.fill(
               child: Container(
+                key: _timetableViewportKey,
                 color: Colors.white,
                 child: InteractiveViewer(
                   boundaryMargin: const EdgeInsets.all(5000.0),
@@ -1187,7 +1222,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                       minHeight: constraints.maxHeight,
                     ),
                     child: Center(
-                      child: buildDataTable(),
+                      child: KeyedSubtree(
+                        key: _visibleTimetableKey,
+                        child: buildDataTable(),
+                      ),
                     ),
                   ),
                 ),

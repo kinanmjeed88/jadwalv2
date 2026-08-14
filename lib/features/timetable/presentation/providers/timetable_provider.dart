@@ -23,6 +23,8 @@ import '../../../../core/exceptions/timetable_generation_exception.dart';
 
 part 'timetable_provider.g.dart';
 
+const _smartAutoFixTimeout = Duration(seconds: 30);
+
 enum TimetableAutoFixStatus { idle, ready, fixing, failed }
 
 class TimetableAutoFixState {
@@ -511,7 +513,22 @@ class TimetableNotifier extends _$TimetableNotifier {
     if (lesson.isPinned) return (false, "لا يمكن تحريك درس مقفل");
 
     final isar = await ref.read(isarDatabaseProvider.future);
-    final allLessons = await isar.lessons.where().findAll();
+    final persistedLessons = await isar.lessons.where().findAll();
+    for (final persistedLesson in persistedLessons) {
+      persistedLesson.classroom.loadSync();
+      persistedLesson.subject.loadSync();
+      persistedLesson.teacher.loadSync();
+    }
+
+    // Validate against the visible preview when generation failed. The preview
+    // contains the complete lesson pool and must remain the source of truth
+    // until the user explicitly regenerates or auto-fixes the timetable.
+    final previewEntities = _previewEntities;
+    final allLessons = previewEntities == null
+        ? persistedLessons
+        : previewEntities
+            .map((entity) => _toPreviewLesson(entity, persistedLessons))
+            .toList();
 
     // Check teacher conflict
     bool teacherConflict = allLessons.any((l) =>
@@ -605,6 +622,27 @@ class TimetableNotifier extends _$TimetableNotifier {
       );
     }
 
+    if (previewEntities != null) {
+      _previewEntities = previewEntities.map((entity) {
+        if (entity.id != lesson.id) return entity;
+        return LessonEntity(
+          id: entity.id,
+          teacher: entity.teacher,
+          subject: entity.subject,
+          classroom: entity.classroom,
+          dayIndex: newDay,
+          periodIndex: newPeriod,
+          isPinned: entity.isPinned,
+        );
+      }).toList();
+      state = AsyncValue.data(
+        _previewEntities!
+            .map((entity) => _toPreviewLesson(entity, persistedLessons))
+            .toList(),
+      );
+      return (true, null);
+    }
+
     isar.writeTxnSync(() {
       lesson.dayIndex = newDay;
       lesson.periodIndex = newPeriod;
@@ -635,7 +673,22 @@ class TimetableNotifier extends _$TimetableNotifier {
     }
 
     final isar = await ref.read(isarDatabaseProvider.future);
-    final allLessons = await isar.lessons.where().findAll();
+    final persistedLessons = await isar.lessons.where().findAll();
+    for (final persistedLesson in persistedLessons) {
+      persistedLesson.classroom.loadSync();
+      persistedLesson.subject.loadSync();
+      persistedLesson.teacher.loadSync();
+    }
+
+    // Validate against the visible preview when generation failed. The preview
+    // contains the complete lesson pool and must remain the source of truth
+    // until the user explicitly regenerates or auto-fixes the timetable.
+    final previewEntities = _previewEntities;
+    final allLessons = previewEntities == null
+        ? persistedLessons
+        : previewEntities
+            .map((entity) => _toPreviewLesson(entity, persistedLessons))
+            .toList();
 
     // Check teacher conflict
     bool lesson1TeacherConflict = allLessons.any((l) =>
@@ -794,6 +847,47 @@ class TimetableNotifier extends _$TimetableNotifier {
       }
     }
 
+    // Update only the two placements in the complete preview. Every other
+    // lesson remains in the list, and the persisted failed schedule is not
+    // changed until auto-fix or regeneration succeeds.
+    if (previewEntities != null) {
+      final lesson1Day = lesson1.dayIndex;
+      final lesson1Period = lesson1.periodIndex;
+      final lesson2Day = lesson2.dayIndex;
+      final lesson2Period = lesson2.periodIndex;
+      _previewEntities = previewEntities.map((entity) {
+        if (entity.id == lesson1.id) {
+          return LessonEntity(
+            id: entity.id,
+            teacher: entity.teacher,
+            subject: entity.subject,
+            classroom: entity.classroom,
+            dayIndex: lesson2Day,
+            periodIndex: lesson2Period,
+            isPinned: entity.isPinned,
+          );
+        }
+        if (entity.id == lesson2.id) {
+          return LessonEntity(
+            id: entity.id,
+            teacher: entity.teacher,
+            subject: entity.subject,
+            classroom: entity.classroom,
+            dayIndex: lesson1Day,
+            periodIndex: lesson1Period,
+            isPinned: entity.isPinned,
+          );
+        }
+        return entity;
+      }).toList();
+      state = AsyncValue.data(
+        _previewEntities!
+            .map((entity) => _toPreviewLesson(entity, persistedLessons))
+            .toList(),
+      );
+      return (true, null);
+    }
+
     // Perform swap
     isar.writeTxnSync(() {
       final tempDay = lesson1.dayIndex;
@@ -923,6 +1017,12 @@ Future<SmartAutoFixResult> _spawnIsolateAndAutoFix(
       errorPort.first.then((message) {
         throw StateError('فشل تنفيذ Smart Auto-Fix داخل isolate: $message');
       }),
+      Future<SmartAutoFixResult>.delayed(
+        _smartAutoFixTimeout,
+        () => throw TimeoutException(
+          'انتهت مهلة Smart Auto-Fix بعد 30 ثانية.',
+        ),
+      ),
     ]);
   } finally {
     await progressSubscription.cancel();

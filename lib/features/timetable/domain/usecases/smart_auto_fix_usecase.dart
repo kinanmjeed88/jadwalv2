@@ -24,7 +24,7 @@ class SmartAutoFixResult {
 }
 
 class SmartAutoFixUseCase {
-  static const int maxAttempts = 5;
+  static const int maxAttempts = 3;
   static const int maxIterationsPerAttempt = 120;
 
   final TimetableGenerator _generator;
