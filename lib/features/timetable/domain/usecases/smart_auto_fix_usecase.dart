@@ -52,6 +52,7 @@ class SmartAutoFixUseCase {
   SmartAutoFixResult execute({
     required List<LessonEntity> initialSchedule,
     required List<ConflictDiagnostic> initialDiagnostics,
+    void Function(int attempt, int total)? onProgress,
   }) {
     var bestSchedule = _cloneState(initialSchedule);
     var bestScore = _score(bestSchedule);
@@ -67,6 +68,7 @@ class SmartAutoFixUseCase {
     }
 
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      onProgress?.call(attempt + 1, maxAttempts);
       var currentSchedule = _cloneState(bestSchedule);
       var currentScore = _score(currentSchedule);
 

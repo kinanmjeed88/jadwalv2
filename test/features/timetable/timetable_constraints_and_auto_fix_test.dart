@@ -128,11 +128,15 @@ void main() {
         subjectLessons: initialSchedule,
         subjectConstraints: [constraint],
       );
+      final progress = <String>[];
       final result = useCase.execute(
         initialSchedule: initialSchedule,
         initialDiagnostics: diagnostics,
+        onProgress: (attempt, total) => progress.add('$attempt/$total'),
       );
 
+      expect(progress, isNotEmpty);
+      expect(progress.first, '1/5');
       expect(result.isResolved, isTrue);
       expect(
         result.schedule.firstWhere((lesson) => lesson.id == 1).dayIndex,
