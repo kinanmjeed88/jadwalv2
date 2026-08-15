@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
 import 'dart:convert';
+import 'dart:typed_data';
 
 import '../../../../core/models/settings.dart';
 import '../../../../core/providers/repository_provider.dart';
@@ -90,22 +91,44 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
       final backupService = await ref.read(backupServiceProvider.future);
       final jsonStr = await backupService.exportDatabaseToJson();
 
-      final jsonBytes = const Utf8Encoder().convert(jsonStr);
+      final jsonBytes =
+          Uint8List.fromList(const Utf8Encoder().convert(jsonStr));
+
+      if (Platform.isWindows) {
+        final savedPath = await FilePicker.platform.saveFile(
+          dialogTitle: 'حفظ النسخة الاحتياطية',
+          fileName: 'jadwal_backup.json',
+          type: FileType.custom,
+          allowedExtensions: ['json'],
+          bytes: jsonBytes,
+          lockParentWindow: true,
+        );
+
+        if (mounted && savedPath != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تم حفظ النسخة الاحتياطية بنجاح')),
+          );
+        }
+        return;
+      }
+
       final tempDir = await getTemporaryDirectory();
       final file = File(path.join(tempDir.path, 'jadwal_backup.json'));
       await file.writeAsBytes(jsonBytes);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تحضير البيانات، جاري فتح المشاركة...')),
+          const SnackBar(
+              content: Text('تم تحضير البيانات، جاري فتح المشاركة...')),
         );
       }
 
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'نسخة احتياطية لبيانات التطبيق',
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'نسخة احتياطية لبيانات التطبيق',
+        ),
       );
-
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -170,7 +193,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Center(
             child: Text(
               'حول مطور التطبيق',
@@ -202,7 +226,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                 runSpacing: 8,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.green.shade100,
                       borderRadius: BorderRadius.circular(16),
@@ -217,7 +242,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.orange.shade100,
                       borderRadius: BorderRadius.circular(16),
@@ -240,24 +266,34 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                 runSpacing: 12.0,
                 children: [
                   IconButton(
-                    icon: const FaIcon(FontAwesomeIcons.telegram, color: Color(0xFF0088cc)),
-                    onPressed: () => _launchSocialMediaUrl('https://t.me/techtouch7'),
+                    icon: const FaIcon(FontAwesomeIcons.telegram,
+                        color: Color(0xFF0088cc)),
+                    onPressed: () =>
+                        _launchSocialMediaUrl('https://t.me/techtouch7'),
                   ),
                   IconButton(
-                    icon: const FaIcon(FontAwesomeIcons.tiktok, color: Colors.black),
-                    onPressed: () => _launchSocialMediaUrl('https://www.tiktok.com/@techtouch6?_r=1&_t=ZT-97ououQ8tkk'),
+                    icon: const FaIcon(FontAwesomeIcons.tiktok,
+                        color: Colors.black),
+                    onPressed: () => _launchSocialMediaUrl(
+                        'https://www.tiktok.com/@techtouch6?_r=1&_t=ZT-97ououQ8tkk'),
                   ),
                   IconButton(
-                    icon: const FaIcon(FontAwesomeIcons.youtube, color: Color(0xFFFF0000)),
-                    onPressed: () => _launchSocialMediaUrl('https://youtube.com/@kinanmajeed?si=I2yuzJT2rRnEHLVg'),
+                    icon: const FaIcon(FontAwesomeIcons.youtube,
+                        color: Color(0xFFFF0000)),
+                    onPressed: () => _launchSocialMediaUrl(
+                        'https://youtube.com/@kinanmajeed?si=I2yuzJT2rRnEHLVg'),
                   ),
                   IconButton(
-                    icon: const FaIcon(FontAwesomeIcons.facebook, color: Color(0xFF1877F2)),
-                    onPressed: () => _launchSocialMediaUrl('https://www.facebook.com/share/1EsapVHA6W/'),
+                    icon: const FaIcon(FontAwesomeIcons.facebook,
+                        color: Color(0xFF1877F2)),
+                    onPressed: () => _launchSocialMediaUrl(
+                        'https://www.facebook.com/share/1EsapVHA6W/'),
                   ),
                   IconButton(
-                    icon: const FaIcon(FontAwesomeIcons.instagram, color: Color(0xFFE1306C)),
-                    onPressed: () => _launchSocialMediaUrl('https://www.instagram.com/techtouch0'),
+                    icon: const FaIcon(FontAwesomeIcons.instagram,
+                        color: Color(0xFFE1306C)),
+                    onPressed: () => _launchSocialMediaUrl(
+                        'https://www.instagram.com/techtouch0'),
                   ),
                 ],
               ),
@@ -299,7 +335,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                       decoration: const InputDecoration(
                           labelText: 'اسم المدرسة',
                           border: OutlineInputBorder()),
-                      validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
+                      validator: (val) =>
+                          val == null || val.trim().isEmpty ? 'مطلوب' : null,
                       onSaved: (val) => _schoolName = val?.trim() ?? '',
                     ),
                     const SizedBox(height: 16),
@@ -308,7 +345,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                       decoration: const InputDecoration(
                           labelText: 'اسم المدير',
                           border: OutlineInputBorder()),
-                      validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
+                      validator: (val) =>
+                          val == null || val.trim().isEmpty ? 'مطلوب' : null,
                       onSaved: (val) => _principalName = val?.trim() ?? '',
                     ),
                     const SizedBox(height: 16),
@@ -379,7 +417,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                                   labelText: 'عرض الصفحة (cm)',
                                   border: OutlineInputBorder()),
                               keyboardType: TextInputType.number,
-                              onSaved: (val) => _customPageWidth = double.tryParse(val ?? ''),
+                              onSaved: (val) =>
+                                  _customPageWidth = double.tryParse(val ?? ''),
                             ),
                           ),
                           const SizedBox(width: 16),
@@ -390,7 +429,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                                   labelText: 'طول الصفحة (cm)',
                                   border: OutlineInputBorder()),
                               keyboardType: TextInputType.number,
-                              onSaved: (val) => _customPageHeight = double.tryParse(val ?? ''),
+                              onSaved: (val) => _customPageHeight =
+                                  double.tryParse(val ?? ''),
                             ),
                           ),
                         ],

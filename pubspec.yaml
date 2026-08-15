@@ -30,6 +30,7 @@ dependencies:
   firebase_core: ^4.11.0
   firebase_analytics: ^12.4.3
   window_manager: ^0.5.2
+  screen_retriever: ^0.2.2
   path: ^1.9.1
   equatable: ^2.1.0
   meta: ^1.17.0
