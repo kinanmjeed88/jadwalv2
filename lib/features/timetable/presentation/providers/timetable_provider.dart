@@ -19,6 +19,7 @@ import '../../../../core/entities/subject_constraint_entity.dart';
 
 import '../../domain/usecases/timetable_generator.dart';
 import '../../domain/usecases/smart_auto_fix_usecase.dart';
+import '../providers/timetable_interaction_index.dart';
 import '../../../../core/exceptions/timetable_generation_exception.dart';
 
 part 'timetable_provider.g.dart';
@@ -75,17 +76,260 @@ final timetableAutoFixStateProvider = StateProvider<TimetableAutoFixState>(
 class TimetableNotifier extends _$TimetableNotifier {
   GenerationPayload? _lastPayload;
   List<LessonEntity>? _previewEntities;
+  List<Lesson>? _persistedLessonsCache;
+  Map<int, Lesson>? _persistedLessonsById;
+  List<Lesson>? _visibleLessonsCache;
+  List<SubjectConstraint>? _subjectConstraintsCache;
+  TimetableInteractionIndex? _interactionIndex;
+  bool _dragDropOperationInProgress = false;
+  bool _referenceDataDirty = false;
+  bool _referenceWatchersInitialized = false;
 
   @override
   Future<List<Lesson>> build() async {
     final isar = await ref.watch(isarDatabaseProvider.future);
+    _startReferenceWatchers(isar);
+    return _loadPersistedLessons(isar, force: true);
+  }
+
+  void _startReferenceWatchers(Isar isar) {
+    if (_referenceWatchersInitialized) {
+      return;
+    }
+    _referenceWatchersInitialized = true;
+
+    final subscriptions = <StreamSubscription<void>>[
+      isar.teachers.watchLazy().listen((_) => _markReferenceDataDirty()),
+      isar.subjects.watchLazy().listen((_) => _markReferenceDataDirty()),
+      isar.classrooms.watchLazy().listen((_) => _markReferenceDataDirty()),
+      isar.subjectConstraints
+          .watchLazy()
+          .listen((_) => _markReferenceDataDirty()),
+    ];
+    ref.onDispose(() {
+      for (final subscription in subscriptions) {
+        subscription.cancel();
+      }
+    });
+  }
+
+  void _markReferenceDataDirty() {
+    _referenceDataDirty = true;
+    _persistedLessonsCache = null;
+    _persistedLessonsById = null;
+    _subjectConstraintsCache = null;
+    _interactionIndex = null;
+  }
+
+  Future<void> _refreshReferenceDataIfNeeded(Isar isar) async {
+    if (!_referenceDataDirty) {
+      return;
+    }
+
+    final lessons = await _loadPersistedLessons(isar, force: true);
+    final previewEntities = _previewEntities;
+    if (previewEntities != null) {
+      final previewLessons = previewEntities
+          .map((entity) => _toPreviewLesson(entity, lessons))
+          .toList();
+      _setVisibleLessons(previewLessons);
+    } else {
+      _setVisibleLessons(lessons);
+    }
+    _referenceDataDirty = false;
+  }
+
+  Future<List<Lesson>> _loadPersistedLessons(
+    Isar isar, {
+    bool force = false,
+  }) async {
+    if (!force && _persistedLessonsCache != null) {
+      return _persistedLessonsCache!;
+    }
+
     final lessons = await isar.lessons.where().findAll();
-    for (var lesson in lessons) {
+    for (final lesson in lessons) {
       lesson.classroom.loadSync();
       lesson.subject.loadSync();
       lesson.teacher.loadSync();
     }
+
+    _persistedLessonsCache = lessons;
+    _persistedLessonsById = {for (final lesson in lessons) lesson.id: lesson};
+    if (_previewEntities == null) {
+      _setVisibleLessons(lessons);
+    }
     return lessons;
+  }
+
+  Future<List<SubjectConstraint>> _loadSubjectConstraints(
+    Isar isar, {
+    bool force = false,
+  }) async {
+    if (!force && _subjectConstraintsCache != null) {
+      return _subjectConstraintsCache!;
+    }
+
+    final constraints = await isar.subjectConstraints.where().findAll();
+    _subjectConstraintsCache = constraints;
+    _interactionIndex = null;
+    return constraints;
+  }
+
+  void _setPersistedLessons(List<Lesson> lessons) {
+    _persistedLessonsCache = lessons;
+    _persistedLessonsById = {for (final lesson in lessons) lesson.id: lesson};
+    if (_previewEntities == null) {
+      _setVisibleLessons(lessons);
+    }
+  }
+
+  void _setVisibleLessons(List<Lesson> lessons) {
+    _visibleLessonsCache = lessons;
+    _interactionIndex = null;
+  }
+
+  Future<TimetableInteractionIndex> _ensureInteractionIndex(Isar isar) async {
+    _startReferenceWatchers(isar);
+    await _refreshReferenceDataIfNeeded(isar);
+    final visibleLessons =
+        _visibleLessonsCache ?? await _loadPersistedLessons(isar, force: false);
+    final existingIndex = _interactionIndex;
+    if (existingIndex != null &&
+        identical(existingIndex.lessons, visibleLessons)) {
+      return existingIndex;
+    }
+
+    final constraints = await _loadSubjectConstraints(isar);
+    final index = TimetableInteractionIndex.build(
+      lessons: visibleLessons,
+      subjectConstraints: constraints,
+    );
+    _interactionIndex = index;
+    return index;
+  }
+
+  List<Lesson> _visibleLessons() => _visibleLessonsCache ?? const <Lesson>[];
+
+  void _publishVisibleLessons() {
+    state = AsyncValue.data(_visibleLessons());
+  }
+
+  void _updatePreviewEntityPosition(
+    int lessonId,
+    int? dayIndex,
+    int? periodIndex,
+  ) {
+    final previewEntities = _previewEntities;
+    if (previewEntities == null) {
+      return;
+    }
+
+    final entityIndex =
+        previewEntities.indexWhere((entity) => entity.id == lessonId);
+    if (entityIndex == -1) {
+      return;
+    }
+
+    final entity = previewEntities[entityIndex];
+    previewEntities[entityIndex] = LessonEntity(
+      id: entity.id,
+      teacher: entity.teacher,
+      subject: entity.subject,
+      classroom: entity.classroom,
+      dayIndex: dayIndex,
+      periodIndex: periodIndex,
+      isPinned: entity.isPinned,
+    );
+  }
+
+  void _invalidateInteractionCache() {
+    _interactionIndex = null;
+    _subjectConstraintsCache = null;
+  }
+
+  String? _validatePlacement({
+    required TimetableInteractionIndex index,
+    required Lesson lesson,
+    required int newDay,
+    required int newPeriod,
+    required Set<int> excludedLessonIds,
+    required String operationLabel,
+  }) {
+    final teacher = lesson.teacher.value;
+    final subject = lesson.subject.value;
+    final classroom = lesson.classroom.value;
+
+    if (index.hasTeacherConflict(
+      teacherId: teacher?.id,
+      dayIndex: newDay,
+      periodIndex: newPeriod,
+      excludedLessonIds: excludedLessonIds,
+    )) {
+      return 'لا يمكن $operationLabel: الأستاذ (${teacher?.name ?? ''}) لديه حصة أخرى في نفس الوقت';
+    }
+
+    if (index.hasClassroomConflict(
+      classroomId: classroom?.id,
+      dayIndex: newDay,
+      periodIndex: newPeriod,
+      excludedLessonIds: excludedLessonIds,
+    )) {
+      return 'لا يمكن $operationLabel: الصف مشغول بالفعل في الحصة المقترحة';
+    }
+
+    if (subject != null && classroom != null) {
+      final maxAllowed = index.maxPeriodsPerDay(
+        grade: classroom.grade,
+        subjectName: subject.name,
+      );
+      final subjectCountOnNewDay = index.subjectCountOnDay(
+        classroomId: classroom.id,
+        subjectId: subject.id,
+        dayIndex: newDay,
+        excludedLessonIds: excludedLessonIds,
+      );
+      if (subjectCountOnNewDay >= maxAllowed) {
+        return 'لا يمكن $operationLabel: تجاوز الحد الأقصى ($maxAllowed حصص) لمادة (${subject.name}) في اليوم المقترح';
+      }
+    }
+
+    if (lesson.dayIndex != newDay && teacher != null) {
+      final teacherLessonsNewDay = index.teacherCountOnDay(
+        teacherId: teacher.id,
+        dayIndex: newDay,
+        excludedLessonIds: excludedLessonIds,
+      );
+      if (teacherLessonsNewDay >= teacher.maxLessonsPerDay) {
+        return 'لا يمكن $operationLabel: تجاوز الحد الأقصى للحصص اليومية للأستاذ (${teacher.name})';
+      }
+    }
+
+    if (teacher?.unavailableDays.contains(newDay) ?? false) {
+      return 'لا يمكن $operationLabel: الأستاذ مفرغ في اليوم المقترح ولا يمكن وضع حصة له';
+    }
+
+    if (subject != null &&
+        subject.allowedPeriods.isNotEmpty &&
+        !subject.allowedPeriods.contains(newPeriod)) {
+      return 'لا يمكن $operationLabel: المادة غير مسموح بتدريسها في الحصة (${newPeriod + 1}) بناءً على إعداداتها';
+    }
+
+    return null;
+  }
+
+  bool get isDragDropOperationInProgress => _dragDropOperationInProgress;
+
+  bool _beginDragDropOperation() {
+    if (_dragDropOperationInProgress) {
+      return false;
+    }
+    _dragDropOperationInProgress = true;
+    return true;
+  }
+
+  void _endDragDropOperation() {
+    _dragDropOperationInProgress = false;
   }
 
   Future<(bool, String?)> assignLessonsToPool(
@@ -161,12 +405,8 @@ class TimetableNotifier extends _$TimetableNotifier {
       }
     });
 
-    final lessons = await isar.lessons.where().findAll();
-    for (var lesson in lessons) {
-      lesson.classroom.loadSync();
-      lesson.subject.loadSync();
-      lesson.teacher.loadSync();
-    }
+    final lessons = await _loadPersistedLessons(isar, force: true);
+    _setVisibleLessons(lessons);
     state = AsyncValue.data(lessons);
     return (true, null);
   }
@@ -183,12 +423,8 @@ class TimetableNotifier extends _$TimetableNotifier {
     isar.writeTxnSync(() {
       isar.lessons.deleteAllSync(toDelete.map((e) => e.id).toList());
     });
-    final lessons = await isar.lessons.where().findAll();
-    for (var lesson in lessons) {
-      lesson.classroom.loadSync();
-      lesson.subject.loadSync();
-      lesson.teacher.loadSync();
-    }
+    final lessons = await _loadPersistedLessons(isar, force: true);
+    _setVisibleLessons(lessons);
     state = AsyncValue.data(lessons);
   }
 
@@ -209,18 +445,18 @@ class TimetableNotifier extends _$TimetableNotifier {
         lesson.teacher.saveSync();
       }
     });
-    final lessons = await isar.lessons.where().findAll();
-    for (var lesson in lessons) {
-      lesson.classroom.loadSync();
-      lesson.subject.loadSync();
-      lesson.teacher.loadSync();
-    }
+    final lessons = await _loadPersistedLessons(isar, force: true);
+    _setVisibleLessons(lessons);
     state = AsyncValue.data(lessons);
   }
 
   Future<void> generateTimetable() async {
     state = const AsyncValue.loading();
     _previewEntities = null;
+    _persistedLessonsCache = null;
+    _persistedLessonsById = null;
+    _visibleLessonsCache = null;
+    _invalidateInteractionCache();
     ref.read(timetableAutoFixStateProvider.notifier).state =
         const TimetableAutoFixState();
 
@@ -231,6 +467,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       final subjects = await isar.subjects.where().findAll();
       final classrooms = await isar.classrooms.where().findAll();
       final constraints = await isar.subjectConstraints.where().findAll();
+      _subjectConstraintsCache = constraints;
       final settingsList = await isar.appSettings.where().findAll();
       final settings = settingsList.isNotEmpty
           ? settingsList.first
@@ -300,18 +537,16 @@ class TimetableNotifier extends _$TimetableNotifier {
         lesson.subject.loadSync();
         lesson.teacher.loadSync();
       }
+      _setPersistedLessons(existingLessons);
+      _setVisibleLessons(existingLessons);
       state = AsyncValue.data(existingLessons);
       ref.read(timetableAutoFixStateProvider.notifier).state =
           const TimetableAutoFixState();
     } on TimetableGenerationException catch (exception) {
       // Restore valid data state to avoid generic error widget
       final isar = await ref.read(isarDatabaseProvider.future);
-      final lessons = await isar.lessons.where().findAll();
-      for (var lesson in lessons) {
-        lesson.classroom.loadSync();
-        lesson.subject.loadSync();
-        lesson.teacher.loadSync();
-      }
+      final lessons = await _loadPersistedLessons(isar, force: true);
+      _setVisibleLessons(lessons);
 
       final snapshot = exception.bestSchedule;
       if (_lastPayload != null && snapshot != null) {
@@ -322,6 +557,7 @@ class TimetableNotifier extends _$TimetableNotifier {
         final previewLessons = _previewEntities!
             .map((lesson) => _toPreviewLesson(lesson, lessons))
             .toList();
+        _setVisibleLessons(previewLessons);
         state = AsyncValue.data(previewLessons);
         ref.read(timetableAutoFixStateProvider.notifier).state =
             TimetableAutoFixState(
@@ -330,6 +566,7 @@ class TimetableNotifier extends _$TimetableNotifier {
           diagnostics: exception.diagnostics,
         );
       } else {
+        _setVisibleLessons(lessons);
         state = AsyncValue.data(lessons);
       }
 
@@ -378,7 +615,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       );
 
       final isar = await ref.read(isarDatabaseProvider.future);
-      final persistedLessons = await isar.lessons.where().findAll();
+      final persistedLessons = await _loadPersistedLessons(isar, force: true);
 
       if (result.isResolved) {
         final placements = {
@@ -401,6 +638,8 @@ class TimetableNotifier extends _$TimetableNotifier {
           lesson.teacher.loadSync();
         }
         _previewEntities = null;
+        _setPersistedLessons(persistedLessons);
+        _setVisibleLessons(persistedLessons);
         ref.read(timetableAutoFixStateProvider.notifier).state =
             const TimetableAutoFixState();
         state = AsyncValue.data(persistedLessons);
@@ -411,6 +650,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       final previewLessons = result.schedule
           .map((entity) => _toPreviewLesson(entity, persistedLessons))
           .toList();
+      _setVisibleLessons(previewLessons);
       state = AsyncValue.data(previewLessons);
       ref.read(timetableAutoFixStateProvider.notifier).state =
           TimetableAutoFixState(
@@ -433,19 +673,14 @@ class TimetableNotifier extends _$TimetableNotifier {
       // after a transient isolate/database failure. Never persist this preview.
       try {
         final isar = await ref.read(isarDatabaseProvider.future);
-        final persistedLessons = await isar.lessons.where().findAll();
-        for (final lesson in persistedLessons) {
-          lesson.classroom.loadSync();
-          lesson.subject.loadSync();
-          lesson.teacher.loadSync();
-        }
+        final persistedLessons = await _loadPersistedLessons(isar);
         final preview = _previewEntities;
         if (preview != null) {
-          state = AsyncValue.data(
-            preview
-                .map((entity) => _toPreviewLesson(entity, persistedLessons))
-                .toList(),
-          );
+          final previewLessons = preview
+              .map((entity) => _toPreviewLesson(entity, persistedLessons))
+              .toList();
+          _setVisibleLessons(previewLessons);
+          state = AsyncValue.data(previewLessons);
         } else {
           state = AsyncValue.error(error, stackTrace);
         }
@@ -481,7 +716,7 @@ class TimetableNotifier extends _$TimetableNotifier {
   }
 
   Lesson _toPreviewLesson(LessonEntity entity, List<Lesson> persistedLessons) {
-    final source =
+    final source = _persistedLessonsById?[entity.id] ??
         persistedLessons.firstWhere((lesson) => lesson.id == entity.id);
     return Lesson()
       ..id = source.id
@@ -495,172 +730,95 @@ class TimetableNotifier extends _$TimetableNotifier {
 
   Future<void> togglePin(Lesson lesson) async {
     final isar = await ref.read(isarDatabaseProvider.future);
+    final currentLesson = _visibleLessonsCache
+            ?.where((item) => item.id == lesson.id)
+            .firstOrNull ??
+        _persistedLessonsCache
+            ?.where((item) => item.id == lesson.id)
+            .firstOrNull ??
+        lesson;
     isar.writeTxnSync(() {
-      lesson.isPinned = !lesson.isPinned;
-      isar.lessons.putSync(lesson);
+      currentLesson.isPinned = !currentLesson.isPinned;
+      isar.lessons.putSync(currentLesson);
     });
-    final lessons = await isar.lessons.where().findAll();
-    for (var lesson in lessons) {
-      lesson.classroom.loadSync();
-      lesson.subject.loadSync();
-      lesson.teacher.loadSync();
+    _persistedLessonsById?[currentLesson.id] = currentLesson;
+    if (_previewEntities == null) {
+      _publishVisibleLessons();
     }
-    state = AsyncValue.data(lessons);
   }
 
   Future<(bool, String?)> moveLessonToEmpty(
       Lesson lesson, int newDay, int newPeriod) async {
+    if (!_beginDragDropOperation()) {
+      return (false, "يرجى الانتظار حتى تكتمل عملية السحب الحالية");
+    }
+
+    try {
+      return await _moveLessonToEmptyInternal(lesson, newDay, newPeriod);
+    } finally {
+      _endDragDropOperation();
+    }
+  }
+
+  Future<(bool, String?)> _moveLessonToEmptyInternal(
+      Lesson lesson, int newDay, int newPeriod) async {
     if (lesson.isPinned) return (false, "لا يمكن تحريك درس مقفل");
 
     final isar = await ref.read(isarDatabaseProvider.future);
-    final persistedLessons = await isar.lessons.where().findAll();
-    for (final persistedLesson in persistedLessons) {
-      persistedLesson.classroom.loadSync();
-      persistedLesson.subject.loadSync();
-      persistedLesson.teacher.loadSync();
-    }
-
-    // Validate against the visible preview when generation failed. The preview
-    // contains the complete lesson pool and must remain the source of truth
-    // until the user explicitly regenerates or auto-fixes the timetable.
+    final persistedLessons = await _loadPersistedLessons(isar);
+    final index = await _ensureInteractionIndex(isar);
+    final currentLesson = index.lessonById(lesson.id) ?? lesson;
     final previewEntities = _previewEntities;
-    final allLessons = previewEntities == null
-        ? persistedLessons
-        : previewEntities
-            .map((entity) => _toPreviewLesson(entity, persistedLessons))
-            .toList();
 
-    // Check teacher conflict
-    bool teacherConflict = allLessons.any((l) =>
-        l.id != lesson.id &&
-        l.teacher.value !=
-            null && // null teacher won't conflict with another null
-        lesson.teacher.value != null &&
-        l.teacher.value?.id == lesson.teacher.value?.id &&
-        l.dayIndex == newDay &&
-        l.periodIndex == newPeriod);
-
-    if (teacherConflict) {
-      return (
-        false,
-        "لا يمكن النقل: الأستاذ (${lesson.teacher.value?.name ?? ''}) لديه حصة في نفس الوقت (${newPeriod + 1})"
-      );
+    final validationError = _validatePlacement(
+      index: index,
+      lesson: currentLesson,
+      newDay: newDay,
+      newPeriod: newPeriod,
+      excludedLessonIds: {currentLesson.id},
+      operationLabel: 'النقل',
+    );
+    if (validationError != null) {
+      return (false, validationError);
     }
 
-    // Check classroom conflict
-    bool classroomConflict = allLessons.any((l) =>
-        l.id != lesson.id &&
-        l.classroom.value?.id == lesson.classroom.value?.id &&
-        l.dayIndex == newDay &&
-        l.periodIndex == newPeriod);
-
-    if (classroomConflict) {
-      return (false, "لا يمكن النقل: الصف مشغول بالفعل في هذه الحصة");
-    }
-
-    // Check subject max periods per day
-    if (lesson.subject.value != null && lesson.classroom.value != null) {
-      final constraints = await isar.subjectConstraints.where().findAll();
-      int maxAllowed = 1;
-      for (var constraint in constraints) {
-        if (constraint.grade == lesson.classroom.value!.grade &&
-            constraint.subjectName == lesson.subject.value!.name) {
-          maxAllowed = constraint.maxPeriodsPerDay;
-          break;
-        }
-      }
-
-      int subjectCountOnNewDay = allLessons
-          .where((l) =>
-              l.id != lesson.id &&
-              l.classroom.value?.id == lesson.classroom.value?.id &&
-              l.subject.value?.id == lesson.subject.value?.id &&
-              l.dayIndex == newDay)
-          .length;
-
-      if (subjectCountOnNewDay >= maxAllowed) {
-        return (
-          false,
-          "لا يمكن النقل: تجاوز الحد الأقصى ($maxAllowed حصص) لمادة (${lesson.subject.value?.name}) في هذا اليوم"
-        );
-      }
-    }
-
-    // Check teacher daily limit (if moving to a new day)
-    if (lesson.dayIndex != newDay && lesson.teacher.value != null) {
-      int teacherLessonsNewDay = allLessons
-          .where((l) =>
-              l.id != lesson.id &&
-              l.teacher.value?.id == lesson.teacher.value?.id &&
-              l.dayIndex == newDay)
-          .length;
-
-      if (lesson.teacher.value != null &&
-          teacherLessonsNewDay >= lesson.teacher.value!.maxLessonsPerDay) {
-        return (
-          false,
-          "لا يمكن النقل: تجاوز الحد الأقصى للحصص اليومية للأستاذ (${lesson.teacher.value?.name})"
-        );
-      }
-    }
-
-    // Check teacher day off constraint
-    if (lesson.teacher.value?.unavailableDays.contains(newDay) ?? false) {
-      return (
-        false,
-        "لا يمكن النقل: الأستاذ مفرغ في هذا اليوم ولا يمكن وضع حصة له"
-      );
-    }
-
-    // Check subject constraint (allowed periods)
-    if (lesson.subject.value != null &&
-        lesson.subject.value!.allowedPeriods.isNotEmpty &&
-        !lesson.subject.value!.allowedPeriods.contains(newPeriod)) {
-      return (
-        false,
-        "لا يمكن النقل: هذه المادة غير مسموح بتدريسها في الحصة (${newPeriod + 1}) بناءً على إعدادات المادة"
-      );
-    }
+    index.moveLesson(
+      lessonId: currentLesson.id,
+      newDay: newDay,
+      newPeriod: newPeriod,
+    );
 
     if (previewEntities != null) {
-      _previewEntities = previewEntities.map((entity) {
-        if (entity.id != lesson.id) return entity;
-        return LessonEntity(
-          id: entity.id,
-          teacher: entity.teacher,
-          subject: entity.subject,
-          classroom: entity.classroom,
-          dayIndex: newDay,
-          periodIndex: newPeriod,
-          isPinned: entity.isPinned,
-        );
-      }).toList();
-      state = AsyncValue.data(
-        _previewEntities!
-            .map((entity) => _toPreviewLesson(entity, persistedLessons))
-            .toList(),
-      );
+      _updatePreviewEntityPosition(currentLesson.id, newDay, newPeriod);
+      _publishVisibleLessons();
       return (true, null);
     }
 
     isar.writeTxnSync(() {
-      lesson.dayIndex = newDay;
-      lesson.periodIndex = newPeriod;
-      isar.lessons.putSync(lesson);
+      isar.lessons.putSync(currentLesson);
     });
-
-    final lessons = await isar.lessons.where().findAll();
-    for (var lesson in lessons) {
-      lesson.classroom.loadSync();
-      lesson.subject.loadSync();
-      lesson.teacher.loadSync();
-    }
-    state = AsyncValue.data(lessons);
+    _persistedLessonsCache = persistedLessons;
+    _persistedLessonsById = {
+      for (final item in persistedLessons) item.id: item
+    };
+    _publishVisibleLessons();
     return (true, null);
   }
 
   Future<(bool, String?)> swapLessons(Lesson lesson1, Lesson lesson2) async {
-    // Validate swap constraints
+    if (!_beginDragDropOperation()) {
+      return (false, "يرجى الانتظار حتى تكتمل عملية السحب الحالية");
+    }
+
+    try {
+      return await _swapLessonsInternal(lesson1, lesson2);
+    } finally {
+      _endDragDropOperation();
+    }
+  }
+
+  Future<(bool, String?)> _swapLessonsInternal(
+      Lesson lesson1, Lesson lesson2) async {
     if (lesson1.dayIndex == null ||
         lesson1.periodIndex == null ||
         lesson2.dayIndex == null ||
@@ -673,242 +831,63 @@ class TimetableNotifier extends _$TimetableNotifier {
     }
 
     final isar = await ref.read(isarDatabaseProvider.future);
-    final persistedLessons = await isar.lessons.where().findAll();
-    for (final persistedLesson in persistedLessons) {
-      persistedLesson.classroom.loadSync();
-      persistedLesson.subject.loadSync();
-      persistedLesson.teacher.loadSync();
-    }
-
-    // Validate against the visible preview when generation failed. The preview
-    // contains the complete lesson pool and must remain the source of truth
-    // until the user explicitly regenerates or auto-fixes the timetable.
+    final persistedLessons = await _loadPersistedLessons(isar);
+    final index = await _ensureInteractionIndex(isar);
+    final currentLesson1 = index.lessonById(lesson1.id) ?? lesson1;
+    final currentLesson2 = index.lessonById(lesson2.id) ?? lesson2;
     final previewEntities = _previewEntities;
-    final allLessons = previewEntities == null
-        ? persistedLessons
-        : previewEntities
-            .map((entity) => _toPreviewLesson(entity, persistedLessons))
-            .toList();
+    final excludedIds = {currentLesson1.id, currentLesson2.id};
 
-    // Check teacher conflict
-    bool lesson1TeacherConflict = allLessons.any((l) =>
-        l.id != lesson1.id &&
-        l.id != lesson2.id &&
-        lesson1.teacher.value != null &&
-        l.teacher.value != null &&
-        l.teacher.value?.id == lesson1.teacher.value?.id &&
-        l.dayIndex == lesson2.dayIndex &&
-        l.periodIndex == lesson2.periodIndex);
-
-    bool lesson2TeacherConflict = allLessons.any((l) =>
-        l.id != lesson1.id &&
-        l.id != lesson2.id &&
-        lesson2.teacher.value != null &&
-        l.teacher.value != null &&
-        l.teacher.value?.id == lesson2.teacher.value?.id &&
-        l.dayIndex == lesson1.dayIndex &&
-        l.periodIndex == lesson1.periodIndex);
-
-    if (lesson1TeacherConflict || lesson2TeacherConflict) {
-      return (
-        false,
-        "لا يمكن التبديل: أحد الأساتذة لديه حصة أخرى في نفس الوقت المقترح"
-      );
+    final firstValidationError = _validatePlacement(
+      index: index,
+      lesson: currentLesson1,
+      newDay: currentLesson2.dayIndex!,
+      newPeriod: currentLesson2.periodIndex!,
+      excludedLessonIds: excludedIds,
+      operationLabel: 'التبديل',
+    );
+    if (firstValidationError != null) {
+      return (false, firstValidationError);
     }
 
-    // Check classroom conflict
-    bool lesson1ClassroomConflict = allLessons.any((l) =>
-        l.id != lesson1.id &&
-        l.id != lesson2.id &&
-        l.classroom.value?.id == lesson1.classroom.value?.id &&
-        l.dayIndex == lesson2.dayIndex &&
-        l.periodIndex == lesson2.periodIndex);
-
-    bool lesson2ClassroomConflict = allLessons.any((l) =>
-        l.id != lesson1.id &&
-        l.id != lesson2.id &&
-        l.classroom.value?.id == lesson2.classroom.value?.id &&
-        l.dayIndex == lesson1.dayIndex &&
-        l.periodIndex == lesson1.periodIndex);
-
-    if (lesson1ClassroomConflict || lesson2ClassroomConflict) {
-      return (
-        false,
-        "لا يمكن التبديل: أحد الصفوف مشغول بالفعل في الحصة المقترحة"
-      );
+    final secondValidationError = _validatePlacement(
+      index: index,
+      lesson: currentLesson2,
+      newDay: currentLesson1.dayIndex!,
+      newPeriod: currentLesson1.periodIndex!,
+      excludedLessonIds: excludedIds,
+      operationLabel: 'التبديل',
+    );
+    if (secondValidationError != null) {
+      return (false, secondValidationError);
     }
 
-    // Check subject max periods per day for Swap
-    if (lesson1.dayIndex != lesson2.dayIndex) {
-      final constraints = await isar.subjectConstraints.where().findAll();
-
-      if (lesson1.subject.value != null && lesson1.classroom.value != null) {
-        int maxAllowed = 1;
-        for (var constraint in constraints) {
-          if (constraint.grade == lesson1.classroom.value!.grade &&
-              constraint.subjectName == lesson1.subject.value!.name) {
-            maxAllowed = constraint.maxPeriodsPerDay;
-            break;
-          }
-        }
-        int l1SubjectCountNewDay = allLessons
-            .where((l) =>
-                l.id != lesson1.id &&
-                l.id != lesson2.id &&
-                l.classroom.value?.id == lesson1.classroom.value?.id &&
-                l.subject.value?.id == lesson1.subject.value?.id &&
-                l.dayIndex == lesson2.dayIndex)
-            .length;
-        if (l1SubjectCountNewDay >= maxAllowed) {
-          return (
-            false,
-            "لا يمكن التبديل: سيؤدي ذلك لتجاوز الحد الأقصى ($maxAllowed حصص) لمادة (${lesson1.subject.value?.name}) للصف في اليوم المقترح"
-          );
-        }
-      }
-
-      if (lesson2.subject.value != null && lesson2.classroom.value != null) {
-        int maxAllowed = 1;
-        for (var constraint in constraints) {
-          if (constraint.grade == lesson2.classroom.value!.grade &&
-              constraint.subjectName == lesson2.subject.value!.name) {
-            maxAllowed = constraint.maxPeriodsPerDay;
-            break;
-          }
-        }
-        int l2SubjectCountNewDay = allLessons
-            .where((l) =>
-                l.id != lesson1.id &&
-                l.id != lesson2.id &&
-                l.classroom.value?.id == lesson2.classroom.value?.id &&
-                l.subject.value?.id == lesson2.subject.value?.id &&
-                l.dayIndex == lesson1.dayIndex)
-            .length;
-        if (l2SubjectCountNewDay >= maxAllowed) {
-          return (
-            false,
-            "لا يمكن التبديل: سيؤدي ذلك لتجاوز الحد الأقصى ($maxAllowed حصص) لمادة (${lesson2.subject.value?.name}) للصف في اليوم المقترح"
-          );
-        }
-      }
+    final firstDay = currentLesson1.dayIndex;
+    final firstPeriod = currentLesson1.periodIndex;
+    final secondDay = currentLesson2.dayIndex;
+    final secondPeriod = currentLesson2.periodIndex;
+    if (!index.swapLessons(
+      firstId: currentLesson1.id,
+      secondId: currentLesson2.id,
+    )) {
+      return (false, "تعذر العثور على الدروس المطلوب تبديلها");
     }
 
-    // Check teacher day off constraint
-    if (lesson1.teacher.value?.unavailableDays.contains(lesson2.dayIndex) ??
-        false) {
-      return (
-        false,
-        "لا يمكن التبديل: الأستاذ (${lesson1.teacher.value?.name}) مفرغ في اليوم المقترح"
-      );
-    }
-
-    if (lesson2.teacher.value?.unavailableDays.contains(lesson1.dayIndex) ??
-        false) {
-      return (
-        false,
-        "لا يمكن التبديل: الأستاذ (${lesson2.teacher.value?.name}) مفرغ في اليوم المقترح"
-      );
-    }
-
-    // Check max lessons per day if they change days
-    if (lesson1.dayIndex != lesson2.dayIndex) {
-      if (lesson1.teacher.value != null) {
-        int l1TeacherLessonsNewDay = allLessons
-            .where((l) =>
-                l.id != lesson1.id &&
-                l.id != lesson2.id &&
-                l.teacher.value?.id == lesson1.teacher.value?.id &&
-                l.dayIndex == lesson2.dayIndex)
-            .length;
-        if (lesson1.teacher.value != null &&
-            l1TeacherLessonsNewDay >= lesson1.teacher.value!.maxLessonsPerDay) {
-          return (
-            false,
-            "لا يمكن التبديل: سيتم تجاوز الحد الأقصى للحصص اليومية للأستاذ (${lesson1.teacher.value?.name})"
-          );
-        }
-      }
-
-      if (lesson2.teacher.value != null) {
-        int l2TeacherLessonsNewDay = allLessons
-            .where((l) =>
-                l.id != lesson1.id &&
-                l.id != lesson2.id &&
-                l.teacher.value?.id == lesson2.teacher.value?.id &&
-                l.dayIndex == lesson1.dayIndex)
-            .length;
-        if (lesson2.teacher.value != null &&
-            l2TeacherLessonsNewDay >= lesson2.teacher.value!.maxLessonsPerDay) {
-          return (
-            false,
-            "لا يمكن التبديل: سيتم تجاوز الحد الأقصى للحصص اليومية للأستاذ (${lesson2.teacher.value?.name})"
-          );
-        }
-      }
-    }
-
-    // Update only the two placements in the complete preview. Every other
-    // lesson remains in the list, and the persisted failed schedule is not
-    // changed until auto-fix or regeneration succeeds.
     if (previewEntities != null) {
-      final lesson1Day = lesson1.dayIndex;
-      final lesson1Period = lesson1.periodIndex;
-      final lesson2Day = lesson2.dayIndex;
-      final lesson2Period = lesson2.periodIndex;
-      _previewEntities = previewEntities.map((entity) {
-        if (entity.id == lesson1.id) {
-          return LessonEntity(
-            id: entity.id,
-            teacher: entity.teacher,
-            subject: entity.subject,
-            classroom: entity.classroom,
-            dayIndex: lesson2Day,
-            periodIndex: lesson2Period,
-            isPinned: entity.isPinned,
-          );
-        }
-        if (entity.id == lesson2.id) {
-          return LessonEntity(
-            id: entity.id,
-            teacher: entity.teacher,
-            subject: entity.subject,
-            classroom: entity.classroom,
-            dayIndex: lesson1Day,
-            periodIndex: lesson1Period,
-            isPinned: entity.isPinned,
-          );
-        }
-        return entity;
-      }).toList();
-      state = AsyncValue.data(
-        _previewEntities!
-            .map((entity) => _toPreviewLesson(entity, persistedLessons))
-            .toList(),
-      );
+      _updatePreviewEntityPosition(currentLesson1.id, secondDay, secondPeriod);
+      _updatePreviewEntityPosition(currentLesson2.id, firstDay, firstPeriod);
+      _publishVisibleLessons();
       return (true, null);
     }
 
-    // Perform swap
     isar.writeTxnSync(() {
-      final tempDay = lesson1.dayIndex;
-      final tempPeriod = lesson1.periodIndex;
-
-      lesson1.dayIndex = lesson2.dayIndex;
-      lesson1.periodIndex = lesson2.periodIndex;
-
-      lesson2.dayIndex = tempDay;
-      lesson2.periodIndex = tempPeriod;
-
-      isar.lessons.putAllSync([lesson1, lesson2]);
+      isar.lessons.putAllSync([currentLesson1, currentLesson2]);
     });
-
-    final lessons = await isar.lessons.where().findAll();
-    for (var lesson in lessons) {
-      lesson.classroom.loadSync();
-      lesson.subject.loadSync();
-      lesson.teacher.loadSync();
-    }
-    state = AsyncValue.data(lessons);
+    _persistedLessonsCache = persistedLessons;
+    _persistedLessonsById = {
+      for (final item in persistedLessons) item.id: item
+    };
+    _publishVisibleLessons();
     return (true, null);
   }
 }

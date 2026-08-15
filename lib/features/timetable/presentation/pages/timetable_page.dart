@@ -1250,8 +1250,15 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       return DragTarget<Lesson>(
         onWillAcceptWithDetails: (details) {
           final incoming = details.data;
+          final timetableNotifier =
+              ref.read(timetableNotifierProvider.notifier);
 
-          if (incoming.isPinned) return false;
+          if (timetableNotifier.isDragDropOperationInProgress) {
+            return false;
+          }
+          if (incoming.isPinned) {
+            return false;
+          }
 
           if (incoming.subject.value != null &&
               (incoming.subject.value?.allowedPeriods.isNotEmpty ?? false) &&
@@ -1304,7 +1311,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     return DragTarget<Lesson>(
       onWillAcceptWithDetails: (details) {
         final incoming = details.data;
-        return incoming.id != lesson.id && !lesson.isPinned;
+        final timetableNotifier = ref.read(timetableNotifierProvider.notifier);
+
+        return !timetableNotifier.isDragDropOperationInProgress &&
+            incoming.id != lesson.id &&
+            !lesson.isPinned;
       },
       onAcceptWithDetails: (details) async {
         final incoming = details.data;
