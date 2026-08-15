@@ -74,14 +74,31 @@ jobs:
           pwsh -File windows\\packaging\\smoke_test.ps1
           -ExecutablePath build\\windows\\x64\\runner\\Release\\jadwal_v2.exe
 
-      - name: Sign Windows Release Executable (Optional)
-        if: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 != '' && secrets.WINDOWS_CERTIFICATE_PASSWORD != '' }}
+      - name: Prepare temporary Windows signing configuration
+        id: signing_config
         shell: pwsh
         env:
           WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: |
+          $configurationPath = Join-Path $env:RUNNER_TEMP 'jadwal-v2-signing.json'
+          $hasCertificate = `
+            -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_BASE64) -and `
+            -not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_PASSWORD)
+          $configuration = [ordered]@{
+            certificateBase64 = if ($hasCertificate) { $env:WINDOWS_CERTIFICATE_BASE64 } else { '' }
+            certificatePassword = if ($hasCertificate) { $env:WINDOWS_CERTIFICATE_PASSWORD } else { '' }
+          }
+          $configuration | ConvertTo-Json -Compress | Set-Content -LiteralPath $configurationPath -Encoding utf8
+          "config_path=$configurationPath" >> $env:GITHUB_OUTPUT
+          "enabled=$($hasCertificate.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+      - name: Sign Windows Release Executable (Optional)
+        if: steps.signing_config.outputs.enabled == 'true'
+        shell: pwsh
         run: >-
           pwsh -File windows\\packaging\\sign_windows.ps1
+          -ConfigurationPath "${{ steps.signing_config.outputs.config_path }}"
           -Path build\\windows\\x64\\runner\\Release\\jadwal_v2.exe
 
       - name: Install Inno Setup
@@ -102,13 +119,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
 
       - name: Sign Windows Installer (Optional)
-        if: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 != '' && secrets.WINDOWS_CERTIFICATE_PASSWORD != '' }}
+        if: steps.signing_config.outputs.enabled == 'true'
         shell: pwsh
-        env:
-          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: >-
           pwsh -File windows\\packaging\\sign_windows.ps1
+          -ConfigurationPath "${{ steps.signing_config.outputs.config_path }}"
           -Path dist\\Jadwal-V2-Windows-${{ steps.version.outputs.version }}-Setup.exe
 
       - name: Archive Windows Release Bundle
@@ -127,3 +142,13 @@ jobs:
             dist\*.exe
           if-no-files-found: error
           retention-days: 30
+
+      - name: Remove temporary Windows signing configuration
+        if: always()
+        shell: pwsh
+        env:
+          SIGNING_CONFIG_PATH: ${{ steps.signing_config.outputs.config_path }}
+        run: |
+          if (-not [string]::IsNullOrWhiteSpace($env:SIGNING_CONFIG_PATH)) {
+            Remove-Item -LiteralPath $env:SIGNING_CONFIG_PATH -Force -ErrorAction SilentlyContinue
+          }

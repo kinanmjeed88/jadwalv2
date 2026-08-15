@@ -1,20 +1,44 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $true)]
-    [string[]]$Path
+    [string[]]$Path,
+
+    [Parameter(Mandatory = $true)]
+    [string]$ConfigurationPath
 )
 
-$certificateBase64 = $env:WINDOWS_CERTIFICATE_BASE64
-$certificatePassword = $env:WINDOWS_CERTIFICATE_PASSWORD
+$certificatePath = $null
 
-if ([string]::IsNullOrWhiteSpace($certificateBase64) -or
-    [string]::IsNullOrWhiteSpace($certificatePassword)) {
-    Write-Host 'Windows code-signing secrets are not configured; skipping signing.'
-    exit 0
-}
-
-$certificatePath = Join-Path $env:RUNNER_TEMP 'jadwal-v2-signing.pfx'
 try {
+    if (-not (Test-Path -LiteralPath $ConfigurationPath)) {
+        throw "Signing configuration does not exist: $ConfigurationPath"
+    }
+
+    try {
+        $configuration = Get-Content -LiteralPath $ConfigurationPath -Raw |
+            ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        throw "Unable to read signing configuration: $($_.Exception.Message)"
+    }
+
+    $certificateBase64 = [string]$configuration.certificateBase64
+    $certificatePassword = [string]$configuration.certificatePassword
+
+    if ([string]::IsNullOrWhiteSpace($certificateBase64) -or
+        [string]::IsNullOrWhiteSpace($certificatePassword)) {
+        Write-Host 'Windows code-signing configuration is not enabled; skipping signing.'
+        exit 0
+    }
+
+    $tempRoot = if ([string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+        [IO.Path]::GetTempPath()
+    }
+    else {
+        $env:RUNNER_TEMP
+    }
+    $certificatePath = Join-Path $tempRoot "jadwal-v2-signing-$([guid]::NewGuid()).pfx"
+
     [IO.File]::WriteAllBytes(
         $certificatePath,
         [Convert]::FromBase64String($certificateBase64)
@@ -36,5 +60,7 @@ try {
     }
 }
 finally {
-    Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
+    if ($null -ne $certificatePath) {
+        Remove-Item -LiteralPath $certificatePath -Force -ErrorAction SilentlyContinue
+    }
 }
