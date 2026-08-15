@@ -1,6 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jadwal_v2/core/models/classroom.dart';
-import 'package:jadwal_v2/core/models/settings.dart';
 import 'package:jadwal_v2/features/timetable/domain/usecases/pdf_export_usecase.dart';
 
 void main() {
