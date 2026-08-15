@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
@@ -9,13 +10,22 @@ import 'package:firebase_core/firebase_core.dart';
 import 'core/theme/app_theme.dart';
 import 'features/management/presentation/pages/home_page.dart';
 import 'services/analytics_service.dart';
+import 'services/desktop_error_log_service.dart';
+import 'services/desktop_window_state_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  if (!kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS)) {
+  final isDesktop =
+      !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+  DesktopErrorLogService? desktopErrorLogService;
+
+  if (isDesktop) {
     await windowManager.ensureInitialized();
-    WindowOptions windowOptions = const WindowOptions(
+    desktopErrorLogService = await DesktopErrorLogService.initialize();
+    final desktopWindowStateService =
+        await DesktopWindowStateService.initialize();
+    const windowOptions = WindowOptions(
       size: Size(1280, 768),
       minimumSize: Size(1024, 768), // منع التصغير المشوه للجدول
       center: true,
@@ -24,20 +34,29 @@ Future<void> main() async {
       titleBarStyle: TitleBarStyle.normal,
       title: 'جدول الدروس الأسبوعي',
     );
-    windowManager.waitUntilReadyToShow(windowOptions, () async {
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await desktopWindowStateService.restore();
       await windowManager.show();
       await windowManager.focus();
     });
   }
 
   try {
-    if (kIsWeb || (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS)) {
+    if (kIsWeb ||
+        (!Platform.isWindows && !Platform.isLinux && !Platform.isMacOS)) {
       await Firebase.initializeApp();
     }
   } catch (e) {
     // التعامل مع أخطاء التهيئة بشكل نظيف دون تعطيل التطبيق
-    print('Firebase initialization failed: $e');
+    debugPrint('Firebase initialization failed: $e');
   }
+
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    if (isDesktop) {
+      desktopErrorLogService?.record(details.exception, details.stack);
+    }
+  };
 
   ErrorWidget.builder = (FlutterErrorDetails details) {
     return Material(
@@ -48,7 +67,10 @@ Future<void> main() async {
             padding: const EdgeInsets.all(16.0),
             child: Text(
               '🚨 CRITICAL RENDER ERROR:\n\n${details.exceptionAsString()}\n\n${details.stack.toString()}',
-              style: const TextStyle(color: Colors.redAccent, fontSize: 14, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                  color: Colors.redAccent,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold),
               textDirection: TextDirection.ltr,
             ),
           ),

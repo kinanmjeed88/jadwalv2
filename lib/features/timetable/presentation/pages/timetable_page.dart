@@ -1,4 +1,6 @@
 import 'package:path_provider/path_provider.dart';
+import 'dart:async';
+
 import 'package:share_plus/share_plus.dart';
 import 'dart:io';
 import 'package:path/path.dart' as path;
@@ -7,6 +9,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:isar/isar.dart';
@@ -21,6 +24,14 @@ import '../../domain/usecases/pdf_export_usecase.dart';
 import '../../domain/usecases/excel_export_usecase.dart';
 import '../providers/timetable_provider.dart';
 import '../../../../core/utils/timetable_display_utils.dart';
+
+class _ExportExcelIntent extends Intent {
+  const _ExportExcelIntent();
+}
+
+class _ExportPdfIntent extends Intent {
+  const _ExportPdfIntent();
+}
 
 class ConflictMessageMapper {
   static String map(ConflictReason reason) {
@@ -236,14 +247,39 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     final excelBytes =
         await usecase.generateTimetableExcel(lessons, classrooms, settings);
 
+    if (Platform.isWindows) {
+      final outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'حفظ ملف Excel',
+        fileName: 'timetable_export.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+        bytes: Uint8List.fromList(excelBytes),
+      );
+      if (outputFile != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('تم حفظ الملف بنجاح: $outputFile'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+      return;
+    }
+
     final tempDir = await getTemporaryDirectory();
     final file = File(path.join(tempDir.path, 'timetable_export.xlsx'));
     await file.writeAsBytes(excelBytes);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم تصدير الجدول إلى Excel بنجاح')));
-      Share.shareXFiles([XFile(file.path)], text: 'جدول الفصول الأسبوعي');
+        const SnackBar(content: Text('تم تصدير الجدول إلى Excel بنجاح')),
+      );
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'جدول الفصول الأسبوعي',
+        ),
+      );
     }
   }
 
@@ -263,6 +299,25 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
+      if (Platform.isWindows) {
+        final outputFile = await FilePicker.platform.saveFile(
+          dialogTitle: 'حفظ صورة الجدول',
+          fileName: 'timetable_export.png',
+          type: FileType.custom,
+          allowedExtensions: ['png'],
+          bytes: pngBytes,
+        );
+        if (outputFile != null && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('تم حفظ الصورة بنجاح: $outputFile'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        return;
+      }
+
       final tempDir = await getTemporaryDirectory();
       final file = File(path.join(tempDir.path, 'timetable_export.png'));
       await file.writeAsBytes(pngBytes);
@@ -274,7 +329,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             backgroundColor: Colors.green,
           ),
         );
-        await Share.shareXFiles([XFile(file.path)], text: 'جدول الدروس (صورة)');
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [XFile(file.path)],
+            text: 'جدول الدروس (صورة)',
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -359,7 +419,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     };
     final isarAsync = ref.watch(isarDatabaseProvider);
 
-    return Scaffold(
+    final scaffold = Scaffold(
       appBar: AppBar(
         title: const Text('جدول الدروس'),
         actions: [
@@ -696,6 +756,43 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             icon: const Icon(Icons.autorenew),
           ),
         ],
+      ),
+    );
+
+    if (!Platform.isWindows) {
+      return scaffold;
+    }
+
+    return Shortcuts(
+      shortcuts: <LogicalKeySet, Intent>{
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.keyE,
+        ): const _ExportExcelIntent(),
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.keyP,
+        ): const _ExportPdfIntent(),
+      },
+      child: Actions(
+        actions: <Type, Action<Intent>>{
+          _ExportExcelIntent: CallbackAction<_ExportExcelIntent>(
+            onInvoke: (_) {
+              unawaited(_exportToExcel());
+              return null;
+            },
+          ),
+          _ExportPdfIntent: CallbackAction<_ExportPdfIntent>(
+            onInvoke: (_) {
+              unawaited(_exportToPdf());
+              return null;
+            },
+          ),
+        },
+        child: Focus(
+          autofocus: true,
+          child: scaffold,
+        ),
       ),
     );
   }
