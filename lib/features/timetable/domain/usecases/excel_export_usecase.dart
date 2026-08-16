@@ -224,45 +224,10 @@ class ExcelExportUseCase {
       }
     }
 
-    // Find consecutive identical lessons and merge them per classroom per day
-    for (int d = 0; d < displayDays.length; d++) {
-      for (int c = 0; c < classrooms.length; c++) {
-        final classroom = classrooms[c];
-        int col = totalCols - 3 - c;
-        int pStart = 0;
-
-        while (pStart < periodsPerDay) {
-          final lessonStart = lessonMap['${classroom.id}_${d}_${pStart}'];
-          if (lessonStart == null) {
-            pStart++;
-            continue;
-          }
-
-          int pEnd = pStart;
-          while (pEnd + 1 < periodsPerDay) {
-            final nextLesson = lessonMap['${classroom.id}_${d}_${pEnd + 1}'];
-            if (nextLesson != null &&
-                nextLesson.subject.value?.id == lessonStart.subject.value?.id &&
-                nextLesson.teacher.value?.id == lessonStart.teacher.value?.id) {
-              pEnd++;
-            } else {
-              break;
-            }
-          }
-
-          if (pEnd > pStart) {
-            int rowStart = 4 + (d * periodsPerDay) + pStart;
-            int rowEnd = 4 + (d * periodsPerDay) + pEnd;
-            sheet.merge(
-                CellIndex.indexByColumnRow(
-                    columnIndex: col, rowIndex: rowStart),
-                CellIndex.indexByColumnRow(columnIndex: col, rowIndex: rowEnd));
-          }
-
-          pStart = pEnd + 1;
-        }
-      }
-    }
+    // Keep every lesson in its own Excel row, including consecutive lessons
+    // with the same subject and teacher. Only the day label column is merged
+    // above; lesson cells must remain separate for accurate period-by-period
+    // editing and export.
 
     return excel.encode()!;
   }
