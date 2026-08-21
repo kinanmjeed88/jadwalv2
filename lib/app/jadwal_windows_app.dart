@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +9,16 @@ import '../features/management/presentation/pages/home_page.dart';
 
 void runJadwalWindowsApp() {
   runApp(const ProviderScope(child: JadwalWindowsApp()));
+}
+
+class _WindowsMouseScrollBehavior extends MaterialScrollBehavior {
+  const _WindowsMouseScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        ...super.dragDevices,
+        PointerDeviceKind.mouse,
+      };
 }
 
 class JadwalWindowsApp extends StatelessWidget {
@@ -18,6 +30,7 @@ class JadwalWindowsApp extends StatelessWidget {
       title: 'جدول',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      scrollBehavior: const _WindowsMouseScrollBehavior(),
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
