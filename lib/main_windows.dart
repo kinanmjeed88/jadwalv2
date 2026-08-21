@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app/app_bootstrap.dart';
-import 'app/jadwal_app.dart';
+import 'app/jadwal_windows_app.dart';
 import 'services/desktop_error_log_service.dart';
 import 'services/desktop_window_state_service.dart';
 
@@ -33,5 +33,5 @@ Future<void> main() async {
   installErrorHandlers(
     onError: desktopErrorLogService.record,
   );
-  runJadwalApp();
+  runJadwalWindowsApp();
 }
