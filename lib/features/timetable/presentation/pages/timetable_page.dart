@@ -274,11 +274,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم تصدير الجدول إلى Excel بنجاح')),
       );
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          text: 'جدول الفصول الأسبوعي',
-        ),
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'جدول الفصول الأسبوعي',
       );
     }
   }
@@ -329,11 +327,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             backgroundColor: Colors.green,
           ),
         );
-        await SharePlus.instance.share(
-          ShareParams(
-            files: [XFile(file.path)],
-            text: 'جدول الدروس (صورة)',
-          ),
+        await Share.shareXFiles(
+          [XFile(file.path)],
+          text: 'جدول الدروس (صورة)',
         );
       }
     } catch (e) {
@@ -1387,9 +1383,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             height: 36,
             decoration: BoxDecoration(
               color: candidateData.isNotEmpty
-                  ? Colors.green.withValues(alpha: 0.3)
+                  ? Colors.green.withOpacity(0.3)
                   : (rejectedData.isNotEmpty
-                      ? Colors.red.withValues(alpha: 0.3)
+                      ? Colors.red.withOpacity(0.3)
                       : Colors.transparent),
               border: Border(
                 right: isFirstInGrade
@@ -1439,7 +1435,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           feedback: Material(
             color: Colors.transparent,
             child: Container(
-              color: Colors.teal.withValues(alpha: 0.8),
+              color: Colors.teal.withOpacity(0.8),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: FittedBox(
                 fit: BoxFit.scaleDown,

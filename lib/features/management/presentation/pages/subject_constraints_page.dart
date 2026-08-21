@@ -114,7 +114,7 @@ class _SubjectConstraintsPageState
                 else
                   DropdownButtonFormField<String>(
                     key: ValueKey(selectedGrade),
-                    initialValue: selectedGrade,
+                    value: selectedGrade,
                     decoration: const InputDecoration(
                       labelText: 'المرحلة / الصف',
                     ),
@@ -136,7 +136,7 @@ class _SubjectConstraintsPageState
                 else
                   DropdownButtonFormField<String>(
                     key: ValueKey(selectedSubject),
-                    initialValue: selectedSubject,
+                    value: selectedSubject,
                     decoration: const InputDecoration(labelText: 'المادة'),
                     items: _subjects
                         .map(
@@ -169,7 +169,7 @@ class _SubjectConstraintsPageState
                 const SizedBox(height: 16),
                 DropdownButtonFormField<SubjectConsecutiveness>(
                   key: ValueKey(selectedConsecutiveness),
-                  initialValue: selectedConsecutiveness,
+                  value: selectedConsecutiveness,
                   decoration: const InputDecoration(
                     labelText: 'سياسة تتابع الحصص',
                     helperText:

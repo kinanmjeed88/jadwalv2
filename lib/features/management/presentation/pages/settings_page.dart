@@ -123,11 +123,9 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
         );
       }
 
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          text: 'نسخة احتياطية لبيانات التطبيق',
-        ),
+      await Share.shareXFiles(
+        [XFile(file.path)],
+        text: 'نسخة احتياطية لبيانات التطبيق',
       );
     } catch (e) {
       if (mounted) {
@@ -392,7 +390,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                 child: Column(
                   children: [
                     DropdownButtonFormField<String>(
-                      initialValue: _exportPageSize,
+                      value: _exportPageSize,
                       decoration: const InputDecoration(
                           labelText: 'حجم الصفحة',
                           border: OutlineInputBorder()),
@@ -438,7 +436,7 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                     ],
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      initialValue: _exportOrientation,
+                      value: _exportOrientation,
                       decoration: const InputDecoration(
                           labelText: 'اتجاه الصفحة',
                           border: OutlineInputBorder()),
