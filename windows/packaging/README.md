@@ -3,8 +3,8 @@
 The Windows workflow produces three distributable outputs from the Flutter Release bundle:
 
 - A raw Release bundle for troubleshooting.
-- `Jadwal-V2-Windows-<version>.zip` for portable distribution.
-- `Jadwal-V2-Windows-<version>-Setup.exe` built with Inno Setup.
+- `Jadwal-V2-Windows-10-11-<version>.zip` for portable distribution.
+- `Jadwal-V2-Windows-10-11-<version>-Setup.exe` built with Inno Setup.
 
 The installer is intentionally unsigned when no signing credentials are configured. For production releases, add the following GitHub Actions secrets at the repository or environment level:
 
