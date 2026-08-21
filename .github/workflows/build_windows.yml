@@ -46,7 +46,7 @@ jobs:
           flutter test @testFiles
 
       - name: Build Windows Release
-        run: flutter build windows --release
+        run: flutter build windows --release --target=lib/main_windows.dart
 
       - name: Read Application Version
         id: version
