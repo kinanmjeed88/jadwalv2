@@ -12,6 +12,7 @@ on:
       - main
       - master
       - 'release/**'
+      - 'برنامج-مخصص-لوندوز-١٠-و-١١'
 
 jobs:
   build:
