@@ -10,7 +10,7 @@
 flutter build windows --release --target=lib/main_windows.dart
 ```
 
-تم تعديل manifest إلى GUID الخاص بـWindows 7، واستُبدل `PerMonitorV2` بإعداد DPI أقدم مناسب للنظام. كما خُفضت بعض الحزم التي تتطلب Flutter 3.19 أو أحدث.
+تم تعديل manifest إلى GUID الخاص بـWindows 7، واستُبدل `PerMonitorV2` بإعداد DPI أقدم مناسب للنظام. كما خُفضت بعض الحزم التي تتطلب Flutter 3.19 أو أحدث. وتستخدم نقطة دخول Windows واجهة مكتبية مستقلة لا تستورد Firebase أو خدمة analytics الخاصة بالـAPK. يحذف CI مجلد Android من مساحة البناء المؤقتة فقط حتى لا يفحص Flutter 3.16 embedding القديم؛ ملفات Android الأصلية لا تُحذف من المستودع.
 
 ## التحذير المهم
 

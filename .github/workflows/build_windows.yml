@@ -34,6 +34,10 @@ jobs:
       - name: Enable Windows Desktop
         run: flutter config --enable-windows-desktop
 
+      - name: Isolate Windows-only dependency resolution
+        shell: pwsh
+        run: Remove-Item -Recurse -Force android
+
       - name: Install Dependencies
         run: flutter pub get
 
