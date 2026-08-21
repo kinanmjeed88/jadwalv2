@@ -3,10 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
 import 'dart:io';
-import 'package:path/path.dart' as path;
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -112,21 +109,13 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
         return;
       }
 
-      final tempDir = await getTemporaryDirectory();
-      final file = File(path.join(tempDir.path, 'jadwal_backup.json'));
-      await file.writeAsBytes(jsonBytes);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('تم تحضير البيانات، جاري فتح المشاركة...')),
+            content: Text('تم حفظ النسخة الاحتياطية من خلال نافذة الحفظ.'),
+          ),
         );
       }
-
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'نسخة احتياطية لبيانات التطبيق',
-      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -1,9 +1,6 @@
-import 'package:path_provider/path_provider.dart';
 import 'dart:async';
 
-import 'package:share_plus/share_plus.dart';
 import 'dart:io';
-import 'package:path/path.dart' as path;
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 
@@ -266,17 +263,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       return;
     }
 
-    final tempDir = await getTemporaryDirectory();
-    final file = File(path.join(tempDir.path, 'timetable_export.xlsx'));
-    await file.writeAsBytes(excelBytes);
-
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم تصدير الجدول إلى Excel بنجاح')),
-      );
-      await Share.shareXFiles(
-        [XFile(file.path)],
-        text: 'جدول الفصول الأسبوعي',
+        const SnackBar(content: Text('تم حفظ ملف Excel من خلال نافذة الحفظ.')),
       );
     }
   }
@@ -316,20 +305,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         return;
       }
 
-      final tempDir = await getTemporaryDirectory();
-      final file = File(path.join(tempDir.path, 'timetable_export.png'));
-      await file.writeAsBytes(pngBytes);
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('تم التقاط الجدول بنجاح، جاري المشاركة...'),
+            content: Text('تم حفظ صورة الجدول من خلال نافذة الحفظ.'),
             backgroundColor: Colors.green,
           ),
-        );
-        await Share.shareXFiles(
-          [XFile(file.path)],
-          text: 'جدول الدروس (صورة)',
         );
       }
     } catch (e) {
