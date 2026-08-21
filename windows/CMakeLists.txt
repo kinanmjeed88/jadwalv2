@@ -4,7 +4,7 @@ project(jadwal_v2 LANGUAGES CXX)
 
 # The name of the executable created for the application. Change this to change
 # the on-disk name of your application.
-set(BINARY_NAME "jadwal_v2")
+set(BINARY_NAME "JadwalV2_Windows10_11")
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent
 # versions of CMake.

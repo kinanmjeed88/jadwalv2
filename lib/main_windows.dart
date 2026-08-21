@@ -21,7 +21,7 @@ Future<void> main() async {
     backgroundColor: Colors.transparent,
     skipTaskbar: false,
     titleBarStyle: TitleBarStyle.normal,
-    title: 'جدول الدروس الأسبوعي',
+    title: 'جدول الدروس الأسبوعي - Windows 10 و11',
   );
 
   await windowManager.waitUntilReadyToShow(windowOptions, () async {

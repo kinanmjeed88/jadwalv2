@@ -1,19 +1,17 @@
-# برنامج مخصص لوندوز ١٠ و ١١
+# برنامج مخصص لـWindows 10 و11
 
-هذا الفرع مخصص لبناء نسخة Windows Desktop على Windows 10 وWindows 11 فقط.
+هذا الفرع ينتج برنامجًا واضح الاسم حتى لا يختلط مع نسخة Windows 7.
 
-يستخدم البناء نقطة الدخول:
+| العنصر | الاسم |
+|---|---|
+| اسم البرنامج | `Jadwal V2 - Windows 10 and 11` |
+| الملف التنفيذي | `JadwalV2_Windows10_11.exe` |
+| ZIP | `Jadwal-V2-Windows-10-11-<version>.zip` |
+| المثبت | `Jadwal-V2-Windows-10-11-<version>-Setup.exe` |
+| مجلد التثبيت | `Jadwal V2 Windows 10 and 11` |
 
-```bash
-flutter build windows --release --target=lib/main_windows.dart
-```
+يبني GitHub Actions هذا الفرع باستخدام `lib/main_windows.dart` ويجري فحص startup وSmoke Test قبل التغليف.
 
-وتعلن `windows/runner/runner.exe.manifest` دعم Windows 10 وWindows 11 عبر `supportedOS`. لا يُستهدف Windows 7 بهذا الفرع.
+ملف `flutter_windows.dll` في هذه النسخة قد يستورد `GetHostNameW` من `WS2_32.dll`. هذا الاستدعاء صحيح لWindows 10 وWindows 11، لكنه ليس متوافقًا مع Windows 7؛ لذلك لا يجوز تشغيل هذا البرنامج على Windows 7 ولا نسخ DLLs النظام من Windows 10 إلى Windows 7.
 
-يظل تطبيق Android منفصلًا ويُبنى من:
-
-```bash
-flutter build apk --release --target=lib/main.dart
-```
-
-لا تُستورد خدمات `window_manager` أو حالة النافذة أو سجل سطح المكتب من نقطة دخول APK.
+يبقى APK منفصلًا ويُبنى من `lib/main.dart` في workflow Android.
