@@ -18,7 +18,7 @@ on:
 jobs:
   build:
     name: Analyze, Test, and Build Windows
-    runs-on: windows-2019
+    runs-on: windows-2022
 
     steps:
       - name: Checkout Repository
