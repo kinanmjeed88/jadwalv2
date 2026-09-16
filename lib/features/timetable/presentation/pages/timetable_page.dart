@@ -8,10 +8,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:isar/isar.dart';
 
 import '../../../../core/models/lesson.dart';
+import '../../../../core/services/file_save_service.dart';
 import '../../../../core/models/settings.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/teacher.dart';
@@ -143,22 +143,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       final pdfBytes = await pdfUsecase.generateTeacherTimetablePdf(
           lessons, teachers, settings);
 
-      String? outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'حفظ ملف PDF',
-        fileName: 'teachers_timetable.pdf',
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-        bytes: pdfBytes,
-      );
-
-      if (outputFile != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم حفظ الملف بنجاح: $outputFile'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      final outcome = await ref.read(fileSaveServiceProvider).saveBytes(
+            dialogTitle: 'حفظ ملف PDF',
+            fileName: 'teachers_timetable.pdf',
+            allowedExtensions: ['pdf'],
+            bytes: pdfBytes,
+          );
+      _reportSaveOutcome(outcome, successMessage: 'تم حفظ ملف PDF بنجاح');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -196,22 +187,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       final pdfBytes =
           await pdfUsecase.generateTimetablePdf(lessons, classRooms, settings);
 
-      String? outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'حفظ ملف PDF',
-        fileName: 'timetable.pdf',
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
-        bytes: pdfBytes,
-      );
-
-      if (outputFile != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم حفظ الملف بنجاح: $outputFile'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      final outcome = await ref.read(fileSaveServiceProvider).saveBytes(
+            dialogTitle: 'حفظ ملف PDF',
+            fileName: 'timetable.pdf',
+            allowedExtensions: ['pdf'],
+            bytes: pdfBytes,
+          );
+      _reportSaveOutcome(outcome, successMessage: 'تم حفظ ملف PDF بنجاح');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -225,47 +207,40 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
   }
 
   Future<void> _exportToExcel() async {
-    final settingsAsync = ref.read(timetableNotifierProvider);
-    final isarAsync = ref.read(isarDatabaseProvider);
+    try {
+      final settingsAsync = ref.read(timetableNotifierProvider);
+      final isarAsync = ref.read(isarDatabaseProvider);
 
-    if (settingsAsync is! AsyncData || isarAsync is! AsyncData) return;
+      if (settingsAsync is! AsyncData || isarAsync is! AsyncData) return;
 
-    final lessons = settingsAsync.value ?? [];
-    final isar = isarAsync.value;
-    if (isar == null) return;
+      final lessons = settingsAsync.value ?? [];
+      final isar = isarAsync.value;
+      if (isar == null) return;
 
-    final classrooms = await isar.classrooms.where().findAll();
-    final settingsList = await isar.appSettings.where().findAll();
-    final settings = settingsList.isNotEmpty
-        ? settingsList.first
-        : (AppSettings()..periodsPerDay = 7);
+      final classrooms = await isar.classrooms.where().findAll();
+      final settingsList = await isar.appSettings.where().findAll();
+      final settings = settingsList.isNotEmpty
+          ? settingsList.first
+          : (AppSettings()..periodsPerDay = 7);
 
-    final usecase = ExcelExportUseCase();
-    final excelBytes =
-        await usecase.generateTimetableExcel(lessons, classrooms, settings);
+      final usecase = ExcelExportUseCase();
+      final excelBytes =
+          await usecase.generateTimetableExcel(lessons, classrooms, settings);
 
-    if (Platform.isWindows) {
-      final outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'حفظ ملف Excel',
-        fileName: 'timetable_export.xlsx',
-        type: FileType.custom,
-        allowedExtensions: ['xlsx'],
-        bytes: Uint8List.fromList(excelBytes),
-      );
-      if (outputFile != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تم حفظ الملف بنجاح: $outputFile'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-      return;
-    }
-
-    if (mounted) {
+      final outcome = await ref.read(fileSaveServiceProvider).saveBytes(
+            dialogTitle: 'حفظ ملف Excel',
+            fileName: 'timetable_export.xlsx',
+            allowedExtensions: ['xlsx'],
+            bytes: Uint8List.fromList(excelBytes),
+          );
+      _reportSaveOutcome(outcome, successMessage: 'تم حفظ ملف Excel بنجاح');
+    } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حفظ ملف Excel من خلال نافذة الحفظ.')),
+        SnackBar(
+          content: Text('حدث خطأ أثناء تصدير Excel: $e'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
@@ -286,33 +261,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
       final Uint8List pngBytes = byteData.buffer.asUint8List();
 
-      if (Platform.isWindows) {
-        final outputFile = await FilePicker.platform.saveFile(
-          dialogTitle: 'حفظ صورة الجدول',
-          fileName: 'timetable_export.png',
-          type: FileType.custom,
-          allowedExtensions: ['png'],
-          bytes: pngBytes,
-        );
-        if (outputFile != null && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('تم حفظ الصورة بنجاح: $outputFile'),
-              backgroundColor: Colors.green,
-            ),
+      final outcome = await ref.read(fileSaveServiceProvider).saveBytes(
+            dialogTitle: 'حفظ صورة الجدول',
+            fileName: 'timetable_export.png',
+            allowedExtensions: ['png'],
+            bytes: pngBytes,
           );
-        }
-        return;
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('تم حفظ صورة الجدول من خلال نافذة الحفظ.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      _reportSaveOutcome(outcome, successMessage: 'تم حفظ الصورة بنجاح');
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -323,6 +278,31 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         );
       }
     }
+  }
+
+  /// Reports a [FileSaveOutcome] to the user with truthful feedback:
+  /// green on a verified write, red on failure, nothing on user cancel.
+  void _reportSaveOutcome(
+    FileSaveOutcome outcome, {
+    required String successMessage,
+  }) {
+    if (!mounted) return;
+    if (outcome is FileSaved) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$successMessage: ${outcome.path}'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else if (outcome is FileSaveFailed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('فشل في حفظ الملف: ${outcome.error}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+    // FileSaveCancelled: المستخدم ألغى الاختيار — لا رسالة.
   }
 
   void _showAutoFixFailureDialog(List<ConflictDiagnostic> diagnostics) {
