@@ -27,12 +27,15 @@ jobs:
       - name: Analyze Dart and Flutter Sources
         continue-on-error: true
         run: |
+          set +e
           flutter analyze --no-fatal-infos > analyze_full.log 2>&1
           ANALYZE_EXIT=$?
-          grep -E "error •|warning •|^Analyzing|issues found|No issues found" analyze_full.log > analyze.log || true
+          set -e
+          { grep -E "error •|warning •|^Analyzing|issues found|No issues found" analyze_full.log || true; } > analyze.log
           echo "analyze-exit-code: $ANALYZE_EXIT" >> analyze.log
           echo "analyze-error-lines: $(grep -c 'error •' analyze_full.log || true)" >> analyze.log
           echo "analyze-warning-lines: $(grep -c 'warning •' analyze_full.log || true)" >> analyze.log
+          echo "analyze-info-lines: $(grep -c 'info •' analyze_full.log || true)" >> analyze.log
           cat analyze.log
 
       - name: Run Flutter Tests
@@ -40,9 +43,11 @@ jobs:
         continue-on-error: true
         run: |
           FILES=$(find test -name '*_test.dart' ! -name 'backup_service_benchmark_test.dart' | tr '\n' ' ')
+          set +e
           flutter test $FILES > tests_full.log 2>&1
           TESTS_EXIT=$?
-          grep -E "::group::|tests passed|tests failed|Some tests failed|exit-code" tests_full.log > tests.log || true
+          set -e
+          { grep -E "::group::|tests passed|tests failed|Some tests failed|exit-code" tests_full.log || true; } > tests.log
           echo "tests-exit-code: $TESTS_EXIT" >> tests.log
           echo "tests-passed-lines: $(grep -c '::group::✅' tests_full.log || true)" >> tests.log
           echo "tests-failed-lines: $(grep -c '::group::❌' tests_full.log || true)" >> tests.log
