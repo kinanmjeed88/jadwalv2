@@ -1,0 +1,2964 @@
+diff --git a/FIRST_RUN_SETUP.md b/FIRST_RUN_SETUP.md
+new file mode 100644
+index 0000000..20833fd
+--- /dev/null
++++ b/FIRST_RUN_SETUP.md
+@@ -0,0 +1,122 @@
++<div dir="rtl">
++
++# الإعداد الأولي الإلزامي وسياسة قيود المرحلة الابتدائية
++
++يشرح هذا الملف التعديل المضاف على **نسخة أندرويد** و**نسخة ويندوز ٧** و**نسخة ويندوز ١٠ و١١**:
++معالج الإعداد الأولي الإلزامي، وسياسة «تخطي قيود المواد» للمرحلة الابتدائية.
++
++---
++
++## ١) معالج الإعداد الأولي (إلزامي عند أول تشغيل)
++
++عند أول تشغيل للتطبيق لا يظهر الجدول مباشرة، بل تظهر شاشة إعداد إلزامية
++(`FirstRunSetupPage`) تطلب:
++
++| الحقل | التحقق |
++|---|---|
++| اسم المدرسة | مطلوب وغير فارغ |
++| اسم المدير | مطلوب وغير فارغ |
++| عدد الدروس في اليوم | رقم صحيح بين ١ و ١٢ |
++| عدد أيام الأسبوع | رقم صحيح بين ١ و ٧ |
++| المرحلة الدراسية | مطلوب: **ابتدائي** أو **متوسط فأعلى** |
++
++* لا يمكن تجاوز الشاشة أو الرجوع منها (`PopScope(canPop: false)`) قبل الحفظ.
++* تُحفظ البيانات الأربعة الأولى في جدول `AppSettings` كما كانت سابقًا.
++* تُعرض الشاشة نفسها لاحقًا من **الإعدادات ← معالج الإعداد الأولي** للمراجعة
++  والتعديل (وضع `isEditing`).
++
++### المستخدمون القدامى (الترقية من نسخة سابقة)
++
++إذا وُجدت بيانات في قاعدة البيانات ولم يكن ملف الإعدادات موجودًا، يُعتمد
++الإعداد تلقائيًا بمرحلة **متوسط فأعلى** (وهي مرحلة لا تُغيّر سلوك الجدول)،
++فلا يُقاطَع المستخدم القائم، ويمكنه تغيير المرحلة من الإعدادات في أي وقت.
++
++---
++
++## ٢) سياسة تخطي قيود المواد للمرحلة الابتدائية
++
++### المشكلة التي تعالجها
++
++الحد الافتراضي لأي مادة بلا قيد في محرك التوليد هو **حصة واحدة في اليوم**.
++لذلك مادة مثل اللغة العربية أو الرياضيات بنصاب ٨ حصص أسبوعيًا على ٥ أيام
++تُعدّ **مستحيلة رياضيًا** (٥ أيام × حصة = ٥ حصص فقط)، ويظهر الخطأ:
++«استحالة رياضية: … الحد الأقصى المسموح يومياً هو ١ حصة».
++
++### القاعدة المطبَّقة (تُشتق من عدد الحصص المُضافة)
++
++عند اختيار المرحلة **ابتدائي**:
++
++1. تُقرأ الأحمال الفعلية لكل مادة = الأعلى بين نصاب المادة الأسبوعي
++   (`Subject.lessonsPerWeek`) وعدد الحصص المُسندة فعليًا لأي شعبة في المرحلة.
++2. أي مادة يتجاوز حملها الأسبوعي **٦ حصص** تدخل سياسة التخطي.
++3. يُمنح لها حدًا يوميًا = **حصتان في اليوم** كحد أدنى، ويُرفع فقط عند الحاجة
++   الرياضية الفعلية (`⌈الحمل ÷ أيام الأسبوع⌉`)، فمثلًا ١٢ حصة على ٥ أيام
++   تُعطى ٣ حصص في اليوم حتى لا نُنشئ قيدًا مستحيلًا بذاته.
++4. تُكتب النتيجة في جدول **قيود المواد** لكل مرحلة (الصف) وكل مادة، تمامًا
++   كأي قيد يدوي، فتظهر في الصفحة مع شارة «تلقائي» ويمكن **تعديلها أو حذفها**.
++
++المرحلة **متوسط فأعلى** لا تُفعّل أي سياسة تلقائية إطلاقًا، ويعود كل شيء
++لقرار المستخدم.
++
++### متى تُحدَّث القيود تلقائيًا؟
++
++| الحالة | السلوك |
++|---|---|
++| إتمام الإعداد الأولي بالمرحلة الابتدائية | إنشاء القيود المطلوبة فورًا |
++| إضافة/تعديل مادة أو صف أو إسناد | إعادة المزامنة تلقائيًا (بعد تغيير البيانات بلحظات) |
++| تغيير عدد الحصص إلى أكثر من ٦ أو أقل | إنشاء القيد أو إزالته تلقائيًا |
++| تغيير المرحلة إلى «متوسط فأعلى» | إزالة كل القيود التي أنشأها النظام |
++| تعديل المستخدم لقيد تلقائي | يتحول إلى «يدوي» ويتوقف النظام عن إدارته نهائيًا |
++| حذف المستخدم لقيد تلقائي | لا يُعاد إنشاؤه ما دامت المادة مؤهلة (احترام قراره) |
++| عودة المادة إلى ٦ حصص أو أقل ثم تجاوزها لاحقًا | يُعاد تطبيق السياسة من جديد |
++
++### أين تُخزَّن البيانات؟
++
++* **`AppSettings` (Isar):** اسم المدرسة، اسم المدير، عدد الدروس في اليوم، عدد أيام الأسبوع.
++* **`jadwal_app_config.json`** (مجلد مستندات التطبيق، عبر `AppConfigService`):
++  حالة الإعداد الأولي، المرحلة الدراسية، وسجلّ القيود التي أنشأها النظام
++  والقيود التي حذفها المستخدم.
++
++> **لماذا ملف JSON بدل مجموعة Isar جديدة؟** لأن هذه بيانات وصفية لا تُستعلَم
++> ولا تُفرز، ولتفادي أي هجرة مخطط (schema migration) على قواعد بيانات
++> المستخدمين الحاليين. الكتابة ذرّية (ملف مؤقت ثم إعادة تسمية) مع رجوع آمن
++> للقيم الافتراضية إذا تلف الملف.
++
++---
++
++## ٣) بنية الكود
++
++```
++lib/core/models/school_stage.dart                     مرحلة الدراسة وأوصافها
++lib/core/models/app_config.dart                       نموذج الإعدادات + JSON
++lib/core/models/subject_constraint_key.dart           مفتاح (مرحلة + مادة) موحّد
++lib/core/services/app_config_service.dart             قراءة/كتابة الملف بكتابة ذرّية
++lib/core/providers/app_config_provider.dart           حالة الإعداد الأولي والمرحلة
++lib/features/setup/domain/setup_validation.dart        تحقق خالص من بيانات المعالج
++lib/features/setup/presentation/pages/…               شاشة الإعداد الأولي
++lib/features/setup/presentation/widgets/…             مُحدِّد المرحلة
++lib/features/management/domain/services/primary_stage_constraint_policy.dart
++                                                    القاعدة الخالصة (بلا Isar/واجهة)
++lib/features/management/data/services/subject_constraint_auto_sync_service.dart
++                                                    تطبيق القاعدة على قاعدة البيانات
++lib/features/management/presentation/providers/subject_constraint_auto_sync_provider.dart
++                                                    المراقبة والتشغيل ودفعات المزامنة
++lib/features/management/presentation/pages/home_page.dart
++                                                    واجهة الإقلاع (معالج/هيكل التطبيق)
++lib/features/management/presentation/pages/home_shell.dart
++                                                    الهيكل الرئيسي بعد الإعداد
++```
++
++الفصل مقصود: القرار في **سياسة خالصة** قابلة للاختبار دون قاعدة بيانات،
++والتنفيذ في **خدمة** واحدة، والتشغيل في **متحكّم** واحد يراقب تغيّر البيانات.
++
++## ٤) الاختبارات
++
++| ملف الاختبار | التغطية |
++|---|---|
++| `test/features/management/domain/primary_stage_constraint_policy_test.dart` | حد الـ٦ حصص، حصتان في اليوم، الرفع عند الحاجة، تعدّد المراحل، مفتاح القيد |
++| `test/core/models/app_config_test.dart` | قراءة/كتابة JSON، القيم التالفة، المرحلة الافتراضية |
++| `test/core/services/app_config_service_test.dart` | غياب الملف، الحفظ الذرّي، تلف المحتوى، إنشاء المجلد |
++| `test/features/setup/domain/setup_validation_test.dart` | تحقق كل حقل من حقول المعالج |
++
++</div>
+diff --git a/lib/core/models/app_config.dart b/lib/core/models/app_config.dart
+new file mode 100644
+index 0000000..df5c22c
+--- /dev/null
++++ b/lib/core/models/app_config.dart
+@@ -0,0 +1,143 @@
++import 'package:flutter/foundation.dart';
++
++import 'school_stage.dart';
++
++/// إعدادات المنصة العامة التي تُخزَّن في ملف JSON مستقل عن قاعدة البيانات.
++///
++/// لماذا ملف مستقل بدل مجموعة Isar جديدة؟
++/// * هذه بيانات وصفية (أول تشغيل، المرحلة، سجلّ القيود التوليدية) ولا حاجة
++///   لاستعلامها أو فرزها داخل قاعدة البيانات.
++/// * تفاديًا لأي هجرة مخطط (schema migration) على بيانات المستخدمين
++///   الحاليين، خصوصًا أن قيود المواد نفسها تبقى في Isar وتُقرأ كما هي.
++///
++/// الملف مقروء للتوسعة مستقبلًا عبر [schemaVersion]، وأي قيمة غير معروفة
++/// تُترجم إلى الافتراضي بدل أن تُعطّل التطبيق.
++class AppConfig {
++  const AppConfig({
++    required this.isSetupCompleted,
++    required this.schoolStage,
++    required this.managedAutoConstraints,
++    required this.dismissedAutoConstraints,
++  });
++
++  /// الحالة الافتراضية: لم يُكمل المستخدم الإعداد الأولي بعد.
++  factory AppConfig.initial() {
++    return const AppConfig(
++      isSetupCompleted: false,
++      schoolStage: SchoolStage.fallback,
++      managedAutoConstraints: <String, int>{},
++      dismissedAutoConstraints: <String>{},
++    );
++  }
++
++  /// صيغة التخزين الحالية؛ تُستخدم لتمييز الملفات القديمة عند التوسعة.
++  static const int currentSchemaVersion = 1;
++
++  static const String _setupKey = 'isSetupCompleted';
++  static const String _stageKey = 'schoolStage';
++  static const String _managedKey = 'managedAutoConstraints';
++  static const String _dismissedKey = 'dismissedAutoConstraints';
++  static const String _versionKey = 'schemaVersion';
++
++  /// هل أتمّ المستخدم الإعداد الأولي (البيانات الإلزامية + المرحلة)؟
++  final bool isSetupCompleted;
++
++  /// المرحلة الدراسية المختارة.
++  final SchoolStage schoolStage;
++
++  /// القيود التي أنشأها نظام المزامنة التلقائي للمرحلة الابتدائية.
++  /// المفتاح هو [SubjectConstraintKey.storageKey] والقيمة هي الحد اليومي
++  /// الذي كتبته المزامنة، فإذا تغيّرت القيمة يدويًا يُعتبر القيد ملكًا
++  /// للمستخدم وتتوقف المزامنة عن إدارته.
++  final Map<String, int> managedAutoConstraints;
++
++  /// مفاتيح حذفها المستخدم صراحةً فلا تُعاد تلقائيًا ما دامت مؤهلة.
++  final Set<String> dismissedAutoConstraints;
++
++  int get schemaVersion => currentSchemaVersion;
++
++  AppConfig copyWith({
++    bool? isSetupCompleted,
++    SchoolStage? schoolStage,
++    Map<String, int>? managedAutoConstraints,
++    Set<String>? dismissedAutoConstraints,
++  }) {
++    return AppConfig(
++      isSetupCompleted: isSetupCompleted ?? this.isSetupCompleted,
++      schoolStage: schoolStage ?? this.schoolStage,
++      managedAutoConstraints:
++          managedAutoConstraints ?? this.managedAutoConstraints,
++      dismissedAutoConstraints:
++          dismissedAutoConstraints ?? this.dismissedAutoConstraints,
++    );
++  }
++
++  Map<String, dynamic> toJson() {
++    return <String, dynamic>{
++      _versionKey: currentSchemaVersion,
++      _setupKey: isSetupCompleted,
++      _stageKey: schoolStage.storageName,
++      _managedKey: Map<String, int>.from(managedAutoConstraints),
++      _dismissedKey: dismissedAutoConstraints.toList(),
++    };
++  }
++
++  factory AppConfig.fromJson(Map<String, dynamic> json) {
++    return AppConfig(
++      isSetupCompleted: json[_setupKey] == true,
++      schoolStage: SchoolStage.fromStorage(json[_stageKey]),
++      managedAutoConstraints: _decodeManaged(json[_managedKey]),
++      dismissedAutoConstraints: _decodeDismissed(json[_dismissedKey]),
++    );
++  }
++
++  static Map<String, int> _decodeManaged(Object? raw) {
++    if (raw is! Map) {
++      return <String, int>{};
++    }
++
++    final decoded = <String, int>{};
++    raw.forEach((key, value) {
++      if (key is String && value is num) {
++        decoded[key] = value.toInt();
++      }
++    });
++    return decoded;
++  }
++
++  static Set<String> _decodeDismissed(Object? raw) {
++    if (raw is! List) {
++      return <String>{};
++    }
++
++    return raw.whereType<String>().toSet();
++  }
++
++  @override
++  bool operator ==(Object other) {
++    if (identical(this, other)) {
++      return true;
++    }
++    return other is AppConfig &&
++        other.isSetupCompleted == isSetupCompleted &&
++        other.schoolStage == schoolStage &&
++        mapEquals(other.managedAutoConstraints, managedAutoConstraints) &&
++        setEquals(other.dismissedAutoConstraints, dismissedAutoConstraints);
++  }
++
++  @override
++  int get hashCode => Object.hash(
++        isSetupCompleted,
++        schoolStage,
++        Object.hashAllUnordered(managedAutoConstraints.entries
++            .map((entry) => Object.hash(entry.key, entry.value))),
++        Object.hashAllUnordered(dismissedAutoConstraints),
++      );
++
++  @override
++  String toString() {
++    return 'AppConfig(setup: $isSetupCompleted, stage: ${schoolStage.name}, '
++        'managed: ${managedAutoConstraints.length}, '
++        'dismissed: ${dismissedAutoConstraints.length})';
++  }
++}
+diff --git a/lib/core/models/school_stage.dart b/lib/core/models/school_stage.dart
+new file mode 100644
+index 0000000..9d40f04
+--- /dev/null
++++ b/lib/core/models/school_stage.dart
+@@ -0,0 +1,52 @@
++/// المرحلة الدراسية التي يخدمها التطبيق.
++///
++/// تُستخدم المرحلة لتحديد سياسة "تخطي قيود المواد" الافتراضية:
++/// * [SchoolStage.primary]: تُفعَّل السياسة تلقائيًا للمواد التي يتجاوز
++///   نصابها الأسبوعي ٦ حصص (اللغة العربية والرياضيات غالبًا)، فيسمح النظام
++///   بتكرار حصتين في اليوم نفسه بدل حصة واحدة.
++/// * [SchoolStage.middleAndAbove]: لا تُفعَّل أي سياسة تلقائية، وتبقى
++///   القيود بيد المستخدم فقط.
++enum SchoolStage {
++  primary(
++    label: 'ابتدائي',
++    description: 'يُسمح للمواد التي يتجاوز نصابها الأسبوعي ٦ حصص '
++        '(مثل اللغة العربية والرياضيات) بتكرار حصتين في اليوم نفسه.',
++  ),
++  middleAndAbove(
++    label: 'متوسط فأعلى',
++    description: 'تُطبَّق قيود المواد اليدوية فقط دون أي تخطٍّ تلقائي.',
++  );
++
++  const SchoolStage({
++    required this.label,
++    required this.description,
++  });
++
++  /// الاسم العربي المعروض في الواجهة.
++  final String label;
++
++  /// وصف مختصر يُعرض بجانب الاختيار ليوضح أثره على الجدول.
++  final String description;
++
++  /// القيمة المخزَّنة في ملف الإعدادات.
++  String get storageName => name;
++
++  /// المرحلة المستخدمة عند غياب قيمة صريحة (مستخدمون قدامى أو ملف تالف).
++  ///
++  /// اختيار [SchoolStage.middleAndAbove] مقصود لأنه لا يغيّر سلوك الجدول
++  /// تلقائيًا، فلا نُدخل تعديلات غير متوقعة على بيانات مستخدم قائم.
++  static const SchoolStage fallback = SchoolStage.middleAndAbove;
++
++  /// هل تُفعَّل سياسة تخطي قيود المواد التلقائية لهذه المرحلة؟
++  bool get enablesAutomaticConstraintBypass => this == SchoolStage.primary;
++
++  /// يحوّل قيمة مخزَّنة (قد تكون تالفة أو قديمة) إلى مرحلة صحيحة.
++  static SchoolStage fromStorage(Object? value) {
++    for (final stage in SchoolStage.values) {
++      if (stage.name == value) {
++        return stage;
++      }
++    }
++    return fallback;
++  }
++}
+diff --git a/lib/core/models/subject_constraint_key.dart b/lib/core/models/subject_constraint_key.dart
+new file mode 100644
+index 0000000..2c00fe2
+--- /dev/null
++++ b/lib/core/models/subject_constraint_key.dart
+@@ -0,0 +1,66 @@
++import 'subject_constraint.dart';
++
++/// مفتاح منطقي لقيد مادة: المرحلة/الصف + اسم المادة.
++///
++/// قاعدة البيانات تُخزّن القيد كصفّين نصّيين ([SubjectConstraint.grade] و
++/// [SubjectConstraint.subjectName])، لذلك نحتاج غلافًا موحّدًا يُقارَن به
++/// ويُخزَّن في ملف الإعدادات دون لبس. تُستخدم فاصلة تحكّم غير مرئية حتى لا
++/// تتضارب الأسماء العربية التي قد تحتوي على محارف عادية مثل `-` أو `:`.
++class SubjectConstraintKey {
++  const SubjectConstraintKey({
++    required this.grade,
++    required this.subjectName,
++  });
++
++  /// المرحلة أو الصف كما هو مخزَّن في [Classroom.grade].
++  final String grade;
++
++  /// اسم المادة كما هو مخزَّن في [Subject.name].
++  final String subjectName;
++
++  static const String _separator = '\u001F';
++
++  /// الصيغة المخزَّنة في ملف الإعدادات (مفاتيح خريطة JSON).
++  String get storageKey => '$grade$_separator$subjectName';
++
++  /// يبني المفتاح من قيد مادة مُخزَّن.
++  static SubjectConstraintKey fromConstraint(SubjectConstraint constraint) {
++    return SubjectConstraintKey(
++      grade: constraint.grade,
++      subjectName: constraint.subjectName,
++    );
++  }
++
++  /// يستعيد المفتاح من [storageKey]، ويعيد `null` إذا كانت القيمة تالفة.
++  static SubjectConstraintKey? tryParse(Object? storageKey) {
++    if (storageKey is! String) {
++      return null;
++    }
++
++    final separatorIndex = storageKey.indexOf(_separator);
++    if (separatorIndex <= 0 || separatorIndex >= storageKey.length - 1) {
++      return null;
++    }
++
++    return SubjectConstraintKey(
++      grade: storageKey.substring(0, separatorIndex),
++      subjectName: storageKey.substring(separatorIndex + 1),
++    );
++  }
++
++  @override
++  bool operator ==(Object other) {
++    if (identical(this, other)) {
++      return true;
++    }
++    return other is SubjectConstraintKey &&
++        other.grade == grade &&
++        other.subjectName == subjectName;
++  }
++
++  @override
++  int get hashCode => Object.hash(grade, subjectName);
++
++  @override
++  String toString() => '$subjectName - $grade';
++}
+diff --git a/lib/core/providers/app_config_provider.dart b/lib/core/providers/app_config_provider.dart
+new file mode 100644
+index 0000000..946f009
+--- /dev/null
++++ b/lib/core/providers/app_config_provider.dart
+@@ -0,0 +1,109 @@
++import 'dart:io';
++
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++import 'package:path_provider/path_provider.dart';
++
++import '../models/app_config.dart';
++import '../models/school_stage.dart';
++import '../services/app_config_service.dart';
++import 'database_provider.dart';
++
++/// خدمة ملف إعدادات التطبيق (تُهيَّأ مرة واحدة لكل تشغيل).
++final appConfigServiceProvider = FutureProvider<AppConfigService>((ref) async {
++  final directory = await getApplicationDocumentsDirectory();
++  final file = File(
++    '${directory.path}${Platform.pathSeparator}${AppConfigService.fileName}',
++  );
++  return AppConfigService(file: file);
++});
++
++/// حالة إعدادات التطبيق (هل أُكمل الإعداد الأولي؟ وما المرحلة الدراسية؟).
++final appConfigNotifierProvider =
++    AsyncNotifierProvider<AppConfigNotifier, AppConfig>(
++  AppConfigNotifier.new,
++);
++
++/// حالة الإعداد الأولي كما تراها واجهة الإقلاع.
++enum AppSetupStatus {
++  /// مستخدم جديد: يجب إكمال البيانات الإلزامية والمرحلة قبل استخدام التطبيق.
++  needsSetup,
++
++  /// توجد بيانات سابقة (ترقية من نسخة أقدم): نُكمل الإعداد تلقائيًا دون
++  /// مقاطعة المستخدم، وبقيت المرحلة قابلة للتغيير من الإعدادات.
++  legacyDataDetected,
++
++  /// الإعداد الأولي مكتمل.
++  completed,
++}
++
++/// يقرأ حالة الإعداد الأولي دون أي آثار جانبية.
++///
++/// إذا لم يكن الإعداد مكتملًا لكن قاعدة البيانات تحتوي بيانات (مستخدم قديم)،
++/// تُعاد [AppSetupStatus.legacyDataDetected] ليتولّى واجهة الإقلاع اعتماد
++/// الإعداد بصمت.
++final appSetupStatusProvider = FutureProvider<AppSetupStatus>((ref) async {
++  final config = await ref.watch(appConfigNotifierProvider.future);
++  if (config.isSetupCompleted) {
++    return AppSetupStatus.completed;
++  }
++
++  final isar = await ref.watch(isarDatabaseProvider.future);
++  final teachers = await isar.teachers.count();
++  final subjects = await isar.subjects.count();
++  final classrooms = await isar.classrooms.count();
++  final lessons = await isar.lessons.count();
++
++  final hasExistingData =
++      teachers > 0 || subjects > 0 || classrooms > 0 || lessons > 0;
++  return hasExistingData
++      ? AppSetupStatus.legacyDataDetected
++      : AppSetupStatus.needsSetup;
++});
++
++/// يقرأ ويحفظ [AppConfig] ويثبّت آخر قيمة في حالة Riverpod.
++class AppConfigNotifier extends AsyncNotifier<AppConfig> {
++  @override
++  Future<AppConfig> build() async {
++    final service = await ref.watch(appConfigServiceProvider.future);
++    return service.load();
++  }
++
++  /// يُنهي الإعداد الأولي ويثبّت المرحلة المختارة.
++  Future<void> completeSetup({required SchoolStage stage}) {
++    return _update(
++      (config) => config.copyWith(
++        isSetupCompleted: true,
++        schoolStage: stage,
++      ),
++    );
++  }
++
++  /// يعتمد إعدادًا صامتًا لمستخدم قائم (ترقية) بمرحلة لا تغيّر سلوك الجدول.
++  Future<void> adoptLegacySetup() {
++    return completeSetup(stage: SchoolStage.fallback);
++  }
++
++  /// يستبدل الإعدادات الحالية بالكامل (تستخدمه المزامنة التلقائية).
++  Future<void> replace(AppConfig config) async {
++    if (state.valueOrNull == config) {
++      return;
++    }
++    await _persist(config);
++  }
++
++  Future<void> _update(AppConfig Function(AppConfig config) transform) async {
++    final current = state.valueOrNull ?? await _loadFromDisk();
++    await _persist(transform(current));
++  }
++
++  Future<AppConfig> _loadFromDisk() async {
++    final service = await ref.read(appConfigServiceProvider.future);
++    return service.load();
++  }
++
++  Future<void> _persist(AppConfig config) async {
++    final service = await ref.read(appConfigServiceProvider.future);
++    await service.save(config);
++    state = AsyncData(config);
++  }
++}
+diff --git a/lib/core/services/app_config_service.dart b/lib/core/services/app_config_service.dart
+new file mode 100644
+index 0000000..cf1b42e
+--- /dev/null
++++ b/lib/core/services/app_config_service.dart
+@@ -0,0 +1,71 @@
++import 'dart:convert';
++import 'dart:io';
++
++import 'package:flutter/foundation.dart';
++
++import '../models/app_config.dart';
++
++/// قراءة وكتابة ملف إعدادات التطبيق بصيغة JSON.
++///
++/// يضمن الصنف:
++/// * إنشاء المجلد تلقائيًا عند الحاجة.
++/// * كتابة ذرّية (ملف مؤقت ثم إعادة تسمية) حتى لا يتلف الملف إذا أُغلق
++///   التطبيق أثناء الحفظ.
++/// * التسامح مع الملفات التالفة أو الناقصة بالرجوع إلى القيم الافتراضية
++///   بدل إسقاط التطبيق.
++class AppConfigService {
++  AppConfigService({required this.file});
++
++  /// مسار ملف الإعدادات.
++  final File file;
++
++  /// اسم الملف داخل مجلد مستندات التطبيق.
++  static const String fileName = 'jadwal_app_config.json';
++
++  /// امتداد الملف المؤقت المستخدم في الكتابة الذرّية.
++  static const String temporaryExtension = '.tmp';
++
++  /// يقرأ الإعدادات، ويعيد [AppConfig.initial] عند غياب الملف أو تلفه.
++  Future<AppConfig> load() async {
++    try {
++      if (!await file.exists()) {
++        return AppConfig.initial();
++      }
++
++      final raw = await file.readAsString();
++      if (raw.trim().isEmpty) {
++        return AppConfig.initial();
++      }
++
++      final decoded = jsonDecode(raw);
++      if (decoded is! Map<String, dynamic>) {
++        debugPrint('AppConfig: unexpected JSON root, using defaults.');
++        return AppConfig.initial();
++      }
++
++      return AppConfig.fromJson(decoded);
++    } catch (error) {
++      debugPrint('AppConfig: failed to read config file: $error');
++      return AppConfig.initial();
++    }
++  }
++
++  /// يحفظ الإعدادات كتابةً ذرّية.
++  Future<void> save(AppConfig config) async {
++    final temporaryFile = File('${file.path}$temporaryExtension');
++
++    final parent = file.parent;
++    if (!await parent.exists()) {
++      await parent.create(recursive: true);
++    }
++
++    await temporaryFile
++        .writeAsString(jsonEncode(config.toJson()), flush: true);
++
++    // على ويندوز يفشل إعادة التسمية فوق ملف قائم، فنُزيل الهدف أولًا.
++    if (await file.exists()) {
++      await file.delete();
++    }
++    await temporaryFile.rename(file.path);
++  }
++}
+diff --git a/lib/features/management/data/services/subject_constraint_auto_sync_service.dart b/lib/features/management/data/services/subject_constraint_auto_sync_service.dart
+new file mode 100644
+index 0000000..1896a9d
+--- /dev/null
++++ b/lib/features/management/data/services/subject_constraint_auto_sync_service.dart
+@@ -0,0 +1,301 @@
++import 'package:isar/isar.dart';
++
++import '../../../../core/models/app_config.dart';
++import '../../../../core/models/classroom.dart';
++import '../../../../core/models/lesson.dart';
++import '../../../../core/models/school_stage.dart';
++import '../../../../core/models/subject.dart';
++import '../../../../core/models/subject_constraint.dart';
++import '../../../../core/models/subject_constraint_key.dart';
++import '../../domain/services/primary_stage_constraint_policy.dart';
++
++/// نتيجة مزامنة القيود التلقائية.
++class AutoConstraintSyncOutcome {
++  const AutoConstraintSyncOutcome({
++    required this.createdKeys,
++    required this.updatedKeys,
++    required this.removedKeys,
++    required this.releasedKeys,
++    required this.config,
++    required this.configChanged,
++  });
++
++  /// قيود أُنشئت تلقائيًا.
++  final List<String> createdKeys;
++
++  /// قيود أُعيد ضبط حدّها اليومي تبعًا لتغيّر عدد الحصص.
++  final List<String> updatedKeys;
++
++  /// قيود أُزيلت لأنها لم تعد مؤهلة (أو لتغيّر المرحلة).
++  final List<String> removedKeys;
++
++  /// قيود خرجت من الإدارة التلقائية لأن المستخدم عدّلها بنفسه.
++  final List<String> releasedKeys;
++
++  /// الإعدادات بعد تحديث سجلّ القيود المُدارة.
++  final AppConfig config;
++
++  /// هل تغيّر ملف الإعدادات نتيجة هذه المزامنة؟
++  final bool configChanged;
++
++  bool get hasChanges =>
++      createdKeys.isNotEmpty ||
++      updatedKeys.isNotEmpty ||
++      removedKeys.isNotEmpty ||
++      releasedKeys.isNotEmpty;
++
++  /// ملخص عربي مختصر يُعرض للمستخدم بعد المزامنة، أو `null` عند عدم وجود تغيير.
++  String? get arabicSummary {
++    if (!hasChanges) {
++      return null;
++    }
++
++    final parts = <String>[];
++    if (createdKeys.isNotEmpty) {
++      parts.add('أُضيف ${createdKeys.length} قيد تلقائي');
++    }
++    if (updatedKeys.isNotEmpty) {
++      parts.add('حُدّث ${updatedKeys.length} قيد تلقائي');
++    }
++    if (removedKeys.isNotEmpty) {
++      parts.add('أُزيل ${removedKeys.length} قيد تلقائي');
++    }
++    if (releasedKeys.isNotEmpty) {
++      parts.add('${releasedKeys.length} قيد أصبح يدويًا بعد تعديلك');
++    }
++    return parts.join('، ');
++  }
++}
++
++/// مزامنة قيود المواد التلقائية للمرحلة الابتدائية مع بيانات المُسنَد.
++///
++/// المسؤوليات:
++/// 1. قراءة الأحمال الأسبوعية الفعلية لكل مادة من قاعدة البيانات.
++/// 2. حساب القيود المطلوبة عبر [PrimaryStageConstraintPolicy] (منطق خالص).
++/// 3. إنشاء/تحديث/إزالة القيود التي أنشأتها المزامنة فقط، مع احترام تعديلات
++///    المستخدم وحذفه.
++///
++/// لا يكتب هذا الصنف في ملف الإعدادات؛ يعيد الإعدادات المعدَّلة ليحفظها
++/// المستدعي، ما يجعل الآثار الجانبية واضحة ومحصورة.
++class SubjectConstraintAutoSyncService {
++  SubjectConstraintAutoSyncService(this._isar);
++
++  final Isar _isar;
++
++  /// الافتراضي عند غياب إعدادات محفوظة (يطابق القيمة الافتراضية في التطبيق).
++  static const int _fallbackDaysPerWeek = 5;
++
++  Future<AutoConstraintSyncOutcome> synchronize(AppConfig config) async {
++    final settings = await _isar.appSettings.where().findFirst();
++    final daysPerWeek = settings?.daysPerWeek ?? _fallbackDaysPerWeek;
++
++    final classrooms = await _isar.classrooms.where().findAll();
++    final grades = classrooms.map((classroom) => classroom.grade).toList();
++
++    final Map<SubjectConstraintKey, int> desired;
++    if (config.schoolStage.enablesAutomaticConstraintBypass) {
++      final subjects = await _isar.subjects.where().findAll();
++      final loads = await _buildSubjectLoads(subjects, classrooms);
++      desired = PrimaryStageConstraintPolicy.planFor(
++        grades: grades,
++        subjects: loads,
++        daysPerWeek: daysPerWeek,
++      );
++    } else {
++      desired = const <SubjectConstraintKey, int>{};
++    }
++
++    final constraints = await _isar.subjectConstraints.where().findAll();
++    final constraintsByKey = <SubjectConstraintKey, SubjectConstraint>{};
++    for (final constraint in constraints) {
++      constraintsByKey[SubjectConstraintKey.fromConstraint(constraint)] =
++          constraint;
++    }
++
++    final managed = Map<String, int>.from(config.managedAutoConstraints);
++    final dismissed = Set<String>.from(config.dismissedAutoConstraints);
++    final desiredKeys = <String>{};
++
++    final created = <String>[];
++    final updated = <String>[];
++    final removed = <String>[];
++    final released = <String>[];
++
++    final pendingUpserts = <SubjectConstraint>[];
++    final pendingDeletions = <int>[];
++
++    for (final entry in desired.entries) {
++      final key = entry.key;
++      final wantedValue = entry.value;
++      final storageKey = key.storageKey;
++      desiredKeys.add(storageKey);
++
++      final existing = constraintsByKey[key];
++      if (existing == null) {
++        if (dismissed.contains(storageKey)) {
++          // حذفه المستخدم صراحةً، فلا نعيد إنشاءه ما دام مؤهلًا.
++          continue;
++        }
++
++        pendingUpserts.add(
++          SubjectConstraint()
++            ..grade = key.grade
++            ..subjectName = key.subjectName
++            ..maxPeriodsPerDay = wantedValue,
++        );
++        managed[storageKey] = wantedValue;
++        created.add(storageKey);
++        continue;
++      }
++
++      final managedValue = managed[storageKey];
++      if (managedValue == null) {
++        // قيد يدوي بالكامل: لا تلمسه المزامنة.
++        continue;
++      }
++
++      if (managedValue != existing.maxPeriodsPerDay) {
++        // المستخدم عدّل القيد بنفسه: يتوقف النظام عن إدارته ويبقى كما هو.
++        managed.remove(storageKey);
++        released.add(storageKey);
++        continue;
++      }
++
++      if (managedValue != wantedValue) {
++        existing.maxPeriodsPerDay = wantedValue;
++        pendingUpserts.add(existing);
++        updated.add(storageKey);
++      }
++      managed[storageKey] = wantedValue;
++    }
++
++    // إزالة القيود التي تولّاها النظام ولم تعد مؤهلة (تغيّر النصاب أو المرحلة).
++    for (final storageKey in managed.keys.toList()) {
++      if (desiredKeys.contains(storageKey)) {
++        continue;
++      }
++
++      final managedValue = managed.remove(storageKey);
++      final key = SubjectConstraintKey.tryParse(storageKey);
++      if (key == null) {
++        continue;
++      }
++
++      final existing = constraintsByKey[key];
++      if (existing == null) {
++        continue;
++      }
++
++      if (managedValue == existing.maxPeriodsPerDay) {
++        pendingDeletions.add(existing.id);
++        removed.add(storageKey);
++      } else {
++        released.add(storageKey);
++      }
++    }
++
++    // سجلّات الحذف تُنسى بمجرد خروج الزوج من نطاق السياسة، حتى يُعاد تطبيقها
++    // إن عاد النصاب ليتجاوز الحد لاحقًا.
++    for (final storageKey in dismissed.toList()) {
++      if (!desiredKeys.contains(storageKey)) {
++        dismissed.remove(storageKey);
++      }
++    }
++
++    if (pendingUpserts.isNotEmpty || pendingDeletions.isNotEmpty) {
++      await _isar.writeTxn(() async {
++        if (pendingUpserts.isNotEmpty) {
++          await _isar.subjectConstraints.putAll(pendingUpserts);
++        }
++        if (pendingDeletions.isNotEmpty) {
++          await _isar.subjectConstraints.deleteAll(pendingDeletions);
++        }
++      });
++    }
++
++    final updatedConfig = config.copyWith(
++      managedAutoConstraints: managed,
++      dismissedAutoConstraints: dismissed,
++    );
++
++    return AutoConstraintSyncOutcome(
++      createdKeys: created,
++      updatedKeys: updated,
++      removedKeys: removed,
++      releasedKeys: released,
++      config: updatedConfig,
++      configChanged: updatedConfig != config,
++    );
++  }
++
++  /// يجمع الحمل الأسبوعي لكل مادة: النصاب المخطَّط + أعلى إسناد فعلي لكل مرحلة.
++  Future<List<SubjectWeeklyLoad>> _buildSubjectLoads(
++    List<Subject> subjects,
++    List<Classroom> classrooms,
++  ) async {
++    final gradeByClassroomId = <int, String>{};
++    for (final classroom in classrooms) {
++      gradeByClassroomId[classroom.id] = classroom.grade;
++    }
++
++    final lessons = await _isar.lessons.where().findAll();
++    // classroomId → subjectId → عدد الحصص المُسندة.
++    final countsByClassroom = <int, Map<int, int>>{};
++    for (final lesson in lessons) {
++      final classroom = _resolveClassroom(lesson);
++      final subject = _resolveSubject(lesson);
++      if (classroom == null || subject == null) {
++        continue;
++      }
++
++      final subjectCounts =
++          countsByClassroom.putIfAbsent(classroom.id, () => <int, int>{});
++      subjectCounts[subject.id] = (subjectCounts[subject.id] ?? 0) + 1;
++    }
++
++    final loads = <SubjectWeeklyLoad>[];
++    for (final subject in subjects) {
++      final assignedPerGrade = <String, int>{};
++      for (final entry in countsByClassroom.entries) {
++        final grade = gradeByClassroomId[entry.key];
++        if (grade == null) {
++          continue;
++        }
++
++        final assigned = entry.value[subject.id];
++        if (assigned == null) {
++          continue;
++        }
++
++        final currentMax = assignedPerGrade[grade] ?? 0;
++        if (assigned > currentMax) {
++          assignedPerGrade[grade] = assigned;
++        }
++      }
++
++      loads.add(
++        SubjectWeeklyLoad(
++          subjectName: subject.name,
++          plannedLessonsPerWeek: subject.lessonsPerWeek,
++          assignedLessonsPerGrade: assignedPerGrade,
++        ),
++      );
++    }
++
++    return loads;
++  }
++
++  Classroom? _resolveClassroom(Lesson lesson) {
++    if (lesson.classroom.value == null) {
++      lesson.classroom.loadSync();
++    }
++    return lesson.classroom.value;
++  }
++
++  Subject? _resolveSubject(Lesson lesson) {
++    if (lesson.subject.value == null) {
++      lesson.subject.loadSync();
++    }
++    return lesson.subject.value;
++  }
++}
+diff --git a/lib/features/management/domain/services/primary_stage_constraint_policy.dart b/lib/features/management/domain/services/primary_stage_constraint_policy.dart
+new file mode 100644
+index 0000000..79af294
+--- /dev/null
++++ b/lib/features/management/domain/services/primary_stage_constraint_policy.dart
+@@ -0,0 +1,120 @@
++import '../../../../core/models/subject_constraint_key.dart';
++
++/// الحمل الأسبوعي لمادة واحدة، مُجمَّعًا من بيانات التطبيق.
++///
++/// يُبنى من [Subject.lessonsPerWeek] (النصاب المخطَّط) ومن العدد الفعلي
++/// للحصص المُسندة لكل شعبة، ثم يؤخذ الأعلى بينهما لأن المستخدم قد يُسند
++/// المادة لأكثر من معلم أو يعدّل الإسناد دون تعديل نصاب المادة.
++class SubjectWeeklyLoad {
++  const SubjectWeeklyLoad({
++    required this.subjectName,
++    required this.plannedLessonsPerWeek,
++    required this.assignedLessonsPerGrade,
++  });
++
++  /// اسم المادة كما هو مخزَّن في قاعدة البيانات.
++  final String subjectName;
++
++  /// النصاب المخطَّط في [Subject.lessonsPerWeek].
++  final int plannedLessonsPerWeek;
++
++  /// المرحلة/الصف → أكبر عدد حصص مُسندة لشعبة واحدة في تلك المرحلة.
++  final Map<String, int> assignedLessonsPerGrade;
++
++  /// الحمل الفعلي المعتمد للمرحلة المطلوبة.
++  int effectiveWeeklyLessonsFor(String grade) {
++    final assigned = assignedLessonsPerGrade[grade] ?? 0;
++    return plannedLessonsPerWeek > assigned ? plannedLessonsPerWeek : assigned;
++  }
++}
++
++/// سياسة "تخطي قيود المواد" للمرحلة الابتدائية.
++///
++/// الفكرة: الحد الافتراضي لأي مادة في هذه النسخة من المحرك هو حصة واحدة يوميًا،
++/// لكن مواد المرحلة الابتدائية (اللغة العربية والرياضيات خاصة) يتجاوز نصابها
++/// الأسبوعي ست حصص، فيستحيل جدولتها بالحد الافتراضي (٥ أيام × حصة = ٥ حصص).
++/// لذلك تُشتق القيود تلقائيًا من عدد الحصص المُضافة:
++/// * أي مادة نصابها الأسبوعي **أكثر من ٦** تدخل في سياسة التخطي.
++/// * يُسمح لها بالتكرار **حصتين في اليوم** كحد أدنى، مع رفعه عند الحاجة
++///   الرياضية الفعلية (مثال: ١٢ حصة في ٥ أيام تحتاج ٣ حصص في اليوم) حتى لا
++///   نُنشئ قيدًا مستحيلًا بذاته.
++///
++/// القيود الناتجة تُكتب في جدول قيود المواد كأي قيد يدوي، فيمكن للمستخدم
++/// تعديلها أو حذفها، ويكفي هذا الصنف لمنطق القرار وحده ليبقى قابلًا للاختبار
++/// دون قاعدة بيانات.
++class PrimaryStageConstraintPolicy {
++  const PrimaryStageConstraintPolicy._();
++
++  /// الحد الفاصل: النصاب الأسبوعي الذي يتجاوز هذه القيمة يدخل سياسة التخطي.
++  static const int weeklyLessonsThreshold = 6;
++
++  /// أقل تكرار مسموح به في اليوم للمواد الداخلة في السياسة.
++  static const int minimumDailyRepetition = 2;
++
++  /// هل نصاب المادة الأسبوعي مؤهّل لتخطي قيود المواد؟
++  static bool qualifies(int effectiveWeeklyLessons) {
++    return effectiveWeeklyLessons > weeklyLessonsThreshold;
++  }
++
++  /// الحد الأقصى اليومي المطلوب لمادة، أو `null` إذا لم تكن مؤهلة.
++  static int? resolveMaxPeriodsPerDay({
++    required int weeklyLessons,
++    required int daysPerWeek,
++  }) {
++    if (!qualifies(weeklyLessons)) {
++      return null;
++    }
++
++    final safeDaysPerWeek = daysPerWeek < 1 ? 1 : daysPerWeek;
++    final requiredPerDay =
++        (weeklyLessons + safeDaysPerWeek - 1) ~/ safeDaysPerWeek;
++
++    return requiredPerDay > minimumDailyRepetition
++        ? requiredPerDay
++        : minimumDailyRepetition;
++  }
++
++  /// خطة القيود المطلوبة: مفتاح القيد → الحد الأقصى اليومي.
++  ///
++  /// تُبنى أسماء المراحل والمواد كما هي مخزَّنة في قاعدة البيانات (دون تعديل)
++  /// لأن محرك التوليد يقارن النصوص مقارنة تامة.
++  static Map<SubjectConstraintKey, int> planFor({
++    required Iterable<String> grades,
++    required Iterable<SubjectWeeklyLoad> subjects,
++    required int daysPerWeek,
++  }) {
++    final plan = <SubjectConstraintKey, int>{};
++
++    final consideredGrades = <String>[];
++    for (final grade in grades) {
++      if (grade.trim().isEmpty || consideredGrades.contains(grade)) {
++        continue;
++      }
++      consideredGrades.add(grade);
++    }
++
++    for (final subject in subjects) {
++      if (subject.subjectName.trim().isEmpty) {
++        continue;
++      }
++
++      for (final grade in consideredGrades) {
++        final weeklyLessons = subject.effectiveWeeklyLessonsFor(grade);
++        final maxPeriodsPerDay = resolveMaxPeriodsPerDay(
++          weeklyLessons: weeklyLessons,
++          daysPerWeek: daysPerWeek,
++        );
++        if (maxPeriodsPerDay == null) {
++          continue;
++        }
++
++        plan[SubjectConstraintKey(
++          grade: grade,
++          subjectName: subject.subjectName,
++        )] = maxPeriodsPerDay;
++      }
++    }
++
++    return plan;
++  }
++}
+diff --git a/lib/features/management/presentation/pages/home_page.dart b/lib/features/management/presentation/pages/home_page.dart
+index bab4c93..ed9f6eb 100644
+--- a/lib/features/management/presentation/pages/home_page.dart
++++ b/lib/features/management/presentation/pages/home_page.dart
+@@ -1,44 +1,143 @@
+ import 'package:flutter/material.dart';
+-import 'management_page.dart';
+-import '../../../timetable/presentation/pages/timetable_page.dart';
++import 'package:flutter_riverpod/flutter_riverpod.dart';
+ 
+-class HomePage extends StatefulWidget {
++import '../../../../core/providers/app_config_provider.dart';
++import '../../../setup/presentation/pages/first_run_setup_page.dart';
++import 'home_shell.dart';
++
++/// واجهة الإقلاع الموحّدة لكل المنصات (أندرويد، ويندوز ٧، ويندوز ١٠ و١١).
++///
++/// تقرأ حالة الإعداد الأولي وتقرر ما يُعرض:
++/// * [AppSetupStatus.needsSetup]: معالج الإعداد الإلزامي (لا يمكن تجاوزه).
++/// * [AppSetupStatus.legacyDataDetected]: مستخدم لديه بيانات سابقة، فيُعتمد
++///   الإعداد تلقائيًا بمرحلة محايدة ثم يمكنه تغييرها من الإعدادات.
++/// * [AppSetupStatus.completed]: الهيكل الرئيسي للتطبيق.
++class HomePage extends ConsumerWidget {
+   const HomePage({super.key});
+ 
+   @override
+-  State<HomePage> createState() => _HomePageState();
++  Widget build(BuildContext context, WidgetRef ref) {
++    final setupStatusAsync = ref.watch(appSetupStatusProvider);
++
++    return setupStatusAsync.when(
++      loading: () => const _StartupSplash(),
++      error: (error, _) => _StartupErrorView(
++        error: error,
++        onRetry: () {
++          ref.invalidate(appConfigNotifierProvider);
++          ref.invalidate(appSetupStatusProvider);
++        },
++      ),
++      data: (status) => switch (status) {
++        AppSetupStatus.completed => const HomeShell(),
++        AppSetupStatus.needsSetup => const FirstRunSetupPage(),
++        AppSetupStatus.legacyDataDetected => const _LegacyAdoptionView(),
++      },
++    );
++  }
++}
++
++/// شاشة انتظار قصيرة أثناء تهيئة قاعدة البيانات وقراءة الإعدادات.
++class _StartupSplash extends StatelessWidget {
++  const _StartupSplash();
++
++  @override
++  Widget build(BuildContext context) {
++    return const Scaffold(
++      body: Center(
++        child: Column(
++          mainAxisSize: MainAxisSize.min,
++          children: [
++            CircularProgressIndicator(),
++            SizedBox(height: 16),
++            Text('جارٍ تحضير التطبيق...'),
++          ],
++        ),
++      ),
++    );
++  }
+ }
+ 
+-class _HomePageState extends State<HomePage> {
+-  int _currentIndex = 0;
++/// شاشة فشل الإقلاع مع إمكانية إعادة المحاولة.
++class _StartupErrorView extends StatelessWidget {
++  const _StartupErrorView({required this.error, required this.onRetry});
+ 
+-  final List<Widget> _pages = [
+-    const TimetablePage(),
+-    const ManagementPage(),
+-  ];
++  final Object error;
++  final VoidCallback onRetry;
+ 
+   @override
+   Widget build(BuildContext context) {
+     return Scaffold(
+-      body: _pages[_currentIndex],
+-      bottomNavigationBar: NavigationBar(
+-        selectedIndex: _currentIndex,
+-        onDestinationSelected: (index) {
+-          setState(() {
+-            _currentIndex = index;
+-          });
+-        },
+-        destinations: const [
+-          NavigationDestination(
+-            icon: Icon(Icons.table_chart),
+-            label: 'الجدول',
+-          ),
+-          NavigationDestination(
+-            icon: Icon(Icons.manage_accounts),
+-            label: 'الإدارة',
++      body: Center(
++        child: Padding(
++          padding: const EdgeInsets.all(24),
++          child: Column(
++            mainAxisSize: MainAxisSize.min,
++            children: [
++              const Icon(Icons.error_outline, color: Colors.red, size: 44),
++              const SizedBox(height: 12),
++              const Text(
++                'تعذر تشغيل التطبيق',
++                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
++              ),
++              const SizedBox(height: 8),
++              Text(
++                '$error',
++                textAlign: TextAlign.center,
++                style: const TextStyle(fontSize: 13),
++              ),
++              const SizedBox(height: 16),
++              ElevatedButton.icon(
++                onPressed: onRetry,
++                icon: const Icon(Icons.refresh),
++                label: const Text('إعادة المحاولة'),
++              ),
++            ],
+           ),
+-        ],
++        ),
+       ),
+     );
+   }
+ }
++
++/// يعتمد إعدادًا صامتًا لمستخدم قائم (ترقية من نسخة سابقة) دون مقاطعته،
++/// لأن بياناته موجودة أصلًا ولا يصح إجباره على معالج الإعداد الأولي.
++class _LegacyAdoptionView extends ConsumerStatefulWidget {
++  const _LegacyAdoptionView();
++
++  @override
++  ConsumerState<_LegacyAdoptionView> createState() =>
++      _LegacyAdoptionViewState();
++}
++
++class _LegacyAdoptionViewState extends ConsumerState<_LegacyAdoptionView> {
++  String? _error;
++
++  @override
++  void initState() {
++    super.initState();
++    WidgetsBinding.instance.addPostFrameCallback((_) => _adopt());
++  }
++
++  Future<void> _adopt() async {
++    setState(() => _error = null);
++    try {
++      await ref.read(appConfigNotifierProvider.notifier).adoptLegacySetup();
++    } catch (error) {
++      if (!mounted) {
++        return;
++      }
++      setState(() => _error = '$error');
++    }
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    final error = _error;
++    if (error == null) {
++      return const _StartupSplash();
++    }
++
++    return _StartupErrorView(error: error, onRetry: _adopt);
++  }
++}
+diff --git a/lib/features/management/presentation/pages/home_shell.dart b/lib/features/management/presentation/pages/home_shell.dart
+new file mode 100644
+index 0000000..46037f2
+--- /dev/null
++++ b/lib/features/management/presentation/pages/home_shell.dart
+@@ -0,0 +1,62 @@
++import 'package:flutter/material.dart';
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++
++import '../../../timetable/presentation/pages/timetable_page.dart';
++import '../providers/subject_constraint_auto_sync_provider.dart';
++import 'management_page.dart';
++
++/// الهيكل الرئيسي للتطبيق بعد إكمال الإعداد الأولي: تبويب الجدول وتبويب الإدارة.
++///
++/// يُشغّل هذا الهيكل مراقب مزامنة قيود المواد التلقائية مرة واحدة عند الظهور،
++/// فيُزامن القيود مع بيانات المواد والصفوف والحصص ويستمر في مراقبتها.
++class HomeShell extends ConsumerStatefulWidget {
++  const HomeShell({super.key});
++
++  @override
++  ConsumerState<HomeShell> createState() => _HomeShellState();
++}
++
++class _HomeShellState extends ConsumerState<HomeShell> {
++  int _currentIndex = 0;
++
++  final List<Widget> _pages = const [
++    TimetablePage(),
++    ManagementPage(),
++  ];
++
++  @override
++  void initState() {
++    super.initState();
++    WidgetsBinding.instance.addPostFrameCallback((_) {
++      if (!mounted) {
++        return;
++      }
++      ref.read(subjectConstraintAutoSyncProvider).start();
++    });
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return Scaffold(
++      body: _pages[_currentIndex],
++      bottomNavigationBar: NavigationBar(
++        selectedIndex: _currentIndex,
++        onDestinationSelected: (index) {
++          setState(() {
++            _currentIndex = index;
++          });
++        },
++        destinations: const [
++          NavigationDestination(
++            icon: Icon(Icons.table_chart),
++            label: 'الجدول',
++          ),
++          NavigationDestination(
++            icon: Icon(Icons.manage_accounts),
++            label: 'الإدارة',
++          ),
++        ],
++      ),
++    );
++  }
++}
+diff --git a/lib/features/management/presentation/pages/settings_page.dart b/lib/features/management/presentation/pages/settings_page.dart
+index 9164282..fdff488 100644
+--- a/lib/features/management/presentation/pages/settings_page.dart
++++ b/lib/features/management/presentation/pages/settings_page.dart
+@@ -10,10 +10,15 @@ import 'package:path/path.dart' as path;
+ import 'dart:convert';
+ import 'dart:typed_data';
+ 
++import '../../../../core/models/school_stage.dart';
+ import '../../../../core/models/settings.dart';
++import '../../../../core/providers/app_config_provider.dart';
+ import '../../../../core/providers/repository_provider.dart';
+ import '../../../../core/services/file_save_service.dart';
++import '../../../setup/presentation/pages/first_run_setup_page.dart';
++import '../../../setup/presentation/widgets/school_stage_selector.dart';
+ import '../providers/management_provider.dart';
++import '../providers/subject_constraint_auto_sync_provider.dart';
+ 
+ class SettingsPage extends ConsumerWidget {
+   const SettingsPage({super.key});
+@@ -21,10 +26,18 @@ class SettingsPage extends ConsumerWidget {
+   @override
+   Widget build(BuildContext context, WidgetRef ref) {
+     final settingsAsync = ref.watch(settingsNotifierProvider);
++    final configAsync = ref.watch(appConfigNotifierProvider);
+ 
+     return Scaffold(
+       body: settingsAsync.when(
+-        data: (settings) => _SettingsForm(settings: settings),
++        data: (settings) => configAsync.when(
++          data: (config) => _SettingsForm(
++            settings: settings,
++            initialStage: config.schoolStage,
++          ),
++          loading: () => const Center(child: CircularProgressIndicator()),
++          error: (e, st) => Center(child: Text('حدث خطأ: $e')),
++        ),
+         loading: () => const Center(child: CircularProgressIndicator()),
+         error: (e, st) => Center(child: Text('حدث خطأ: $e')),
+       ),
+@@ -34,7 +47,12 @@ class SettingsPage extends ConsumerWidget {
+ 
+ class _SettingsForm extends ConsumerStatefulWidget {
+   final AppSettings settings;
+-  const _SettingsForm({required this.settings});
++  final SchoolStage initialStage;
++
++  const _SettingsForm({
++    required this.settings,
++    required this.initialStage,
++  });
+ 
+   @override
+   ConsumerState<_SettingsForm> createState() => _SettingsFormState();
+@@ -49,6 +67,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+   late bool _exportAutoScale;
+   late String _schoolName;
+   late String _principalName;
++  late SchoolStage _schoolStage;
++  bool _isSaving = false;
+   double? _customPageWidth;
+   double? _customPageHeight;
+ 
+@@ -62,31 +82,83 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+     _exportAutoScale = widget.settings.exportAutoScale;
+     _schoolName = widget.settings.schoolName;
+     _principalName = widget.settings.principalName;
++    _schoolStage = widget.initialStage;
+     _customPageWidth = widget.settings.customPageWidth;
+     _customPageHeight = widget.settings.customPageHeight;
+   }
+ 
+-  void _saveSettings() {
+-    if (_formKey.currentState!.validate()) {
+-      _formKey.currentState!.save();
+-      final newSettings = widget.settings
+-        ..schoolName = _schoolName
+-        ..principalName = _principalName
+-        ..periodsPerDay = _periodsPerDay
+-        ..daysPerWeek = _daysPerWeek
+-        ..exportPageSize = _exportPageSize
+-        ..exportOrientation = _exportOrientation
+-        ..exportAutoScale = _exportAutoScale
+-        ..customPageWidth = _customPageWidth
+-        ..customPageHeight = _customPageHeight;
+-
+-      ref.read(settingsNotifierProvider.notifier).saveSettings(newSettings);
++  Future<void> _saveSettings() async {
++    if (!_formKey.currentState!.validate()) {
++      return;
++    }
++
++    _formKey.currentState!.save();
++    final newSettings = widget.settings
++      ..schoolName = _schoolName
++      ..principalName = _principalName
++      ..periodsPerDay = _periodsPerDay
++      ..daysPerWeek = _daysPerWeek
++      ..exportPageSize = _exportPageSize
++      ..exportOrientation = _exportOrientation
++      ..exportAutoScale = _exportAutoScale
++      ..customPageWidth = _customPageWidth
++      ..customPageHeight = _customPageHeight;
++
++    setState(() => _isSaving = true);
++
++    try {
++      await ref
++          .read(settingsNotifierProvider.notifier)
++          .saveSettings(newSettings);
++
++      // تغيير المرحلة يُعيد ضبط قيود المواد التلقائية وفق السياسة الجديدة.
++      final config = await ref.read(appConfigNotifierProvider.future);
++      if (!config.isSetupCompleted || config.schoolStage != _schoolStage) {
++        await ref
++            .read(appConfigNotifierProvider.notifier)
++            .completeSetup(stage: _schoolStage);
++      }
++
++      final outcome = await ref.read(subjectConstraintAutoSyncProvider).run();
++
++      if (!mounted) {
++        return;
++      }
++
++      setState(() => _isSaving = false);
++      final summary = outcome?.arabicSummary;
+       ScaffoldMessenger.of(context).showSnackBar(
+-        const SnackBar(content: Text('تم حفظ الإعدادات بنجاح')),
++        SnackBar(
++          content: Text(
++            summary == null
++                ? 'تم حفظ الإعدادات بنجاح'
++                : 'تم حفظ الإعدادات بنجاح، $summary',
++          ),
++        ),
++      );
++    } catch (error) {
++      if (!mounted) {
++        return;
++      }
++
++      setState(() => _isSaving = false);
++      ScaffoldMessenger.of(context).showSnackBar(
++        SnackBar(
++          content: Text('تعذر حفظ الإعدادات: $error'),
++          backgroundColor: Colors.red,
++        ),
+       );
+     }
+   }
+ 
++  void _openSetupWizard() {
++    Navigator.of(context).push(
++      MaterialPageRoute<void>(
++        builder: (context) => const FirstRunSetupPage(isEditing: true),
++      ),
++    );
++  }
++
+   Future<void> _exportData() async {
+     try {
+       final backupService = await ref.read(backupServiceProvider.future);
+@@ -390,6 +462,46 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+               ),
+             ),
+             const SizedBox(height: 24),
++            const Text('المرحلة الدراسية',
++                style: TextStyle(
++                    fontSize: 18,
++                    fontWeight: FontWeight.bold,
++                    color: Colors.teal)),
++            const SizedBox(height: 16),
++            Card(
++              child: Padding(
++                padding: const EdgeInsets.all(16.0),
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    SchoolStageSelector(
++                      value: _schoolStage,
++                      onChanged: (stage) =>
++                          setState(() => _schoolStage = stage),
++                    ),
++                    const SizedBox(height: 12),
++                    Text(
++                      _schoolStage.description,
++                      style: TextStyle(
++                          fontSize: 13, color: Colors.grey.shade800),
++                    ),
++                  ],
++                ),
++              ),
++            ),
++            const SizedBox(height: 24),
++            Card(
++              child: ListTile(
++                leading: const Icon(Icons.assignment_outlined,
++                    color: Colors.teal),
++                title: const Text('معالج الإعداد الأولي'),
++                subtitle: const Text(
++                    'مراجعة بيانات المدرسة والمدير والحصص والمرحلة'),
++                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
++                onTap: _openSetupWizard,
++              ),
++            ),
++            const SizedBox(height: 24),
+             const Text('إعدادات التصدير (PDF)',
+                 style: TextStyle(
+                     fontSize: 18,
+@@ -530,11 +642,17 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+             SizedBox(
+               width: double.infinity,
+               child: ElevatedButton(
+-                onPressed: _saveSettings,
++                onPressed: _isSaving ? null : _saveSettings,
+                 style:
+                     ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
+-                child:
+-                    const Text('حفظ الإعدادات', style: TextStyle(fontSize: 16)),
++                child: _isSaving
++                    ? const SizedBox(
++                        width: 20,
++                        height: 20,
++                        child: CircularProgressIndicator(strokeWidth: 2),
++                      )
++                    : const Text('حفظ الإعدادات',
++                        style: TextStyle(fontSize: 16)),
+               ),
+             ),
+           ],
+diff --git a/lib/features/management/presentation/pages/subject_constraints_page.dart b/lib/features/management/presentation/pages/subject_constraints_page.dart
+index b8e9c79..6740a10 100644
+--- a/lib/features/management/presentation/pages/subject_constraints_page.dart
++++ b/lib/features/management/presentation/pages/subject_constraints_page.dart
+@@ -5,9 +5,12 @@ import 'package:isar/isar.dart';
+ import '../../../../core/models/classroom.dart';
+ import '../../../../core/models/subject.dart';
+ import '../../../../core/models/subject_constraint.dart';
++import '../../../../core/models/subject_constraint_key.dart';
+ import '../../../../core/models/subject_consecutiveness.dart';
++import '../../../../core/providers/app_config_provider.dart';
+ import '../../../../core/providers/database_provider.dart';
+ import '../providers/management_provider.dart';
++import '../providers/subject_constraint_auto_sync_provider.dart';
+ 
+ class SubjectConstraintsPage extends ConsumerStatefulWidget {
+   const SubjectConstraintsPage({super.key});
+@@ -76,13 +79,24 @@ class _SubjectConstraintsPageState
+           maxPeriodsPerDay: maxPeriods,
+           consecutiveness: consecutiveness,
+         );
++
++    // القيد الذي يكتبه المستخدم يدويًا يصبح ملكًا له، فتتوقف المزامنة التلقائية
++    // عن إدارته ولا تعيد إنشاءه إن حذفه لاحقًا.
++    await ref.read(subjectConstraintAutoSyncProvider).recordManualDefinition(
++          SubjectConstraintKey(grade: grade, subjectName: subjectName),
++        );
++
+     await _loadData();
+   }
+ 
+-  Future<void> _deleteConstraint(int id) async {
++  Future<void> _deleteConstraint(SubjectConstraint constraint) async {
++    await ref.read(subjectConstraintAutoSyncProvider).recordManualDeletion(
++          SubjectConstraintKey.fromConstraint(constraint),
++        );
++
+     final isar = await ref.read(isarDatabaseProvider.future);
+     await isar.writeTxn(() async {
+-      await isar.subjectConstraints.delete(id);
++      await isar.subjectConstraints.delete(constraint.id);
+     });
+     await _loadData();
+   }
+@@ -247,51 +261,87 @@ class _SubjectConstraintsPageState
+ 
+   @override
+   Widget build(BuildContext context) {
++    final config = ref.watch(appConfigNotifierProvider).valueOrNull;
++    final managedAutoConstraints =
++        config?.managedAutoConstraints ?? const <String, int>{};
++    final isPrimaryStage =
++        config?.schoolStage.enablesAutomaticConstraintBypass ?? false;
++
+     return Scaffold(
+       appBar: AppBar(title: const Text('قيود المواد')),
+-      body: _constraints.isEmpty
+-          ? const Center(
+-              child:
+-                  Text('لا توجد قيود مخصصة. كل المواد حدها حصة واحدة يومياً.'),
+-            )
+-          : ListView.builder(
+-              itemCount: _constraints.length,
+-              itemBuilder: (context, index) {
+-                final constraint = _constraints[index];
+-                final subject = _subjectByName(constraint.subjectName);
+-                final consecutiveness =
+-                    subject?.consecutiveness ?? SubjectConsecutiveness.any;
++      body: Column(
++        children: [
++          if (isPrimaryStage) _buildPrimaryStageBanner(context),
++          Expanded(
++            child: _constraints.isEmpty
++                ? const Center(
++                    child: Text(
++                        'لا توجد قيود مخصصة. كل المواد حدها حصة واحدة يومياً.'),
++                  )
++                : ListView.builder(
++                    itemCount: _constraints.length,
++                    itemBuilder: (context, index) {
++                      final constraint = _constraints[index];
++                      final key =
++                          SubjectConstraintKey.fromConstraint(constraint);
++                      final isAutoManaged =
++                          managedAutoConstraints[key.storageKey] ==
++                              constraint.maxPeriodsPerDay;
++                      final subject =
++                          _subjectByName(constraint.subjectName);
++                      final consecutiveness = subject?.consecutiveness ??
++                          SubjectConsecutiveness.any;
+ 
+-                return ListTile(
+-                  title:
+-                      Text('${constraint.subjectName} - ${constraint.grade}'),
+-                  subtitle: Text(
+-                    'الحد الأقصى: ${constraint.maxPeriodsPerDay} حصص/يوم\n'
+-                    'التتابع: ${consecutiveness.label}',
+-                  ),
+-                  isThreeLine: true,
+-                  onTap: () =>
+-                      _showConstraintDialog(existingConstraint: constraint),
+-                  trailing: Row(
+-                    mainAxisSize: MainAxisSize.min,
+-                    children: [
+-                      IconButton(
+-                        icon: const Icon(Icons.edit),
+-                        tooltip: 'تعديل',
+-                        onPressed: () => _showConstraintDialog(
++                      return ListTile(
++                        title: Row(
++                          children: [
++                            Expanded(
++                              child: Text(
++                                '${constraint.subjectName} - ${constraint.grade}',
++                              ),
++                            ),
++                            if (isAutoManaged)
++                              const Chip(
++                                label: Text('تلقائي'),
++                                labelStyle: TextStyle(fontSize: 11),
++                                visualDensity: VisualDensity.compact,
++                                materialTapTargetSize:
++                                    MaterialTapTargetSize.shrinkWrap,
++                              ),
++                          ],
++                        ),
++                        subtitle: Text(
++                          'الحد الأقصى: ${constraint.maxPeriodsPerDay} حصص/يوم\n'
++                          'التتابع: ${consecutiveness.label}'
++                          '${isAutoManaged ? '\nقيد أنشأه النظام للمرحلة الابتدائية، ويمكنك تعديله أو حذفه.' : ''}',
++                        ),
++                        isThreeLine: true,
++                        onTap: () => _showConstraintDialog(
+                           existingConstraint: constraint,
+                         ),
+-                      ),
+-                      IconButton(
+-                        icon: const Icon(Icons.delete, color: Colors.red),
+-                        tooltip: 'حذف',
+-                        onPressed: () => _deleteConstraint(constraint.id),
+-                      ),
+-                    ],
++                        trailing: Row(
++                          mainAxisSize: MainAxisSize.min,
++                          children: [
++                            IconButton(
++                              icon: const Icon(Icons.edit),
++                              tooltip: 'تعديل',
++                              onPressed: () => _showConstraintDialog(
++                                existingConstraint: constraint,
++                              ),
++                            ),
++                            IconButton(
++                              icon: const Icon(Icons.delete, color: Colors.red),
++                              tooltip: 'حذف',
++                              onPressed: () => _deleteConstraint(constraint),
++                            ),
++                          ],
++                        ),
++                      );
++                    },
+                   ),
+-                );
+-              },
+-            ),
++          ),
++        ],
++      ),
+       floatingActionButton: FloatingActionButton(
+         onPressed: _showConstraintDialog,
+         tooltip: 'إضافة قيد',
+@@ -299,4 +349,34 @@ class _SubjectConstraintsPageState
+       ),
+     );
+   }
++
++  /// تنبيه يشرح سياسة القيود التلقائية عند اختيار المرحلة الابتدائية.
++  Widget _buildPrimaryStageBanner(BuildContext context) {
++    return Container(
++      width: double.infinity,
++      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
++      padding: const EdgeInsets.all(12),
++      decoration: BoxDecoration(
++        color: Colors.teal.shade50,
++        borderRadius: BorderRadius.circular(12),
++        border: Border.all(color: Colors.teal.shade200),
++      ),
++      child: Row(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: [
++          Icon(Icons.auto_awesome, size: 20, color: Colors.teal.shade800),
++          const SizedBox(width: 8),
++          Expanded(
++            child: Text(
++              'المرحلة الابتدائية: يُنشئ التطبيق قيودًا تلقائية لأي مادة '
++              'يتجاوز نصابها الأسبوعي ٦ حصص (اللغة العربية والرياضيات غالبًا) '
++              'للسماح بحصتين في اليوم، وتُحدَّث هذه القيود تلقائيًا عند تغيير '
++              'عدد الحصص. القيود المعلّمة بـ«تلقائي» قابلة للتعديل والحذف.',
++              style: TextStyle(fontSize: 12.5, color: Colors.teal.shade900),
++            ),
++          ),
++        ],
++      ),
++    );
++  }
+ }
+diff --git a/lib/features/management/presentation/providers/subject_constraint_auto_sync_provider.dart b/lib/features/management/presentation/providers/subject_constraint_auto_sync_provider.dart
+new file mode 100644
+index 0000000..fe5dc83
+--- /dev/null
++++ b/lib/features/management/presentation/providers/subject_constraint_auto_sync_provider.dart
+@@ -0,0 +1,194 @@
++import 'dart:async';
++
++import 'package:flutter/foundation.dart';
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++import 'package:isar/isar.dart';
++
++import '../../../../core/models/app_config.dart';
++import '../../../../core/models/subject_constraint_key.dart';
++import '../../../../core/providers/app_config_provider.dart';
++import '../../../../core/providers/database_provider.dart';
++import '../../data/services/subject_constraint_auto_sync_service.dart';
++
++/// متحكّم مزامنة قيود المواد التلقائية (سياسة المرحلة الابتدائية).
++///
++/// يعمل على ثلاث جبهات:
++/// * مزامنة أولية عند إقلاع التطبيق.
++/// * مراقبة مجموعات المواد والصفوف والحصص والإعدادات، وإعادة المزامنة بعد
++///   أي تغيير (بتأخير قصير يمنع تكرار العمل في العملية نفسها).
++/// * تسجيل قرارات المستخدم (حذف قيد أو تعديله) حتى تحترمها المزامنة.
++///
++/// يعتمد الصنف على دوال مُمرَّرة بدل الوصول المباشر إلى حاوية Riverpod، ما
++/// يجعله قابلًا للاختبار ومستقلًا عن إصدارات Riverpod.
++final subjectConstraintAutoSyncProvider =
++    Provider<SubjectConstraintAutoSyncController>((ref) {
++  final controller = SubjectConstraintAutoSyncController(
++    readIsar: () => ref.read(isarDatabaseProvider.future),
++    readConfig: () => ref.read(appConfigNotifierProvider.future),
++    replaceConfig: (config) =>
++        ref.read(appConfigNotifierProvider.notifier).replace(config),
++  );
++  ref.onDispose(controller.dispose);
++  return controller;
++});
++
++class SubjectConstraintAutoSyncController {
++  SubjectConstraintAutoSyncController({
++    required Future<Isar> Function() readIsar,
++    required Future<AppConfig> Function() readConfig,
++    required Future<void> Function(AppConfig config) replaceConfig,
++  })  : _readIsar = readIsar,
++        _readConfig = readConfig,
++        _replaceConfig = replaceConfig;
++
++  final Future<Isar> Function() _readIsar;
++  final Future<AppConfig> Function() _readConfig;
++  final Future<void> Function(AppConfig config) _replaceConfig;
++
++  /// تأخير بسيط لدمج التغييرات المتتابعة في مزامنة واحدة.
++  static const Duration _debounceDuration = Duration(milliseconds: 600);
++
++  final List<StreamSubscription<void>> _subscriptions = [];
++  Timer? _debounceTimer;
++  bool _watchersStarted = false;
++  bool _runInProgress = false;
++  bool _runQueued = false;
++  bool _disposed = false;
++
++  /// يبدأ المراقبة ويُزامن مرة واحدة عند الإقلاع.
++  Future<void> start() async {
++    if (_disposed) {
++      return;
++    }
++
++    await _startWatchers();
++    await run();
++  }
++
++  Future<void> _startWatchers() async {
++    if (_watchersStarted || _disposed) {
++      return;
++    }
++
++    final isar = await _readIsar();
++    if (_disposed) {
++      return;
++    }
++
++    _watchersStarted = true;
++    _subscriptions.addAll(<StreamSubscription<void>>[
++      isar.subjects.watchLazy().listen((_) => _scheduleSync()),
++      isar.classrooms.watchLazy().listen((_) => _scheduleSync()),
++      isar.lessons.watchLazy().listen((_) => _scheduleSync()),
++      isar.appSettings.watchLazy().listen((_) => _scheduleSync()),
++    ]);
++  }
++
++  /// ينفّذ مزامنة فورية ويعيد نتيجتها (أو `null` إذا فشلت أو تخطّت).
++  Future<AutoConstraintSyncOutcome?> run() async {
++    if (_disposed) {
++      return null;
++    }
++
++    if (_runInProgress) {
++      _runQueued = true;
++      return null;
++    }
++
++    _runInProgress = true;
++    try {
++      final isar = await _readIsar();
++      final config = await _readConfig();
++      final service = SubjectConstraintAutoSyncService(isar);
++      final outcome = await service.synchronize(config);
++
++      if (outcome.configChanged) {
++        await _replaceConfig(outcome.config);
++      }
++
++      return outcome;
++    } catch (error, stackTrace) {
++      debugPrint('SubjectConstraintAutoSync failed: $error\n$stackTrace');
++      return null;
++    } finally {
++      _runInProgress = false;
++      if (_runQueued && !_disposed) {
++        _runQueued = false;
++        _scheduleSync();
++      }
++    }
++  }
++
++  /// يسجّل أن المستخدم حذف قيدًا بنفسه، فلا يُعاد إنشاؤه تلقائيًا.
++  ///
++  /// يُسجَّل الحذف فقط في المرحلة الابتدائية؛ ففي المراحل الأخرى لا تُنشئ
++  /// المزامنة أي قيود أصلًا.
++  Future<void> recordManualDeletion(SubjectConstraintKey key) async {
++    if (_disposed) {
++      return;
++    }
++
++    final config = await _readConfig();
++    if (!config.schoolStage.enablesAutomaticConstraintBypass) {
++      return;
++    }
++
++    final managed = Map<String, int>.from(config.managedAutoConstraints)
++      ..remove(key.storageKey);
++    final dismissed = Set<String>.from(config.dismissedAutoConstraints)
++      ..add(key.storageKey);
++
++    await _replaceConfig(
++      config.copyWith(
++        managedAutoConstraints: managed,
++        dismissedAutoConstraints: dismissed,
++      ),
++    );
++  }
++
++  /// يسجّل أن المستخدم أنشأ أو عدّل قيدًا يدويًا، فيتوقف النظام عن إدارته.
++  Future<void> recordManualDefinition(SubjectConstraintKey key) async {
++    if (_disposed) {
++      return;
++    }
++
++    final config = await _readConfig();
++    if (!config.managedAutoConstraints.containsKey(key.storageKey) &&
++        !config.dismissedAutoConstraints.contains(key.storageKey)) {
++      return;
++    }
++
++    final managed = Map<String, int>.from(config.managedAutoConstraints)
++      ..remove(key.storageKey);
++    final dismissed = Set<String>.from(config.dismissedAutoConstraints)
++      ..remove(key.storageKey);
++
++    await _replaceConfig(
++      config.copyWith(
++        managedAutoConstraints: managed,
++        dismissedAutoConstraints: dismissed,
++      ),
++    );
++  }
++
++  void _scheduleSync() {
++    if (_disposed) {
++      return;
++    }
++
++    _debounceTimer?.cancel();
++    _debounceTimer = Timer(_debounceDuration, () {
++      unawaited(run());
++    });
++  }
++
++  void dispose() {
++    _disposed = true;
++    _debounceTimer?.cancel();
++    _debounceTimer = null;
++    for (final subscription in _subscriptions) {
++      subscription.cancel();
++    }
++    _subscriptions.clear();
++  }
++}
+diff --git a/lib/features/setup/domain/setup_validation.dart b/lib/features/setup/domain/setup_validation.dart
+new file mode 100644
+index 0000000..8aa757e
+--- /dev/null
++++ b/lib/features/setup/domain/setup_validation.dart
+@@ -0,0 +1,69 @@
++import '../../../core/models/school_stage.dart';
++
++/// حدود وقواعد التحقق الخاصة ببيانات الإعداد الأولي.
++///
++/// منطق خالص (بلا واجهة أو قاعدة بيانات) ليُختبر بسهولة ويُستخدم من معالج
++/// الإعداد الأولي ومن صفحة الإعدادات معًا.
++class SetupValidation {
++  const SetupValidation._();
++
++  static const int minPeriodsPerDay = 1;
++  static const int maxPeriodsPerDay = 12;
++  static const int minDaysPerWeek = 1;
++  static const int maxDaysPerWeek = 7;
++
++  /// نص مطلوب غير فارغ.
++  static String? requiredText(String? value, {required String fieldLabel}) {
++    if (value == null || value.trim().isEmpty) {
++      return '$fieldLabel مطلوب';
++    }
++    return null;
++  }
++
++  /// عدد الدروس في اليوم: رقم صحيح داخل الحدود المسموحة.
++  static String? periodsPerDay(String? value) {
++    return _intInRange(
++      value,
++      min: minPeriodsPerDay,
++      max: maxPeriodsPerDay,
++      fieldLabel: 'عدد الدروس في اليوم',
++    );
++  }
++
++  /// عدد أيام الدوام في الأسبوع: رقم صحيح داخل الحدود المسموحة.
++  static String? daysPerWeek(String? value) {
++    return _intInRange(
++      value,
++      min: minDaysPerWeek,
++      max: maxDaysPerWeek,
++      fieldLabel: 'عدد أيام الأسبوع',
++    );
++  }
++
++  /// المرحلة الدراسية إلزامية.
++  static String? schoolStage(SchoolStage? stage) {
++    return stage == null ? 'يرجى اختيار المرحلة الدراسية' : null;
++  }
++
++  static String? _intInRange(
++    String? value, {
++    required int min,
++    required int max,
++    required String fieldLabel,
++  }) {
++    if (value == null || value.trim().isEmpty) {
++      return '$fieldLabel مطلوب';
++    }
++
++    final parsed = int.tryParse(value.trim());
++    if (parsed == null) {
++      return 'أدخل رقمًا صحيحًا';
++    }
++
++    if (parsed < min || parsed > max) {
++      return 'أدخل رقمًا بين $min و $max';
++    }
++
++    return null;
++  }
++}
+diff --git a/lib/features/setup/presentation/pages/first_run_setup_page.dart b/lib/features/setup/presentation/pages/first_run_setup_page.dart
+new file mode 100644
+index 0000000..a9aa4fa
+--- /dev/null
++++ b/lib/features/setup/presentation/pages/first_run_setup_page.dart
+@@ -0,0 +1,453 @@
++import 'package:flutter/material.dart';
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++
++import '../../../../core/models/school_stage.dart';
++import '../../../../core/providers/app_config_provider.dart';
++import '../../../management/presentation/providers/management_provider.dart';
++import '../../../management/presentation/providers/subject_constraint_auto_sync_provider.dart';
++import '../../domain/setup_validation.dart';
++import '../widgets/school_stage_selector.dart';
++
++/// شاشة الإعداد الأولي الإلزامية.
++///
++/// تُعرض كواجهة إقلاع للتطبيق عند أول تشغيل، فلا يمكن استخدام التطبيق قبل
++/// إدخال: اسم المدرسة، اسم المدير، عدد الدروس في اليوم، عدد أيام الأسبوع،
++/// والمرحلة الدراسية.
++///
++/// عند اختيار المرحلة الابتدائية تُشغَّل سياسة تخطي قيود المواد تلقائيًا
++/// (انظر `PrimaryStageConstraintPolicy`).
++///
++/// يمكن استخدام الشاشة نفسها من صفحة الإعدادات بوضع التعديل
++/// ([isEditing] = true) لمراجعة البيانات لاحقًا.
++class FirstRunSetupPage extends ConsumerStatefulWidget {
++  const FirstRunSetupPage({super.key, this.isEditing = false});
++
++  /// وضع التعديل: يُسمح بالرجوع وتُعرض الشاشة بوصفها صفحة عادية.
++  final bool isEditing;
++
++  @override
++  ConsumerState<FirstRunSetupPage> createState() => _FirstRunSetupPageState();
++}
++
++class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
++  final _formKey = GlobalKey<FormState>();
++  final _schoolNameController = TextEditingController();
++  final _principalNameController = TextEditingController();
++  final _periodsPerDayController = TextEditingController(text: '7');
++  final _daysPerWeekController = TextEditingController(text: '5');
++
++  SchoolStage? _selectedStage;
++  bool _isPreparing = true;
++  bool _isSaving = false;
++  bool _showStageError = false;
++  String? _preparationError;
++
++  @override
++  void initState() {
++    super.initState();
++    _prepareForm();
++  }
++
++  @override
++  void dispose() {
++    _schoolNameController.dispose();
++    _principalNameController.dispose();
++    _periodsPerDayController.dispose();
++    _daysPerWeekController.dispose();
++    super.dispose();
++  }
++
++  /// يجلب الإعدادات الحالية ليعبّئ الحقول بالبيانات الموجودة مسبقًا.
++  Future<void> _prepareForm() async {
++    setState(() {
++      _isPreparing = true;
++      _preparationError = null;
++    });
++
++    try {
++      final settings = await ref.read(settingsNotifierProvider.future);
++      final config = await ref.read(appConfigNotifierProvider.future);
++      if (!mounted) {
++        return;
++      }
++
++      setState(() {
++        _schoolNameController.text = settings.schoolName;
++        _principalNameController.text = settings.principalName;
++        _periodsPerDayController.text = settings.periodsPerDay.toString();
++        _daysPerWeekController.text = settings.daysPerWeek.toString();
++        _selectedStage = config.isSetupCompleted ? config.schoolStage : null;
++        _isPreparing = false;
++      });
++    } catch (error) {
++      if (!mounted) {
++        return;
++      }
++      setState(() {
++        _isPreparing = false;
++        _preparationError = 'تعذر تحميل الإعدادات الحالية: $error';
++      });
++    }
++  }
++
++  Future<void> _submit() async {
++    final formIsValid = _formKey.currentState?.validate() ?? false;
++    final stage = _selectedStage;
++
++    if (stage == null) {
++      setState(() => _showStageError = true);
++    }
++    if (!formIsValid || stage == null) {
++      return;
++    }
++
++    // يُلتقط مُشغّل الرسائل قبل العمليات غير المتزامنة، لأن الشاشة تختفي فور
++    // إتمام الإعداد الأولي (تتحول واجهة الإقلاع إلى الهيكل الرئيسي).
++    final messenger = ScaffoldMessenger.of(context);
++
++    setState(() {
++      _isSaving = true;
++      _showStageError = false;
++    });
++
++    try {
++      final existingSettings =
++          await ref.read(settingsNotifierProvider.future);
++      final updatedSettings = existingSettings
++        ..schoolName = _schoolNameController.text.trim()
++        ..principalName = _principalNameController.text.trim()
++        ..periodsPerDay = int.parse(_periodsPerDayController.text.trim())
++        ..daysPerWeek = int.parse(_daysPerWeekController.text.trim());
++
++      await ref
++          .read(settingsNotifierProvider.notifier)
++          .saveSettings(updatedSettings);
++
++      await ref
++          .read(appConfigNotifierProvider.notifier)
++          .completeSetup(stage: stage);
++
++      // تُنشأ قيود المواد التلقائية للمرحلة الابتدائية بعد حفظ المرحلة.
++      final outcome =
++          await ref.read(subjectConstraintAutoSyncProvider).run();
++
++      final summary = outcome?.arabicSummary;
++      messenger.showSnackBar(
++        SnackBar(
++          content: Text(
++            summary == null
++                ? 'تم حفظ الإعدادات بنجاح'
++                : 'تم حفظ الإعدادات بنجاح، $summary',
++          ),
++          backgroundColor: Colors.green.shade700,
++        ),
++      );
++
++      if (!mounted) {
++        return;
++      }
++
++      setState(() => _isSaving = false);
++
++      if (widget.isEditing && Navigator.of(context).canPop()) {
++        Navigator.of(context).pop();
++      }
++    } catch (error) {
++      messenger.showSnackBar(
++        SnackBar(
++          content: Text('تعذر حفظ الإعدادات: $error'),
++          backgroundColor: Colors.red,
++        ),
++      );
++
++      if (!mounted) {
++        return;
++      }
++
++      setState(() => _isSaving = false);
++    }
++  }
++
++  @override
++  Widget build(BuildContext context) {
++    return PopScope(
++      // في وضع الإقلاع لا يُسمح بالخروج من الشاشة قبل إكمال البيانات.
++      canPop: widget.isEditing,
++      child: Scaffold(
++        appBar: widget.isEditing
++            ? AppBar(title: const Text('معالج الإعداد الأولي'))
++            : null,
++        body: SafeArea(child: _buildBody(context)),
++      ),
++    );
++  }
++
++  Widget _buildBody(BuildContext context) {
++    if (_isPreparing) {
++      return const Center(
++        child: Column(
++          mainAxisSize: MainAxisSize.min,
++          children: [
++            CircularProgressIndicator(),
++            SizedBox(height: 12),
++            Text('جارٍ تحضير الإعدادات...'),
++          ],
++        ),
++      );
++    }
++
++    if (_preparationError != null) {
++      return Center(
++        child: Padding(
++          padding: const EdgeInsets.all(24),
++          child: Column(
++            mainAxisSize: MainAxisSize.min,
++            children: [
++              const Icon(Icons.error_outline, color: Colors.red, size: 40),
++              const SizedBox(height: 12),
++              Text(
++                _preparationError!,
++                textAlign: TextAlign.center,
++              ),
++              const SizedBox(height: 16),
++              ElevatedButton.icon(
++                onPressed: _prepareForm,
++                icon: const Icon(Icons.refresh),
++                label: const Text('إعادة المحاولة'),
++              ),
++            ],
++          ),
++        ),
++      );
++    }
++
++    return Center(
++      child: ConstrainedBox(
++        constraints: const BoxConstraints(maxWidth: 760),
++        child: SingleChildScrollView(
++          padding: const EdgeInsets.all(24),
++          child: Form(
++            key: _formKey,
++            child: Column(
++              crossAxisAlignment: CrossAxisAlignment.stretch,
++              children: [
++                _buildHeader(context),
++                const SizedBox(height: 20),
++                _buildBasicDataCard(),
++                const SizedBox(height: 20),
++                _buildStageCard(),
++                if (_selectedStage == SchoolStage.primary) ...[
++                  const SizedBox(height: 16),
++                  _buildPrimaryPolicyNotice(),
++                ],
++                const SizedBox(height: 28),
++                ElevatedButton(
++                  onPressed: _isSaving ? null : _submit,
++                  style: ElevatedButton.styleFrom(
++                    padding: const EdgeInsets.symmetric(vertical: 18),
++                  ),
++                  child: _isSaving
++                      ? const SizedBox(
++                          width: 20,
++                          height: 20,
++                          child: CircularProgressIndicator(strokeWidth: 2),
++                        )
++                      : Text(
++                          widget.isEditing
++                              ? 'حفظ الإعدادات'
++                              : 'حفظ وبدء الاستخدام',
++                          style: const TextStyle(fontSize: 16),
++                        ),
++                ),
++                const SizedBox(height: 12),
++                Text(
++                  widget.isEditing
++                      ? 'تعديل المرحلة يعيد ضبط قيود المواد التلقائية وفق السياسة الجديدة.'
++                      : 'لا يمكن استخدام التطبيق قبل إكمال هذه البيانات.',
++                  textAlign: TextAlign.center,
++                  style: TextStyle(
++                    fontSize: 12,
++                    color: Colors.grey.shade700,
++                  ),
++                ),
++              ],
++            ),
++          ),
++        ),
++      ),
++    );
++  }
++
++  Widget _buildHeader(BuildContext context) {
++    return Column(
++      crossAxisAlignment: CrossAxisAlignment.center,
++      children: [
++        Icon(
++          Icons.school_outlined,
++          size: 56,
++          color: Theme.of(context).colorScheme.primary,
++        ),
++        const SizedBox(height: 12),
++        Text(
++          widget.isEditing ? 'بيانات المدرسة والمرحلة' : 'إعداد التطبيق لأول مرة',
++          textAlign: TextAlign.center,
++          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
++        ),
++        const SizedBox(height: 8),
++        Text(
++          'أدخل البيانات الأساسية للمدرسة وحدّد المرحلة الدراسية، '
++          'لتبدأ بإسناد الدروس وتوليد الجدول الأسبوعي.',
++          textAlign: TextAlign.center,
++          style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
++        ),
++      ],
++    );
++  }
++
++  Widget _buildBasicDataCard() {
++    return Card(
++      child: Padding(
++        padding: const EdgeInsets.all(16),
++        child: Column(
++          children: [
++            TextFormField(
++              controller: _schoolNameController,
++              textInputAction: TextInputAction.next,
++              decoration: const InputDecoration(
++                labelText: 'اسم المدرسة',
++                border: OutlineInputBorder(),
++                prefixIcon: Icon(Icons.apartment),
++              ),
++              validator: (value) => SetupValidation.requiredText(
++                value,
++                fieldLabel: 'اسم المدرسة',
++              ),
++            ),
++            const SizedBox(height: 16),
++            TextFormField(
++              controller: _principalNameController,
++              textInputAction: TextInputAction.next,
++              decoration: const InputDecoration(
++                labelText: 'اسم المدير',
++                border: OutlineInputBorder(),
++                prefixIcon: Icon(Icons.person_outline),
++              ),
++              validator: (value) => SetupValidation.requiredText(
++                value,
++                fieldLabel: 'اسم المدير',
++              ),
++            ),
++            const SizedBox(height: 16),
++            Row(
++              crossAxisAlignment: CrossAxisAlignment.start,
++              children: [
++                Expanded(
++                  child: TextFormField(
++                    controller: _periodsPerDayController,
++                    keyboardType: TextInputType.number,
++                    textInputAction: TextInputAction.next,
++                    decoration: const InputDecoration(
++                      labelText: 'عدد الدروس في اليوم',
++                      border: OutlineInputBorder(),
++                    ),
++                    validator: SetupValidation.periodsPerDay,
++                  ),
++                ),
++                const SizedBox(width: 16),
++                Expanded(
++                  child: TextFormField(
++                    controller: _daysPerWeekController,
++                    keyboardType: TextInputType.number,
++                    decoration: const InputDecoration(
++                      labelText: 'عدد أيام الأسبوع',
++                      border: OutlineInputBorder(),
++                    ),
++                    validator: SetupValidation.daysPerWeek,
++                  ),
++                ),
++              ],
++            ),
++          ],
++        ),
++      ),
++    );
++  }
++
++  Widget _buildStageCard() {
++    return Card(
++      child: Padding(
++        padding: const EdgeInsets.all(16),
++        child: Column(
++          crossAxisAlignment: CrossAxisAlignment.start,
++          children: [
++            const Text(
++              'المرحلة الدراسية',
++              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
++            ),
++            const SizedBox(height: 12),
++            SchoolStageSelector(
++              value: _selectedStage,
++              onChanged: (stage) {
++                setState(() {
++                  _selectedStage = stage;
++                  _showStageError = false;
++                });
++              },
++            ),
++            if (_showStageError && _selectedStage == null) ...[
++              const SizedBox(height: 8),
++              Text(
++                SetupValidation.schoolStage(_selectedStage) ?? '',
++                style: TextStyle(color: Colors.red.shade700, fontSize: 12),
++              ),
++            ],
++            if (_selectedStage != null) ...[
++              const SizedBox(height: 12),
++              Text(
++                _selectedStage!.description,
++                style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
++              ),
++            ],
++          ],
++        ),
++      ),
++    );
++  }
++
++  Widget _buildPrimaryPolicyNotice() {
++    return Container(
++      decoration: BoxDecoration(
++        color: Colors.teal.shade50,
++        borderRadius: BorderRadius.circular(12),
++        border: Border.all(color: Colors.teal.shade200),
++      ),
++      padding: const EdgeInsets.all(16),
++      child: Column(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: [
++          Row(
++            children: [
++              Icon(Icons.info_outline, color: Colors.teal.shade800),
++              const SizedBox(width: 8),
++              const Expanded(
++                child: Text(
++                  'سياسة تخطي قيود المواد للمرحلة الابتدائية',
++                  style: TextStyle(fontWeight: FontWeight.bold),
++                ),
++              ),
++            ],
++          ),
++          const SizedBox(height: 8),
++          Text(
++            'يُنشئ التطبيق تلقائيًا قيدًا لأي مادة يتجاوز نصابها الأسبوعي '
++            '٦ حصص (اللغة العربية والرياضيات غالبًا)، بحيث يُسمح بتكرار '
++            'حصتين في اليوم للشعبة الواحدة بدل حصة واحدة. '
++            'تُضاف هذه القيود إلى صفحة «قيود المواد» ويمكنك تعديل قيمتها '
++            'أو حذفها في أي وقت، ولا تُعاد إن حذفتها.',
++            style: TextStyle(fontSize: 13, color: Colors.teal.shade900),
++          ),
++        ],
++      ),
++    );
++  }
++}
+diff --git a/lib/features/setup/presentation/widgets/school_stage_selector.dart b/lib/features/setup/presentation/widgets/school_stage_selector.dart
+new file mode 100644
+index 0000000..d3af5c6
+--- /dev/null
++++ b/lib/features/setup/presentation/widgets/school_stage_selector.dart
+@@ -0,0 +1,44 @@
++import 'package:flutter/material.dart';
++
++import '../../../../core/models/school_stage.dart';
++
++/// مُحدِّد المرحلة الدراسية (ابتدائي / متوسط فأعلى) على شكل أزرار اختيار.
++///
++/// استُخدم `ChoiceChip` بدل القوائم المنسدلة ليعمل على جميع إصدارات Flutter
++/// المدعومة في فروع المشروع (أندرويد/ويندوز ٧/ويندوز ١٠ و١١) مع وضوح بصري
++/// أكبر وعدد الخيارات المحدود.
++class SchoolStageSelector extends StatelessWidget {
++  const SchoolStageSelector({
++    super.key,
++    required this.value,
++    this.onChanged,
++  });
++
++  /// المرحلة المختارة حاليًا (أو `null` قبل الاختيار).
++  final SchoolStage? value;
++
++  /// يُستدعى عند اختيار مرحلة جديدة؛ إذا كان `null` يصبح المُحدِّد للعرض فقط.
++  final ValueChanged<SchoolStage>? onChanged;
++
++  @override
++  Widget build(BuildContext context) {
++    return Wrap(
++      spacing: 12,
++      runSpacing: 8,
++      children: <Widget>[
++        for (final stage in SchoolStage.values)
++          ChoiceChip(
++            label: Text(stage.label),
++            selected: value == stage,
++            onSelected: onChanged == null
++                ? null
++                : (selected) {
++                    if (selected) {
++                      onChanged!(stage);
++                    }
++                  },
++          ),
++      ],
++    );
++  }
++}
+diff --git a/test/core/models/app_config_test.dart b/test/core/models/app_config_test.dart
+new file mode 100644
+index 0000000..03cf891
+--- /dev/null
++++ b/test/core/models/app_config_test.dart
+@@ -0,0 +1,85 @@
++import 'dart:convert';
++
++import 'package:flutter_test/flutter_test.dart';
++import 'package:jadwal_v2/core/models/app_config.dart';
++import 'package:jadwal_v2/core/models/school_stage.dart';
++
++void main() {
++  group('SchoolStage', () {
++    test('المرحلة الافتراضية لا تُفعّل سياسة التخطي', () {
++      expect(SchoolStage.fallback, SchoolStage.middleAndAbove);
++      expect(SchoolStage.fallback.enablesAutomaticConstraintBypass, isFalse);
++      expect(SchoolStage.primary.enablesAutomaticConstraintBypass, isTrue);
++    });
++
++    test('يقرأ القيم المعروفة ويرجع للافتراضي مع القيم المجهولة', () {
++      expect(SchoolStage.fromStorage('primary'), SchoolStage.primary);
++      expect(
++        SchoolStage.fromStorage('middleAndAbove'),
++        SchoolStage.middleAndAbove,
++      );
++      expect(SchoolStage.fromStorage('unknown'), SchoolStage.fallback);
++      expect(SchoolStage.fromStorage(null), SchoolStage.fallback);
++    });
++  });
++
++  group('AppConfig', () {
++    test('يُقرأ ويُكتب بصيغة JSON دون فقدان البيانات', () {
++      final config = AppConfig(
++        isSetupCompleted: true,
++        schoolStage: SchoolStage.primary,
++        managedAutoConstraints: const {'الصف الأول\u001Fاللغة العربية': 2},
++        dismissedAutoConstraints: const {'الصف الثاني\u001Fالرياضيات'},
++      );
++
++      final encoded = jsonEncode(config.toJson());
++      final decoded =
++          AppConfig.fromJson(jsonDecode(encoded) as Map<String, dynamic>);
++
++      expect(decoded, config);
++    });
++
++    test('يعود للقيم الآمنة عند وجود حقول تالفة', () {
++      final decoded = AppConfig.fromJson(<String, dynamic>{
++        'isSetupCompleted': 'yes',
++        'schoolStage': 42,
++        'managedAutoConstraints': 5,
++        'dismissedAutoConstraints': 'nope',
++      });
++
++      expect(decoded.isSetupCompleted, isFalse);
++      expect(decoded.schoolStage, SchoolStage.fallback);
++      expect(decoded.managedAutoConstraints, isEmpty);
++      expect(decoded.dismissedAutoConstraints, isEmpty);
++    });
++
++    test('يتجاهل القيم غير الرقمية في سجلّ القيود المُدارة', () {
++      final decoded = AppConfig.fromJson(<String, dynamic>{
++        'managedAutoConstraints': <String, dynamic>{
++          'مفتاح صحيح': 3,
++          'مفتاح نصي': '2',
++        },
++      });
++
++      expect(decoded.managedAutoConstraints, {'مفتاح صحيح': 3});
++    });
++
++    test('copyWith يحفظ القيم غير المذكورة', () {
++      final config = AppConfig.initial().copyWith(
++        schoolStage: SchoolStage.primary,
++        managedAutoConstraints: const {'a': 2},
++      );
++
++      final updated = config.copyWith(isSetupCompleted: true);
++
++      expect(updated.isSetupCompleted, isTrue);
++      expect(updated.schoolStage, SchoolStage.primary);
++      expect(updated.managedAutoConstraints, config.managedAutoConstraints);
++    });
++
++    test('AppConfig.initial لا يعتبر الإعداد مكتملًا', () {
++      expect(AppConfig.initial().isSetupCompleted, isFalse);
++      expect(AppConfig.initial(), AppConfig.initial());
++    });
++  });
++}
+diff --git a/test/core/services/app_config_service_test.dart b/test/core/services/app_config_service_test.dart
+new file mode 100644
+index 0000000..ddc5998
+--- /dev/null
++++ b/test/core/services/app_config_service_test.dart
+@@ -0,0 +1,110 @@
++import 'dart:io';
++
++import 'package:flutter_test/flutter_test.dart';
++import 'package:jadwal_v2/core/models/app_config.dart';
++import 'package:jadwal_v2/core/models/school_stage.dart';
++import 'package:jadwal_v2/core/services/app_config_service.dart';
++
++void main() {
++  late Directory tempDirectory;
++
++  setUp(() async {
++    tempDirectory =
++        await Directory.systemTemp.createTemp('jadwal_app_config_test');
++  });
++
++  tearDown(() async {
++    if (await tempDirectory.exists()) {
++      await tempDirectory.delete(recursive: true);
++    }
++  });
++
++  AppConfigService serviceIn(Directory directory) {
++    return AppConfigService(
++      file: File('${directory.path}${Platform.pathSeparator}'
++          '${AppConfigService.fileName}'),
++    );
++  }
++
++  test('يعيد الإعدادات الافتراضية عند غياب الملف', () async {
++    final service = serviceIn(tempDirectory);
++
++    final config = await service.load();
++
++    expect(config.isSetupCompleted, isFalse);
++    expect(config.schoolStage, SchoolStage.fallback);
++    expect(config, AppConfig.initial());
++  });
++
++  test('يحفظ الإعدادات ويقرأها كما هي', () async {
++    final service = serviceIn(tempDirectory);
++    final config = AppConfig.initial().copyWith(
++      isSetupCompleted: true,
++      schoolStage: SchoolStage.primary,
++      managedAutoConstraints: const {'الصف الأول\u001Fاللغة العربية': 2},
++      dismissedAutoConstraints: const {'الصف الثاني\u001Fالرياضيات'},
++    );
++
++    await service.save(config);
++    final reloaded = await service.load();
++
++    expect(reloaded, config);
++  });
++
++  test('ينشئ المجلد الأب عند عدم وجوده', () async {
++    final nestedDirectory = Directory(
++      '${tempDirectory.path}${Platform.pathSeparator}nested'
++      '${Platform.pathSeparator}config',
++    );
++    final service = serviceIn(nestedDirectory);
++
++    await service.save(
++      AppConfig.initial().copyWith(
++        isSetupCompleted: true,
++        schoolStage: SchoolStage.primary,
++      ),
++    );
++
++    expect(await service.file.exists(), isTrue);
++    expect((await service.load()).schoolStage, SchoolStage.primary);
++  });
++
++  test('يعود للافتراضي عند تلف محتوى الملف', () async {
++    final service = serviceIn(tempDirectory);
++    await service.file.writeAsString('{ هذا ليس JSON صالحًا');
++
++    final config = await service.load();
++
++    expect(config, AppConfig.initial());
++  });
++
++  test('لا يترك ملفًا مؤقتًا بعد الحفظ', () async {
++    final service = serviceIn(tempDirectory);
++
++    await service.save(AppConfig.initial().copyWith(isSetupCompleted: true));
++
++    final temporaryFile = File(
++      '${service.file.path}${AppConfigService.temporaryExtension}',
++    );
++    expect(await temporaryFile.exists(), isFalse);
++  });
++
++  test('الحفظ المتكرر يستبدل الملف السابق', () async {
++    final service = serviceIn(tempDirectory);
++
++    await service.save(AppConfig.initial().copyWith(
++      schoolStage: SchoolStage.primary,
++      managedAutoConstraints: const {'a': 2, 'b': 3},
++    ));
++    await service.save(AppConfig.initial().copyWith(
++      isSetupCompleted: true,
++      schoolStage: SchoolStage.middleAndAbove,
++    ));
++
++    final reloaded = await service.load();
++
++    expect(reloaded.isSetupCompleted, isTrue);
++    expect(reloaded.schoolStage, SchoolStage.middleAndAbove);
++    expect(reloaded.managedAutoConstraints, isEmpty);
++  });
++}
+diff --git a/test/features/management/domain/primary_stage_constraint_policy_test.dart b/test/features/management/domain/primary_stage_constraint_policy_test.dart
+new file mode 100644
+index 0000000..3024bac
+--- /dev/null
++++ b/test/features/management/domain/primary_stage_constraint_policy_test.dart
+@@ -0,0 +1,183 @@
++import 'package:flutter_test/flutter_test.dart';
++import 'package:jadwal_v2/core/models/subject_constraint_key.dart';
++import 'package:jadwal_v2/features/management/domain/services/primary_stage_constraint_policy.dart';
++
++void main() {
++  group('PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay', () {
++    test('لا يؤهل المواد التي نصابها الأسبوعي ست حصص أو أقل', () {
++      expect(
++        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
++          weeklyLessons: 6,
++          daysPerWeek: 5,
++        ),
++        isNull,
++      );
++      expect(
++        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
++          weeklyLessons: 4,
++          daysPerWeek: 5,
++        ),
++        isNull,
++      );
++    });
++
++    test('يسمح بحصتين في اليوم عند تجاوز النصاب ست حصص', () {
++      expect(
++        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
++          weeklyLessons: 7,
++          daysPerWeek: 5,
++        ),
++        2,
++      );
++      expect(
++        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
++          weeklyLessons: 10,
++          daysPerWeek: 5,
++        ),
++        2,
++      );
++      expect(
++        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
++          weeklyLessons: 12,
++          daysPerWeek: 6,
++        ),
++        2,
++      );
++    });
++
++    test('يرفع الحد اليومي فقط عند الحاجة الرياضية الفعلية', () {
++      // ١٢ حصة على ٥ أيام لا تكفيها حصتان في اليوم.
++      expect(
++        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
++          weeklyLessons: 12,
++          daysPerWeek: 5,
++        ),
++        3,
++      );
++      expect(
++        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
++          weeklyLessons: 7,
++          daysPerWeek: 3,
++        ),
++        3,
++      );
++    });
++
++    test('لا ينزل عن الحد الأدنى للتكرار اليومي مهما كان عدد الأيام', () {
++      expect(PrimaryStageConstraintPolicy.minimumDailyRepetition, 2);
++      expect(
++        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
++          weeklyLessons: 7,
++          daysPerWeek: 0,
++        ),
++        greaterThanOrEqualTo(
++          PrimaryStageConstraintPolicy.minimumDailyRepetition,
++        ),
++      );
++    });
++  });
++
++  group('PrimaryStageConstraintPolicy.planFor', () {
++    test('ينشئ قيدًا لكل مرحلة للمواد المتجاوزة الحد', () {
++      final plan = PrimaryStageConstraintPolicy.planFor(
++        grades: const ['الصف الأول', 'الصف الثاني'],
++        subjects: [
++          SubjectWeeklyLoad(
++            subjectName: 'اللغة العربية',
++            plannedLessonsPerWeek: 8,
++            assignedLessonsPerGrade: const <String, int>{},
++          ),
++          SubjectWeeklyLoad(
++            subjectName: 'الرياضيات',
++            plannedLessonsPerWeek: 7,
++            assignedLessonsPerGrade: const {'الصف الأول': 7},
++          ),
++          SubjectWeeklyLoad(
++            subjectName: 'العلوم',
++            plannedLessonsPerWeek: 4,
++            assignedLessonsPerGrade: const <String, int>{},
++          ),
++        ],
++        daysPerWeek: 5,
++      );
++
++      expect(plan.length, 4);
++      expect(
++        plan[const SubjectConstraintKey(
++          grade: 'الصف الأول',
++          subjectName: 'اللغة العربية',
++        )],
++        2,
++      );
++      expect(
++        plan[const SubjectConstraintKey(
++          grade: 'الصف الثاني',
++          subjectName: 'الرياضيات',
++        )],
++        2,
++      );
++      expect(
++        plan.containsKey(const SubjectConstraintKey(
++          grade: 'الصف الأول',
++          subjectName: 'العلوم',
++        )),
++        isFalse,
++      );
++    });
++
++    test('يعتمد الأعلى بين النصاب المخطَّط والإسناد الفعلي', () {
++      final load = SubjectWeeklyLoad(
++        subjectName: 'الرياضيات',
++        plannedLessonsPerWeek: 5,
++        assignedLessonsPerGrade: const {'الصف الأول': 11},
++      );
++
++      final plan = PrimaryStageConstraintPolicy.planFor(
++        grades: const ['الصف الأول'],
++        subjects: [load],
++        daysPerWeek: 5,
++      );
++
++      expect(
++        plan[const SubjectConstraintKey(
++          grade: 'الصف الأول',
++          subjectName: 'الرياضيات',
++        )],
++        3,
++      );
++    });
++
++    test('يتجاهل المراحل والمواد الفارغة', () {
++      final plan = PrimaryStageConstraintPolicy.planFor(
++        grades: const ['', '   '],
++        subjects: [
++          SubjectWeeklyLoad(
++            subjectName: 'اللغة العربية',
++            plannedLessonsPerWeek: 9,
++            assignedLessonsPerGrade: const <String, int>{},
++          ),
++        ],
++        daysPerWeek: 5,
++      );
++
++      expect(plan, isEmpty);
++    });
++  });
++
++  group('SubjectConstraintKey', () {
++    test('يُشفَّر ويُقرأ بشكل متطابق', () {
++      const key = SubjectConstraintKey(
++        grade: 'الصف الأول',
++        subjectName: 'اللغة العربية',
++      );
++
++      expect(SubjectConstraintKey.tryParse(key.storageKey), key);
++    });
++
++    test('يعيد null للقيم التالفة', () {
++      expect(SubjectConstraintKey.tryParse(null), isNull);
++      expect(SubjectConstraintKey.tryParse('بدون فاصل'), isNull);
++      expect(SubjectConstraintKey.tryParse('مرحلة\u001F'), isNull);
++    });
++  });
++}
+diff --git a/test/features/setup/domain/setup_validation_test.dart b/test/features/setup/domain/setup_validation_test.dart
+new file mode 100644
+index 0000000..fd2a5d1
+--- /dev/null
++++ b/test/features/setup/domain/setup_validation_test.dart
+@@ -0,0 +1,66 @@
++import 'package:flutter_test/flutter_test.dart';
++import 'package:jadwal_v2/core/models/school_stage.dart';
++import 'package:jadwal_v2/features/setup/domain/setup_validation.dart';
++
++void main() {
++  group('SetupValidation.requiredText', () {
++    test('يرفض النص الفارغ أو المسافات فقط', () {
++      expect(SetupValidation.requiredText(null, fieldLabel: 'اسم المدرسة'),
++          'اسم المدرسة مطلوب');
++      expect(SetupValidation.requiredText('', fieldLabel: 'اسم المدرسة'),
++          'اسم المدرسة مطلوب');
++      expect(SetupValidation.requiredText('   ', fieldLabel: 'اسم المدرسة'),
++          'اسم المدرسة مطلوب');
++    });
++
++    test('يقبل النص غير الفارغ', () {
++      expect(
++        SetupValidation.requiredText('مدرسة النور', fieldLabel: 'اسم المدرسة'),
++        isNull,
++      );
++    });
++  });
++
++  group('SetupValidation.periodsPerDay', () {
++    test('يقبل القيم داخل الحدود', () {
++      expect(SetupValidation.periodsPerDay('7'), isNull);
++      expect(SetupValidation.periodsPerDay(' 12 '), isNull);
++      expect(SetupValidation.periodsPerDay('1'), isNull);
++    });
++
++    test('يرفض القيم خارج الحدود أو غير الرقمية', () {
++      expect(SetupValidation.periodsPerDay('0'), 'أدخل رقمًا بين 1 و 12');
++      expect(SetupValidation.periodsPerDay('13'), 'أدخل رقمًا بين 1 و 12');
++      expect(SetupValidation.periodsPerDay('abc'), 'أدخل رقمًا صحيحًا');
++      expect(
++        SetupValidation.periodsPerDay(''),
++        'عدد الدروس في اليوم مطلوب',
++      );
++    });
++  });
++
++  group('SetupValidation.daysPerWeek', () {
++    test('يقبل القيم داخل الحدود', () {
++      expect(SetupValidation.daysPerWeek('5'), isNull);
++      expect(SetupValidation.daysPerWeek('6'), isNull);
++      expect(SetupValidation.daysPerWeek('7'), isNull);
++    });
++
++    test('يرفض القيم خارج الحدود أو غير الرقمية', () {
++      expect(SetupValidation.daysPerWeek('0'), 'أدخل رقمًا بين 1 و 7');
++      expect(SetupValidation.daysPerWeek('8'), 'أدخل رقمًا بين 1 و 7');
++      expect(SetupValidation.daysPerWeek('خمسة'), 'أدخل رقمًا صحيحًا');
++    });
++  });
++
++  group('SetupValidation.schoolStage', () {
++    test('يرفض عدم الاختيار ويقبل المرحلتين', () {
++      expect(
++        SetupValidation.schoolStage(null),
++        'يرجى اختيار المرحلة الدراسية',
++      );
++      expect(SetupValidation.schoolStage(SchoolStage.primary), isNull);
++      expect(SetupValidation.schoolStage(SchoolStage.middleAndAbove), isNull);
++    });
++  });
++}
