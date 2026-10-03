@@ -152,6 +152,97 @@ void main() {
     expect(restoredConstraints.single.maxPeriodsPerDay, 2);
   });
 
+  test('roundtrips teacher periods, pinned lessons, and custom page size',
+      () async {
+    await isar.writeTxn(() async {
+      await isar.teachers.clear();
+      await isar.subjects.clear();
+      await isar.classrooms.clear();
+      await isar.lessons.clear();
+      await isar.appSettings.clear();
+      await isar.subjectConstraints.clear();
+      final teacher = Teacher()
+        ..id = 1
+        ..name = 'معلم'
+        ..specialization = 'رياضيات'
+        ..maxLessonsPerDay = 5
+        ..maxLessonsPerWeek = 20
+        ..unavailableDays = [0]
+        ..allowedPeriods = [1, 3];
+      final subject = Subject()
+        ..id = 1
+        ..name = 'رياضيات'
+        ..lessonsPerWeek = 6
+        ..allowedPeriods = const [];
+      final classroom = Classroom()
+        ..id = 1
+        ..name = '1أ'
+        ..grade = 'الصف الأول';
+      await isar.teachers.put(teacher);
+      await isar.subjects.put(subject);
+      await isar.classrooms.put(classroom);
+      await isar.appSettings.put(
+        AppSettings()
+          ..periodsPerDay = 7
+          ..daysPerWeek = 5
+          ..customPageWidth = 21.0
+          ..customPageHeight = 29.7,
+      );
+      final lesson = Lesson()
+        ..id = 1
+        ..dayIndex = 0
+        ..periodIndex = 1
+        ..isPinned = true
+        ..teacher.value = teacher
+        ..subject.value = subject
+        ..classroom.value = classroom;
+      await isar.lessons.put(lesson);
+      await lesson.teacher.save();
+      await lesson.subject.save();
+      await lesson.classroom.save();
+    });
+
+    final exported = await backupService.exportDatabaseToJson();
+    final data = jsonDecode(exported) as Map<String, dynamic>;
+    expect(
+      List<int>.from(
+        ((data['teachers'] as List<dynamic>).first
+            as Map<String, dynamic>)['allowedPeriods'] as List<dynamic>,
+      ),
+      [1, 3],
+    );
+    expect(
+      ((data['lessons'] as List<dynamic>).first
+          as Map<String, dynamic>)['isPinned'],
+      isTrue,
+    );
+
+    await isar.writeTxn(() async {
+      await isar.teachers.clear();
+      await isar.subjects.clear();
+      await isar.classrooms.clear();
+      await isar.lessons.clear();
+      await isar.appSettings.clear();
+      await isar.subjectConstraints.clear();
+    });
+
+    await backupService.importDatabaseFromJson(exported);
+
+    final restoredTeacher = await isar.teachers.get(1);
+    expect(restoredTeacher?.allowedPeriods, [1, 3]);
+    final restoredSettings = await isar.appSettings.where().findFirst();
+    expect(restoredSettings?.customPageWidth, 21.0);
+    expect(restoredSettings?.customPageHeight, 29.7);
+    final restoredLesson = await isar.lessons.get(1);
+    expect(restoredLesson?.isPinned, isTrue);
+    await restoredLesson?.teacher.load();
+    await restoredLesson?.subject.load();
+    await restoredLesson?.classroom.load();
+    expect(restoredLesson?.teacher.value?.id, 1);
+    expect(restoredLesson?.subject.value?.id, 1);
+    expect(restoredLesson?.classroom.value?.id, 1);
+  });
+
   test('imports legacy backups without subject constraints section', () async {
     await isar.writeTxn(() async {
       await isar.subjectConstraints.clear();

@@ -4,10 +4,10 @@ import 'package:jadwal_v2/features/management/domain/services/primary_stage_cons
 
 void main() {
   group('PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay', () {
-    test('لا يؤهل المواد التي نصابها الأسبوعي ست حصص أو أقل', () {
+    test('لا يؤهل المواد التي نصابها الأسبوعي أقل من ست حصص', () {
       expect(
         PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
-          weeklyLessons: 6,
+          weeklyLessons: 5,
           daysPerWeek: 5,
         ),
         isNull,
@@ -21,10 +21,42 @@ void main() {
       );
     });
 
-    test('يسمح بحصتين في اليوم عند تجاوز النصاب ست حصص', () {
+    test('ست حصص هي نقطة البداية وتعطي حصتان في اليوم على خمسة أيام', () {
+      expect(PrimaryStageConstraintPolicy.qualifies(6), isTrue);
+      expect(
+        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
+          weeklyLessons: 6,
+          daysPerWeek: 5,
+        ),
+        2,
+      );
+    });
+
+    test('يسمح بحصتين في اليوم للنصاب 6 حتى 10 على خمسة أيام', () {
+      expect(
+        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
+          weeklyLessons: 6,
+          daysPerWeek: 5,
+        ),
+        2,
+      );
       expect(
         PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
           weeklyLessons: 7,
+          daysPerWeek: 5,
+        ),
+        2,
+      );
+      expect(
+        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
+          weeklyLessons: 8,
+          daysPerWeek: 5,
+        ),
+        2,
+      );
+      expect(
+        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
+          weeklyLessons: 9,
           daysPerWeek: 5,
         ),
         2,
@@ -40,6 +72,23 @@ void main() {
         PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
           weeklyLessons: 12,
           daysPerWeek: 6,
+        ),
+        2,
+      );
+    });
+
+    test('أيام الأسبوع غير الصالحة لا تحول النصاب الأسبوعي إلى حد يومي', () {
+      expect(
+        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
+          weeklyLessons: 10,
+          daysPerWeek: 0,
+        ),
+        2,
+      );
+      expect(
+        PrimaryStageConstraintPolicy.resolveMaxPeriodsPerDay(
+          weeklyLessons: 7,
+          daysPerWeek: -1,
         ),
         2,
       );
@@ -78,6 +127,28 @@ void main() {
   });
 
   group('PrimaryStageConstraintPolicy.planFor', () {
+    test('ينشئ قيدًا للنصاب الستة بحد يومي اثنين', () {
+      final plan = PrimaryStageConstraintPolicy.planFor(
+        grades: const ['الصف الأول'],
+        subjects: [
+          SubjectWeeklyLoad(
+            subjectName: 'اللغة العربية',
+            plannedLessonsPerWeek: 6,
+            assignedLessonsPerGrade: const <String, int>{},
+          ),
+        ],
+        daysPerWeek: 5,
+      );
+
+      expect(
+        plan[const SubjectConstraintKey(
+          grade: 'الصف الأول',
+          subjectName: 'اللغة العربية',
+        )],
+        2,
+      );
+    });
+
     test('ينشئ قيدًا لكل مرحلة للمواد المتجاوزة الحد', () {
       final plan = PrimaryStageConstraintPolicy.planFor(
         grades: const ['الصف الأول', 'الصف الثاني'],

@@ -21,6 +21,7 @@ import '../../domain/usecases/timetable_generator.dart';
 import '../../domain/usecases/smart_auto_fix_usecase.dart';
 import '../providers/timetable_interaction_index.dart';
 import '../../../../core/exceptions/timetable_generation_exception.dart';
+import '../../../management/domain/services/lesson_assignment_planner.dart';
 
 part 'timetable_provider.g.dart';
 
@@ -337,64 +338,27 @@ class TimetableNotifier extends _$TimetableNotifier {
     final isar = await ref.read(isarDatabaseProvider.future);
 
     final allLessons = await isar.lessons.where().findAll();
-
-    // Check duplicate assignment
-    bool duplicateAssignment = allLessons.any((l) =>
-        l.classroom.value?.id == classroom.id &&
-        l.subject.value?.id == subject.id);
-
-    if (duplicateAssignment) {
-      return (false, "تم إسناد هذه المادة لهذا الصف مسبقاً");
-    }
-
-    // Check real-time classroom capacity overload
     final settingsList = await isar.appSettings.where().findAll();
     final settings = settingsList.isNotEmpty
         ? settingsList.first
         : (AppSettings()..periodsPerDay = 7);
-    int maxClassroomCapacity = settings.periodsPerDay * settings.daysPerWeek;
 
-    int classAssignedLessons =
-        allLessons.where((l) => l.classroom.value?.id == classroom.id).length;
-    int proposedClassTotal = classAssignedLessons + subject.lessonsPerWeek;
-
-    if (proposedClassTotal > maxClassroomCapacity) {
-      return (
-        false,
-        "تحذير: لا يمكن الإسناد. الصف ${classroom.name} سيصل إلى $proposedClassTotal حصة، مما يتجاوز السعة القصوى للجدول الأسبوعي ($maxClassroomCapacity حصة)."
-      );
+    final plan = LessonAssignmentPlanner.plan(
+      teacher: teacher,
+      subjects: [subject],
+      classrooms: [classroom],
+      existingLessons: allLessons,
+      settings: settings,
+      duplicateBehavior: DuplicateAssignmentBehavior.fail,
+    );
+    if (!plan.isSuccess) {
+      return (false, plan.errorMessage);
     }
 
-    // Check real-time teacher capacity overload
-    int teacherAssignedLessons =
-        allLessons.where((l) => l.teacher.value?.id == teacher.id).length;
-    int proposedTeacherTotal = teacherAssignedLessons + subject.lessonsPerWeek;
-
-    int activeUnavailableDays = teacher.unavailableDays
-        .where((day) => day < settings.daysPerWeek)
-        .length;
-    int availableDays = settings.daysPerWeek - activeUnavailableDays;
-
-    int maxCapacityDays = teacher.maxLessonsPerDay * availableDays;
-    int absoluteMaxCapacity = teacher.maxLessonsPerWeek < maxCapacityDays
-        ? teacher.maxLessonsPerWeek
-        : maxCapacityDays;
-
-    if (proposedTeacherTotal > absoluteMaxCapacity) {
-      return (
-        false,
-        "تحذير: لا يمكن إسناد هذه المادة. المعلم ${teacher.name} سيصل إلى $proposedTeacherTotal حصة، مما يتجاوز حده المسموح ($absoluteMaxCapacity حصة). يرجى اختيار معلم آخر."
-      );
-    }
-
-    final newLessons = <Lesson>[];
-    for (int i = 0; i < subject.lessonsPerWeek; i++) {
-      final lesson = Lesson()
-        ..classroom.value = classroom
-        ..subject.value = subject
-        ..teacher.value = teacher;
-      newLessons.add(lesson);
-    }
+    final newLessons = LessonAssignmentPlanner.buildPoolLessons(
+      teacher: teacher,
+      pairs: plan.pairsToCreate,
+    );
 
     isar.writeTxnSync(() {
       isar.lessons.putAllSync(newLessons);

@@ -5,6 +5,21 @@ import '../../../timetable/presentation/pages/timetable_page.dart';
 import '../providers/subject_constraint_auto_sync_provider.dart';
 import 'management_page.dart';
 
+/// تبويبات الهيكل الرئيسي. تُحفظ في مزوّد حتى لا يُسقط إعادة بناء
+/// [HomePage] (بعد حفظ مادة/قيد/صف/معلم) المستخدم إلى الجدول.
+class HomeShellTabs {
+  const HomeShellTabs._();
+
+  static const int timetable = 0;
+  static const int management = 1;
+}
+
+/// مصدر الحالة المشترك لتبويب الهيكل. لا يُحفظ في [State] الويدجت لأن
+/// إتلاف [HomeShell] كان يعيد الفهرس إلى صفر (الجدول).
+final homeShellTabIndexProvider = StateProvider<int>(
+  (ref) => HomeShellTabs.timetable,
+);
+
 /// الهيكل الرئيسي للتطبيق بعد إكمال الإعداد الأولي: تبويب الجدول وتبويب الإدارة.
 ///
 /// يُشغّل هذا الهيكل مراقب مزامنة قيود المواد التلقائية مرة واحدة عند الظهور،
@@ -17,9 +32,7 @@ class HomeShell extends ConsumerStatefulWidget {
 }
 
 class _HomeShellState extends ConsumerState<HomeShell> {
-  int _currentIndex = 0;
-
-  final List<Widget> _pages = const [
+  static const List<Widget> _pages = [
     TimetablePage(),
     ManagementPage(),
   ];
@@ -37,14 +50,17 @@ class _HomeShellState extends ConsumerState<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final currentIndex = ref.watch(homeShellTabIndexProvider);
+
     return Scaffold(
-      body: _pages[_currentIndex],
+      body: IndexedStack(
+        index: currentIndex,
+        children: _pages,
+      ),
       bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
+        selectedIndex: currentIndex,
         onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
+          ref.read(homeShellTabIndexProvider.notifier).state = index;
         },
         destinations: const [
           NavigationDestination(
