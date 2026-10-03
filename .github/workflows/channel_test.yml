@@ -1,0 +1,31 @@
+name: Channel Test
+
+# ملف مؤقت لمعرفة القناة التي تُظهر مخرجات CI عبر واجهة GitHub API
+# (annotations أو cache keys). يُحذف بعد التشخيص.
+
+on:
+  pull_request:
+
+jobs:
+  annotations:
+    name: Annotation channels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Bash echo
+        run: echo "::error::MARKER-BASH-echo"
+
+      - name: Bash printf multi
+        run: printf '::error::MARKER-BASH-printf\n'
+
+      - name: Node annotation
+        run: node -e "console.log('::error::MARKER-NODE')"
+
+  cache-keys:
+    name: Cache key channel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write cache with informative key
+        uses: actions/cache@v4
+        with:
+          path: /tmp/channel-test
+          key: marker-cache-MARKER-CACHE-0123456789
