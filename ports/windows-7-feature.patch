@@ -1,9 +1,44 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+index 0000000..6a68738
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,29 @@
++<div dir="rtl">
++
++# سجل التغييرات
++
++## نسخة التطوير الحالية (فرع الميزة)
++
++### أُضيف
++- **معالج إعداد أولي إلزامي** يُعرض عند أول تشغيل، ويجمع: اسم المدرسة، اسم المدير،
++  عدد الدروس في اليوم، عدد أيام الأسبوع، والمرحلة الدراسية (ابتدائي / متوسط+).
++- **سياسة تخطي قيود المواد للمرحلة الابتدائية**: أي مادة يتجاوز حملها الأسبوعي
++  ست حصص تدخل السياسة تلقائيًا، بحد أدنى **حصتان في اليوم**، مع رفع الحد عند الحاجة
++  الرياضية وفق `ceil(الحمل ÷ أيام الأسبوع)`.
++- **قيود تلقائية قابلة للتعديل والحذف** تُكتب في جدول قيود المواد نفسه:
++  - تعديل القيد يدويًا يجعله قيدًا يدويًا لا تديره المزامنة.
++  - حذفه يمنع إعادة إنشائه تلقائيًا ما دام مؤهلًا.
++  - تغيير المرحلة إلى «متوسط+» يزيل قيود النظام فقط، ويُبقي القيود اليدوية.
++- **مستخدم قديم (ترقية)**: اعتماد صامت لإعداد قائم بمرحلة لا تغيّر السلوك، بدل
++  مقاطعة المستخدم بمعالج إلزامي.
++- **النسخ الاحتياطي** أصبح يشمل: اسم المدرسة واسم المدير، وقيود المواد، وحالة
++  الإعداد الأولي والمرحلة وسجلّ القيود التلقائية (`appConfig`).
++
++### ملاحظات توافق
++- صيغة النسخ الاحتياطية بقيت متوافقة مع النسخ القديمة: المقاطع الجديدة اختيارية،
++  وقديم النسخ يُستورد كما هو دون كسر.
++- لم تُجرَ أي هجرة لمخطط Isar، ولم تُضَف حزم جديدة، وبقيت نقاط الدخول كما هي.
++- الميزة مطبقة على: نسخة أندرويد (الفرع الرئيسي)، وفرعي ويندوز ٧ وويندوز ١٠/١١
++  عبر الرقع في مجلد `ports/`.
++
++</div>
 diff --git a/FIRST_RUN_SETUP.md b/FIRST_RUN_SETUP.md
 new file mode 100644
-index 0000000..20833fd
+index 0000000..c3409a1
 --- /dev/null
 +++ b/FIRST_RUN_SETUP.md
-@@ -0,0 +1,122 @@
+@@ -0,0 +1,135 @@
 +<div dir="rtl">
 +
 +# الإعداد الأولي الإلزامي وسياسة قيود المرحلة الابتدائية
@@ -124,6 +159,19 @@ index 0000000..20833fd
 +| `test/core/models/app_config_test.dart` | قراءة/كتابة JSON، القيم التالفة، المرحلة الافتراضية |
 +| `test/core/services/app_config_service_test.dart` | غياب الملف، الحفظ الذرّي، تلف المحتوى، إنشاء المجلد |
 +| `test/features/setup/domain/setup_validation_test.dart` | تحقق كل حقل من حقول المعالج |
++| `test/core/services/app_backup_service_test.dart` | تصدير/استيراد مقطع `appConfig` مع قاعدة البيانات، واستيراد نسخة قديمة |
++| `test/core/services/backup_service_consecutiveness_test.dart` | حفظ/استعادة إعدادات المدرسة والمدير وقيود المواد، وتوافق النسخ القديمة |
++
++## ٥) النسخ الاحتياطي والاستعادة
++
++- **التصدير** يضم الآن:
++  - `settings`: اسم المدرسة واسم المدير (إضافة إلى الإعدادات السابقة).
++  - `subjectConstraints`: كل قيود المواد كما هي في قاعدة البيانات (تلقائية أو يدوية).
++  - `appConfig`: اكتمال الإعداد الأولي، المرحلة الدراسية، سجلّ القيود التلقائية المُدارة، ومفاتيح ما حذفه المستخدم.
++- **الاستيراد** متوافق خلفيًا: المقاطع الثلاثة كلها اختيارية، فالنسخة القديمة التي لا
++  تحتويها تُستورد كما هي، ويبقى ملف الإعدادات الحالي دون مساس.
++- بعد استيراد ناجح تُبطَل حالة الإعدادات في الواجهة (`appConfigNotifierProvider`) لتُقرأ
++  المرحلة وسجلّ القيود من النسخة المستوردة فورًا.
 +
 +</div>
 diff --git a/lib/core/models/app_config.dart b/lib/core/models/app_config.dart
@@ -405,19 +453,47 @@ index 0000000..2c00fe2
 +  @override
 +  String toString() => '$subjectName - $grade';
 +}
+diff --git a/lib/core/providers/app_backup_provider.dart b/lib/core/providers/app_backup_provider.dart
+new file mode 100644
+index 0000000..8b19dc5
+--- /dev/null
++++ b/lib/core/providers/app_backup_provider.dart
+@@ -0,0 +1,18 @@
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++
++import '../services/app_backup_service.dart';
++import 'app_config_provider.dart';
++import 'repository_provider.dart';
++
++/// خدمة النسخ الاحتياطي الموحّدة (قاعدة البيانات + إعدادات التطبيق).
++///
++/// مكتوبة يدويًا بلا توليد، انسجامًا مع مزوّدات الإعداد الأولي في
++/// `app_config_provider.dart`، ولأن توليد المزوّدات يتطلب build_runner.
++final appBackupServiceProvider = FutureProvider<AppBackupService>((ref) async {
++  final databaseBackup = await ref.watch(backupServiceProvider.future);
++  final appConfigService = await ref.watch(appConfigServiceProvider.future);
++  return AppBackupService(
++    databaseBackup: databaseBackup,
++    appConfigService: appConfigService,
++  );
++});
 diff --git a/lib/core/providers/app_config_provider.dart b/lib/core/providers/app_config_provider.dart
 new file mode 100644
-index 0000000..946f009
+index 0000000..a8fb432
 --- /dev/null
 +++ b/lib/core/providers/app_config_provider.dart
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,113 @@
 +import 'dart:io';
 +
 +import 'package:flutter_riverpod/flutter_riverpod.dart';
 +import 'package:path_provider/path_provider.dart';
 +
 +import '../models/app_config.dart';
++import '../models/classroom.dart';
++import '../models/lesson.dart';
 +import '../models/school_stage.dart';
++import '../models/subject.dart';
++import '../models/teacher.dart';
 +import '../services/app_config_service.dart';
 +import 'database_provider.dart';
 +
@@ -520,6 +596,63 @@ index 0000000..946f009
 +    state = AsyncData(config);
 +  }
 +}
+diff --git a/lib/core/services/app_backup_service.dart b/lib/core/services/app_backup_service.dart
+new file mode 100644
+index 0000000..dc545da
+--- /dev/null
++++ b/lib/core/services/app_backup_service.dart
+@@ -0,0 +1,51 @@
++import 'dart:convert';
++
++import '../models/app_config.dart';
++import 'app_config_service.dart';
++import 'backup_service.dart';
++
++/// نسخة احتياطية موحّدة: قاعدة بيانات Isar + ملف إعدادات التطبيق.
++///
++/// يبقى [BackupService] مسؤولًا عن قاعدة البيانات وحدها، وتضيف هذه الطبقة
++/// مقطع `appConfig` الذي يحمل حالة الإعداد الأولي والمرحلة الدراسية وسجلّ
++/// القيود التلقائية (المُدارة والمحذوفة)، حتى لا تفقد النسخ الاحتياطية شيئًا
++/// من بيانات الميزة الجديدة.
++///
++/// التوافق الخلفي: النسخ القديمة التي لا تحتوي المقطع تُستورد كما هي دون
++/// المساس بملف الإعدادات الحالي، لأن المقطع يُقرأ اختياريًا.
++class AppBackupService {
++  const AppBackupService({
++    required BackupService databaseBackup,
++    required AppConfigService appConfigService,
++  })  : _databaseBackup = databaseBackup,
++        _appConfigService = appConfigService;
++
++  final BackupService _databaseBackup;
++  final AppConfigService _appConfigService;
++
++  /// مفتاح مقطع إعدادات التطبيق داخل ملف النسخة الاحتياطية.
++  static const String appConfigKey = 'appConfig';
++
++  /// يصدّر قاعدة البيانات وإعدادات التطبيق في مستند JSON واحد.
++  Future<String> exportToJson() async {
++    final databaseJson = await _databaseBackup.exportDatabaseToJson();
++    final data = jsonDecode(databaseJson) as Map<String, dynamic>;
++    final config = await _appConfigService.load();
++    data[appConfigKey] = config.toJson();
++    return jsonEncode(data);
++  }
++
++  /// يستورد نسخة أنشأها [exportToJson] أو نسخة قديمة من قاعدة البيانات وحدها.
++  Future<void> importFromJson(String jsonData) async {
++    final data = jsonDecode(jsonData) as Map<String, dynamic>;
++    final rawConfig = data.remove(appConfigKey);
++
++    await _databaseBackup.importDatabaseFromJson(jsonEncode(data));
++
++    if (rawConfig is Map) {
++      await _appConfigService.save(
++        AppConfig.fromJson(Map<String, dynamic>.from(rawConfig)),
++      );
++    }
++  }
++}
 diff --git a/lib/core/services/app_config_service.dart b/lib/core/services/app_config_service.dart
 new file mode 100644
 index 0000000..cf1b42e
@@ -597,9 +730,98 @@ index 0000000..cf1b42e
 +    await temporaryFile.rename(file.path);
 +  }
 +}
+diff --git a/lib/core/services/backup_service.dart b/lib/core/services/backup_service.dart
+index c8c4ab8..22f9863 100644
+--- a/lib/core/services/backup_service.dart
++++ b/lib/core/services/backup_service.dart
+@@ -7,6 +7,7 @@ import '../models/classroom.dart';
+ import '../models/lesson.dart';
+ import '../models/settings.dart';
+ import '../models/subject_consecutiveness.dart';
++import '../models/subject_constraint.dart';
+ 
+ class BackupService {
+   final Isar _isar;
+@@ -19,6 +20,8 @@ class BackupService {
+     final classrooms = await _isar.classrooms.where().findAll();
+     final lessons = await _isar.lessons.where().findAll();
+     final settings = await _isar.appSettings.where().findAll();
++    final subjectConstraints =
++        await _isar.subjectConstraints.where().findAll();
+ 
+     final Map<String, dynamic> data = {
+       'teachers': teachers
+@@ -49,13 +52,23 @@ class BackupService {
+               })
+           .toList(),
+       'settings': settings
+-          .map((s) => {
+-                'id': s.id,
+-                'periodsPerDay': s.periodsPerDay,
+-                'daysPerWeek': s.daysPerWeek,
+-                'exportPageSize': s.exportPageSize,
+-                'exportOrientation': s.exportOrientation,
+-                'exportAutoScale': s.exportAutoScale,
++            .map((s) => {
++                  'id': s.id,
++                  'schoolName': s.schoolName,
++                  'principalName': s.principalName,
++                  'periodsPerDay': s.periodsPerDay,
++                  'daysPerWeek': s.daysPerWeek,
++                  'exportPageSize': s.exportPageSize,
++                  'exportOrientation': s.exportOrientation,
++                  'exportAutoScale': s.exportAutoScale,
++                })
++            .toList(),
++      'subjectConstraints': subjectConstraints
++          .map((c) => {
++                'id': c.id,
++                'grade': c.grade,
++                'subjectName': c.subjectName,
++                'maxPeriodsPerDay': c.maxPeriodsPerDay,
+               })
+           .toList(),
+       'lessons': lessons
+@@ -83,12 +96,15 @@ class BackupService {
+       await _isar.classrooms.clear();
+       await _isar.lessons.clear();
+       await _isar.appSettings.clear();
++      await _isar.subjectConstraints.clear();
+ 
+       if (data.containsKey('settings')) {
+         final List<dynamic> settingsList = data['settings'];
+         final newSettings = settingsList
+             .map((s) => AppSettings()
+               ..id = s['id']
++              ..schoolName = s['schoolName'] ?? ''
++              ..principalName = s['principalName'] ?? ''
+               ..periodsPerDay = s['periodsPerDay']
+               ..daysPerWeek = s['daysPerWeek']
+               ..exportPageSize = s['exportPageSize'] ?? 'A4'
+@@ -150,6 +166,20 @@ class BackupService {
+         }
+       }
+ 
++      // قيود المواد: مقطع اختياري حتى تبقى النسخ القديمة (التي لا تحتويه)
++      // قابلة للاستيراد، فتُترك المجموعة فارغة كما كانت النسخة نفسها.
++      if (data.containsKey('subjectConstraints')) {
++        final List<dynamic> constraintsList = data['subjectConstraints'];
++        final newConstraints = constraintsList
++            .map((c) => SubjectConstraint()
++              ..id = c['id']
++              ..grade = c['grade']
++              ..subjectName = c['subjectName']
++              ..maxPeriodsPerDay = c['maxPeriodsPerDay'])
++            .toList();
++        await _isar.subjectConstraints.putAll(newConstraints);
++      }
++
+       if (data.containsKey('lessons')) {
+         final List<dynamic> lessonsList = data['lessons'];
+         final newLessons = lessonsList
 diff --git a/lib/features/management/data/services/subject_constraint_auto_sync_service.dart b/lib/features/management/data/services/subject_constraint_auto_sync_service.dart
 new file mode 100644
-index 0000000..1896a9d
+index 0000000..b139dd8
 --- /dev/null
 +++ b/lib/features/management/data/services/subject_constraint_auto_sync_service.dart
 @@ -0,0 +1,301 @@
@@ -608,7 +830,7 @@ index 0000000..1896a9d
 +import '../../../../core/models/app_config.dart';
 +import '../../../../core/models/classroom.dart';
 +import '../../../../core/models/lesson.dart';
-+import '../../../../core/models/school_stage.dart';
++import '../../../../core/models/settings.dart';
 +import '../../../../core/models/subject.dart';
 +import '../../../../core/models/subject_constraint.dart';
 +import '../../../../core/models/subject_constraint_key.dart';
@@ -1274,7 +1496,7 @@ index 0000000..46037f2
 +  }
 +}
 diff --git a/lib/features/management/presentation/pages/settings_page.dart b/lib/features/management/presentation/pages/settings_page.dart
-index e4bdb7e..57d1d5b 100644
+index e4bdb7e..f08f7ae 100644
 --- a/lib/features/management/presentation/pages/settings_page.dart
 +++ b/lib/features/management/presentation/pages/settings_page.dart
 @@ -7,10 +7,15 @@ import 'dart:io';
@@ -1283,8 +1505,9 @@ index e4bdb7e..57d1d5b 100644
  
 +import '../../../../core/models/school_stage.dart';
  import '../../../../core/models/settings.dart';
+-import '../../../../core/providers/repository_provider.dart';
++import '../../../../core/providers/app_backup_provider.dart';
 +import '../../../../core/providers/app_config_provider.dart';
- import '../../../../core/providers/repository_provider.dart';
  import '../../../../core/services/file_save_service.dart';
 +import '../../../setup/presentation/pages/first_run_setup_page.dart';
 +import '../../../setup/presentation/widgets/school_stage_selector.dart';
@@ -1336,7 +1559,7 @@ index e4bdb7e..57d1d5b 100644
    double? _customPageWidth;
    double? _customPageHeight;
  
-@@ -59,31 +79,83 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+@@ -59,35 +79,87 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
      _exportAutoScale = widget.settings.exportAutoScale;
      _schoolName = widget.settings.schoolName;
      _principalName = widget.settings.principalName;
@@ -1434,8 +1657,33 @@ index e4bdb7e..57d1d5b 100644
 +
    Future<void> _exportData() async {
      try {
-       final backupService = await ref.read(backupServiceProvider.future);
-@@ -364,6 +436,46 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+-      final backupService = await ref.read(backupServiceProvider.future);
+-      final jsonStr = await backupService.exportDatabaseToJson();
++      final backupService = await ref.read(appBackupServiceProvider.future);
++      final jsonStr = await backupService.exportToJson();
+ 
+       final jsonBytes =
+           Uint8List.fromList(const Utf8Encoder().convert(jsonStr));
+@@ -136,13 +208,16 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+         final file = File(result.files.single.path!);
+         final jsonStr = await file.readAsString();
+ 
+-        final backupService = await ref.read(backupServiceProvider.future);
+-        await backupService.importDatabaseFromJson(jsonStr);
++        final backupService = await ref.read(appBackupServiceProvider.future);
++        await backupService.importFromJson(jsonStr);
+ 
+         if (mounted) {
+           ref.invalidate(teachersNotifierProvider);
+           ref.invalidate(subjectsNotifierProvider);
+           ref.invalidate(classroomsNotifierProvider);
++          // ملف الإعدادات (المرحلة وسجلّ القيود التلقائية) يُقرأ من القرص
++          // من جديد بعد الاستيراد حتى تعكس الواجهة حالة النسخة المستوردة.
++          ref.invalidate(appConfigNotifierProvider);
+ 
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text('تم استيراد البيانات بنجاح')),
+@@ -364,6 +439,46 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                ),
              ),
              const SizedBox(height: 24),
@@ -1482,7 +1730,7 @@ index e4bdb7e..57d1d5b 100644
              const Text('إعدادات التصدير (PDF)',
                  style: TextStyle(
                      fontSize: 18,
-@@ -504,11 +616,17 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+@@ -504,11 +619,17 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
              SizedBox(
                width: double.infinity,
                child: ElevatedButton(
@@ -1711,10 +1959,10 @@ index de2397b..69aa91b 100644
  }
 diff --git a/lib/features/management/presentation/providers/subject_constraint_auto_sync_provider.dart b/lib/features/management/presentation/providers/subject_constraint_auto_sync_provider.dart
 new file mode 100644
-index 0000000..fe5dc83
+index 0000000..ed5e1de
 --- /dev/null
 +++ b/lib/features/management/presentation/providers/subject_constraint_auto_sync_provider.dart
-@@ -0,0 +1,194 @@
+@@ -0,0 +1,198 @@
 +import 'dart:async';
 +
 +import 'package:flutter/foundation.dart';
@@ -1722,6 +1970,10 @@ index 0000000..fe5dc83
 +import 'package:isar/isar.dart';
 +
 +import '../../../../core/models/app_config.dart';
++import '../../../../core/models/classroom.dart';
++import '../../../../core/models/lesson.dart';
++import '../../../../core/models/settings.dart';
++import '../../../../core/models/subject.dart';
 +import '../../../../core/models/subject_constraint_key.dart';
 +import '../../../../core/providers/app_config_provider.dart';
 +import '../../../../core/providers/database_provider.dart';
@@ -2493,6 +2745,35 @@ index 0000000..d3af5c6
 +    );
 +  }
 +}
+diff --git a/plan.md b/plan.md
+index 4461532..e899e07 100644
+--- a/plan.md
++++ b/plan.md
+@@ -12,3 +12,24 @@
+    - Create tests for `PreValidationEngine` ensuring `Collect-All` behavior is preserved and it maps errors to correct `ConflictReason` sub-types.
+ 5. **Clean up & Pre-commit check:**
+    - Ensure `flutter analyze` and `flutter test` pass before proceeding to submission.
++
++---
++
++## خطة الميزة الجديدة: الإعداد الأولي الإلزامي وسياسة قيود المرحلة الابتدائية
++
++الحالة: **منجزة على فرع `arena/01a1032a-jadwalv2`** (تُنقل إلى فرعي ويندوز عبر رقع `ports/`).
++
++1. **طبقة الإعدادات (خارج قاعدة البيانات):**
++   - `AppConfig` + `AppConfigService` + `AppConfigNotifier` لحفظ: اكتمال الإعداد الأولي، المرحلة الدراسية، وسجلّ القيود التلقائية (المُدارة والمحذوفة) في `jadwal_app_config.json` بكتابة ذرّية وقراءة متسامحة.
++2. **واجهة الإقلاع:**
++   - `appSetupStatusProvider` يفرّق بين: إعداد مطلوب، ترقية مستخدم قديم (اعتماد صامت بمرحلة `fallback`)، وإعداد مكتمل.
++   - `FirstRunSetupPage` إلزامية عند أول تشغيل: اسم المدرسة، اسم المدير، عدد الدروس يوميًا، عدد أيام الأسبوع، المرحلة (ابتدائي / متوسط+).
++3. **سياسة المرحلة الابتدائية:**
++   - `PrimaryStageConstraintPolicy` (كيان نقي قابل للاختبار): أي مادة يتجاوز حملها الأسبوعي **٦ حصص** تدخل سياسة التخطي، بحد أدنى **حصتان في اليوم**، مع الرفع الرياضي `ceil(load / daysPerWeek)`.
++   - `SubjectConstraintAutoSyncService` يكتب القيود في جدول `SubjectConstraint` كأي قيد يدوي (قابل للتعديل والحذف)، ويتتبع: تعديل المستخدم → يتحول إلى يدوي، حذفه → لا يُعاد، وتغيير المرحلة إلى متوسط+ → إزالة قيود النظام فقط.
++4. **النسخ الاحتياطي:**
++   - `BackupService` يصدّر/يستورد الآن إعدادات المدرسة والمدير وقيود المواد (بمفاتيح اختيارية متوافقة مع النسخ القديمة).
++   - `AppBackupService` يدمج مقطع `appConfig` للحفاظ على المرحلة وسجلّ القيود التلقائية.
++5. **الاختبارات والتحقق:**
++   - اختبارات وحدة للسياسة والإعدادات والتحقق من الحقول والنسخ الاحتياطي.
++   - `flutter analyze --no-fatal-infos` بصفر أخطاء وتحذيرات، ونجاح كل الاختبارات في CI.
 diff --git a/test/core/models/app_config_test.dart b/test/core/models/app_config_test.dart
 new file mode 100644
 index 0000000..03cf891
@@ -2582,6 +2863,156 @@ index 0000000..03cf891
 +      expect(AppConfig.initial().isSetupCompleted, isFalse);
 +      expect(AppConfig.initial(), AppConfig.initial());
 +    });
++  });
++}
+diff --git a/test/core/services/app_backup_service_test.dart b/test/core/services/app_backup_service_test.dart
+new file mode 100644
+index 0000000..c88c1ba
+--- /dev/null
++++ b/test/core/services/app_backup_service_test.dart
+@@ -0,0 +1,144 @@
++import 'dart:convert';
++import 'dart:io';
++
++import 'package:flutter_test/flutter_test.dart';
++import 'package:isar/isar.dart';
++import 'package:jadwal_v2/core/models/app_config.dart';
++import 'package:jadwal_v2/core/models/classroom.dart';
++import 'package:jadwal_v2/core/models/lesson.dart';
++import 'package:jadwal_v2/core/models/school_stage.dart';
++import 'package:jadwal_v2/core/models/settings.dart';
++import 'package:jadwal_v2/core/models/subject.dart';
++import 'package:jadwal_v2/core/models/subject_constraint.dart';
++import 'package:jadwal_v2/core/models/teacher.dart';
++import 'package:jadwal_v2/core/services/app_backup_service.dart';
++import 'package:jadwal_v2/core/services/app_config_service.dart';
++import 'package:jadwal_v2/core/services/backup_service.dart';
++
++void main() {
++  late Isar isar;
++  late Directory tempDirectory;
++  late AppConfigService appConfigService;
++  late AppBackupService appBackupService;
++
++  setUpAll(() async {
++    await Isar.initializeIsarCore(download: true);
++    tempDirectory =
++        await Directory.systemTemp.createTemp('jadwal_app_backup_test');
++    isar = await Isar.open(
++      [
++        TeacherSchema,
++        SubjectSchema,
++        ClassroomSchema,
++        LessonSchema,
++        AppSettingsSchema,
++        SubjectConstraintSchema,
++      ],
++      directory: tempDirectory.path,
++      name: 'app_backup_test',
++    );
++    appConfigService = AppConfigService(
++      file: File('${tempDirectory.path}${Platform.pathSeparator}'
++          '${AppConfigService.fileName}'),
++    );
++    appBackupService = AppBackupService(
++      databaseBackup: BackupService(isar),
++      appConfigService: appConfigService,
++    );
++  });
++
++  tearDownAll(() async {
++    await isar.close(deleteFromDisk: true);
++    if (await tempDirectory.exists()) {
++      await tempDirectory.delete(recursive: true);
++    }
++  });
++
++  test('يصدّر بيانات قاعدة البيانات وحالة الإعداد الأولي معًا', () async {
++    await isar.writeTxn(() async {
++      await isar.appSettings.clear();
++      await isar.subjectConstraints.clear();
++      await isar.appSettings.put(
++        AppSettings()
++          ..schoolName = 'مدرسة النور'
++          ..principalName = 'الأستاذ علي'
++          ..periodsPerDay = 7
++          ..daysPerWeek = 5,
++      );
++      await isar.subjectConstraints.put(
++        SubjectConstraint()
++          ..grade = 'الصف الأول'
++          ..subjectName = 'اللغة العربية'
++          ..maxPeriodsPerDay = 2,
++      );
++    });
++    await appConfigService.save(
++      AppConfig.initial().copyWith(
++        isSetupCompleted: true,
++        schoolStage: SchoolStage.primary,
++        managedAutoConstraints: const {'الصف الأول\u001Fاللغة العربية': 2},
++      ),
++    );
++
++    final exported = await appBackupService.exportToJson();
++    final data = jsonDecode(exported) as Map<String, dynamic>;
++
++    expect(data.containsKey(AppBackupService.appConfigKey), isTrue);
++    final settingsJson =
++        (data['settings'] as List<dynamic>).first as Map<String, dynamic>;
++    expect(settingsJson['schoolName'], 'مدرسة النور');
++    expect(settingsJson['principalName'], 'الأستاذ علي');
++    final constraintsJson = data['subjectConstraints'] as List<dynamic>;
++    expect(
++      (constraintsJson.first as Map<String, dynamic>)['maxPeriodsPerDay'],
++      2,
++    );
++    final configJson = data[AppBackupService.appConfigKey] as Map<String, dynamic>;
++    expect(configJson['schoolStage'], 'primary');
++
++    // مسح الحالة ثم الاستيراد للتحقق من الاستعادة الكاملة.
++    await isar.writeTxn(() async {
++      await isar.appSettings.clear();
++      await isar.subjectConstraints.clear();
++    });
++    await appConfigService.save(AppConfig.initial());
++
++    await appBackupService.importFromJson(exported);
++
++    final restoredSettings = await isar.appSettings.where().findFirst();
++    expect(restoredSettings?.schoolName, 'مدرسة النور');
++    expect(restoredSettings?.principalName, 'الأستاذ علي');
++    final restoredConstraints = await isar.subjectConstraints.where().findAll();
++    expect(restoredConstraints, hasLength(1));
++    expect(restoredConstraints.single.subjectName, 'اللغة العربية');
++
++    final restoredConfig = await appConfigService.load();
++    expect(restoredConfig.isSetupCompleted, isTrue);
++    expect(restoredConfig.schoolStage, SchoolStage.primary);
++    expect(restoredConfig.managedAutoConstraints, hasLength(1));
++  });
++
++  test('يستورد النسخ القديمة (بلا مقطع appConfig) دون المساس بالإعدادات',
++      () async {
++    await appConfigService.save(
++      AppConfig.initial().copyWith(
++        isSetupCompleted: true,
++        schoolStage: SchoolStage.primary,
++      ),
++    );
++
++    await appBackupService.importFromJson(
++      jsonEncode({
++        'subjects': <dynamic>[],
++        'teachers': <dynamic>[],
++        'classrooms': <dynamic>[],
++        'lessons': <dynamic>[],
++        'settings': <dynamic>[],
++      }),
++    );
++
++    final config = await appConfigService.load();
++    expect(config.isSetupCompleted, isTrue);
++    expect(config.schoolStage, SchoolStage.primary);
 +  });
 +}
 diff --git a/test/core/services/app_config_service_test.dart b/test/core/services/app_config_service_test.dart
@@ -2700,6 +3131,126 @@ index 0000000..ddc5998
 +    expect(reloaded.managedAutoConstraints, isEmpty);
 +  });
 +}
+diff --git a/test/core/services/backup_service_benchmark_test.dart b/test/core/services/backup_service_benchmark_test.dart
+index 9d3cb2d..5e4a833 100644
+--- a/test/core/services/backup_service_benchmark_test.dart
++++ b/test/core/services/backup_service_benchmark_test.dart
+@@ -5,6 +5,7 @@ import 'package:jadwal_v2/core/models/classroom.dart';
+ import 'package:jadwal_v2/core/models/lesson.dart';
+ import 'package:jadwal_v2/core/models/settings.dart';
+ import 'package:jadwal_v2/core/models/subject.dart';
++import 'package:jadwal_v2/core/models/subject_constraint.dart';
+ import 'package:jadwal_v2/core/models/teacher.dart';
+ import 'package:jadwal_v2/core/services/backup_service.dart';
+ 
+@@ -21,6 +22,7 @@ void main() {
+         ClassroomSchema,
+         LessonSchema,
+         AppSettingsSchema,
++        SubjectConstraintSchema,
+       ],
+       directory: '.',
+       name: 'benchmark_db',
+diff --git a/test/core/services/backup_service_consecutiveness_test.dart b/test/core/services/backup_service_consecutiveness_test.dart
+index 62af0a4..133184f 100644
+--- a/test/core/services/backup_service_consecutiveness_test.dart
++++ b/test/core/services/backup_service_consecutiveness_test.dart
+@@ -8,6 +8,7 @@ import 'package:jadwal_v2/core/models/lesson.dart';
+ import 'package:jadwal_v2/core/models/settings.dart';
+ import 'package:jadwal_v2/core/models/subject.dart';
+ import 'package:jadwal_v2/core/models/subject_consecutiveness.dart';
++import 'package:jadwal_v2/core/models/subject_constraint.dart';
+ import 'package:jadwal_v2/core/models/teacher.dart';
+ import 'package:jadwal_v2/core/services/backup_service.dart';
+ 
+@@ -24,6 +25,7 @@ void main() {
+         ClassroomSchema,
+         LessonSchema,
+         AppSettingsSchema,
++        SubjectConstraintSchema,
+       ],
+       directory: Directory.systemTemp.path,
+       name: 'consecutiveness_backup_test',
+@@ -99,4 +101,79 @@ void main() {
+       SubjectConsecutiveness.any,
+     ]);
+   });
++
++  test('exports school settings and subject constraints and restores them',
++      () async {
++    await isar.writeTxn(() async {
++      await isar.appSettings.clear();
++      await isar.subjectConstraints.clear();
++      await isar.appSettings.put(
++        AppSettings()
++          ..schoolName = 'مدرسة النور'
++          ..principalName = 'الأستاذ علي'
++          ..periodsPerDay = 7
++          ..daysPerWeek = 5,
++      );
++      await isar.subjectConstraints.put(
++        SubjectConstraint()
++          ..grade = 'الصف الأول'
++          ..subjectName = 'اللغة العربية'
++          ..maxPeriodsPerDay = 2,
++      );
++    });
++
++    final exported = await backupService.exportDatabaseToJson();
++    final data = jsonDecode(exported) as Map<String, dynamic>;
++    final settingsJson = (data['settings'] as List<dynamic>).first
++        as Map<String, dynamic>;
++    expect(settingsJson['schoolName'], 'مدرسة النور');
++    expect(settingsJson['principalName'], 'الأستاذ علي');
++    final constraintsJson = data['subjectConstraints'] as List<dynamic>;
++    expect(constraintsJson, hasLength(1));
++    expect(
++      (constraintsJson.first as Map<String, dynamic>)['maxPeriodsPerDay'],
++      2,
++    );
++
++    await isar.writeTxn(() async {
++      await isar.appSettings.clear();
++      await isar.subjectConstraints.clear();
++    });
++
++    await backupService.importDatabaseFromJson(exported);
++
++    final restoredSettings = await isar.appSettings.where().findFirst();
++    expect(restoredSettings?.schoolName, 'مدرسة النور');
++    expect(restoredSettings?.principalName, 'الأستاذ علي');
++    final restoredConstraints = await isar.subjectConstraints.where().findAll();
++    expect(restoredConstraints, hasLength(1));
++    expect(restoredConstraints.single.grade, 'الصف الأول');
++    expect(restoredConstraints.single.subjectName, 'اللغة العربية');
++    expect(restoredConstraints.single.maxPeriodsPerDay, 2);
++  });
++
++  test('imports legacy backups without subject constraints section', () async {
++    await isar.writeTxn(() async {
++      await isar.subjectConstraints.clear();
++      await isar.subjectConstraints.put(
++        SubjectConstraint()
++          ..grade = 'الصف الثاني'
++          ..subjectName = 'الرياضيات'
++          ..maxPeriodsPerDay = 3,
++      );
++    });
++
++    await backupService.importDatabaseFromJson(
++      jsonEncode({
++        'settings': [
++          {'id': 1, 'periodsPerDay': 6, 'daysPerWeek': 4}
++        ],
++      }),
++    );
++
++    final restoredSettings = await isar.appSettings.where().findFirst();
++    expect(restoredSettings?.schoolName, '');
++    expect(restoredSettings?.principalName, '');
++    expect(await isar.subjectConstraints.count(), 0);
++  });
+ }
 diff --git a/test/features/management/domain/primary_stage_constraint_policy_test.dart b/test/features/management/domain/primary_stage_constraint_policy_test.dart
 new file mode 100644
 index 0000000..3024bac
