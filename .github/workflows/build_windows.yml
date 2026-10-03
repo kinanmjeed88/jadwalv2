@@ -143,6 +143,19 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      - name: Write GitHub Actions artifact summary
+        shell: pwsh
+        run: >-
+          pwsh -File windows\\packaging\\write_artifact_summary.ps1
+          -PlatformLabel "Windows (main)"
+          -ReleaseDir "build\\windows\\x64\\runner\\Release"
+          -DistDir "dist"
+          -ReleaseArtifactName "Jadwal-Windows-Release-${{ steps.version.outputs.version }}"
+          -DistributablesArtifactName "Jadwal-Windows-Distributables-${{ steps.version.outputs.version }}"
+          -ReleaseRetentionDays 7
+          -DistributablesRetentionDays 30
+          -CommitSha "${{ github.sha }}"
+
       - name: Remove temporary Windows signing configuration
         if: always()
         shell: pwsh
