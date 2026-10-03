@@ -4,7 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/app_config.dart';
+import '../models/classroom.dart';
+import '../models/lesson.dart';
 import '../models/school_stage.dart';
+import '../models/subject.dart';
+import '../models/teacher.dart';
 import '../services/app_config_service.dart';
 import 'database_provider.dart';
 

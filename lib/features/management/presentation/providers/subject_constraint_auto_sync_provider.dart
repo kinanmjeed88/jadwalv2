@@ -5,6 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:isar/isar.dart';
 
 import '../../../../core/models/app_config.dart';
+import '../../../../core/models/classroom.dart';
+import '../../../../core/models/lesson.dart';
+import '../../../../core/models/settings.dart';
+import '../../../../core/models/subject.dart';
 import '../../../../core/models/subject_constraint_key.dart';
 import '../../../../core/providers/app_config_provider.dart';
 import '../../../../core/providers/database_provider.dart';

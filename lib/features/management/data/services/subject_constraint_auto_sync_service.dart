@@ -4,6 +4,7 @@ import '../../../../core/models/app_config.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/school_stage.dart';
+import '../../../../core/models/settings.dart';
 import '../../../../core/models/subject.dart';
 import '../../../../core/models/subject_constraint.dart';
 import '../../../../core/models/subject_constraint_key.dart';

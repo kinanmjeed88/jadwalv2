@@ -1,8 +1,8 @@
 name: PR Diagnostics
 
 # ملف مؤقت لأغراض التشخيص أثناء تطوير الميزة: يشغّل التحليل والاختبارات ثم
-# يبثّ سجلاتهما في هيئة annotations (base64) لتُقرأ عبر GitHub API.
-# يُحذف قبل الدمج النهائي.
+# يبثّ خلاصتهما (أخطاء/تحذيرات التحليل + نتيجة الاختبارات) في هيئة annotations
+# base64 صغيرة تُقرأ عبر GitHub API. يُحذف قبل الدمج النهائي.
 
 on:
   pull_request:
@@ -27,75 +27,69 @@ jobs:
       - name: Analyze Dart and Flutter Sources
         continue-on-error: true
         run: |
-          flutter analyze --no-fatal-infos > analyze.log 2>&1
-          echo "exit-code: $?" >> analyze.log
-          tail -c 2000 analyze.log
+          flutter analyze --no-fatal-infos > analyze_full.log 2>&1
+          ANALYZE_EXIT=$?
+          grep -E "error •|warning •|^Analyzing|issues found|No issues found" analyze_full.log > analyze.log || true
+          echo "analyze-exit-code: $ANALYZE_EXIT" >> analyze.log
+          echo "analyze-error-lines: $(grep -c 'error •' analyze_full.log || true)" >> analyze.log
+          echo "analyze-warning-lines: $(grep -c 'warning •' analyze_full.log || true)" >> analyze.log
+          cat analyze.log
 
       - name: Run Flutter Tests
         if: always()
         continue-on-error: true
         run: |
           FILES=$(find test -name '*_test.dart' ! -name 'backup_service_benchmark_test.dart' | tr '\n' ' ')
-          flutter test $FILES > tests.log 2>&1
-          echo "exit-code: $?" >> tests.log
-          tail -c 2000 tests.log
+          flutter test $FILES > tests_full.log 2>&1
+          TESTS_EXIT=$?
+          grep -E "::group::|tests passed|tests failed|Some tests failed|exit-code" tests_full.log > tests.log || true
+          echo "tests-exit-code: $TESTS_EXIT" >> tests.log
+          echo "tests-passed-lines: $(grep -c '::group::✅' tests_full.log || true)" >> tests.log
+          echo "tests-failed-lines: $(grep -c '::group::❌' tests_full.log || true)" >> tests.log
+          tail -5 tests.log
 
-      - name: Publish analyze log chunks 1-9
+      - name: Publish analyze report
         if: always()
         continue-on-error: true
         shell: bash
         run: |
           [ -s analyze.log ] || exit 0
           base64 -w 0 analyze.log > analyze.b64
-          split -b 900 -d -a 2 analyze.b64 analyze_b64_
-          for f in $(ls analyze_b64_* 2>/dev/null | head -9); do
-            printf '::error::ANALYZE-%s:%s\n' "${f##analyze_b64_}" "$(cat "$f")"
+          rm -f apart* 2>/dev/null || true
+          split -b 850 -d -a 2 analyze.b64 apart
+          printf '::error::AMETA:chunks=%s bytes=%s\n' "$(ls apart* | wc -l)" "$(wc -c < analyze.log)"
+          n=0
+          for f in apart*; do
+            n=$((n + 1))
+            [ "$n" -le 10 ] || break
+            printf '::error::ANALYZE-%s:%s\n' "${f##apart}" "$(cat "$f")"
           done
 
-      - name: Publish analyze log chunks 10-18
+      - name: Publish analyze head again
         if: always()
         continue-on-error: true
         shell: bash
         run: |
-          [ -s analyze.log ] || exit 0
-          base64 -w 0 analyze.log > analyze.b64
-          split -b 900 -d -a 2 analyze.b64 analyze_b64_
-          for f in $(ls analyze_b64_* 2>/dev/null | sed -n '10,18p'); do
-            printf '::error::ANALYZE-%s:%s\n' "${f##analyze_b64_}" "$(cat "$f")"
+          n=0
+          for f in apart*; do
+            n=$((n + 1))
+            [ "$n" -le 2 ] || break
+            printf '::error::HEAD-%s:%s\n' "${f##apart}" "$(cat "$f")"
           done
 
-      - name: Publish analyze log chunks 19-27
-        if: always()
-        continue-on-error: true
-        shell: bash
-        run: |
-          [ -s analyze.log ] || exit 0
-          base64 -w 0 analyze.log > analyze.b64
-          split -b 900 -d -a 2 analyze.b64 analyze_b64_
-          for f in $(ls analyze_b64_* 2>/dev/null | sed -n '19,27p'); do
-            printf '::error::ANALYZE-%s:%s\n' "${f##analyze_b64_}" "$(cat "$f")"
-          done
-
-      - name: Publish tests log chunks 1-9
+      - name: Publish tests report
         if: always()
         continue-on-error: true
         shell: bash
         run: |
           [ -s tests.log ] || exit 0
           base64 -w 0 tests.log > tests.b64
-          split -b 900 -d -a 2 tests.b64 tests_b64_
-          for f in $(ls tests_b64_* 2>/dev/null | head -9); do
-            printf '::error::TESTS-%s:%s\n' "${f##tests_b64_}" "$(cat "$f")"
-          done
-
-      - name: Publish tests log chunks 10-18
-        if: always()
-        continue-on-error: true
-        shell: bash
-        run: |
-          [ -s tests.log ] || exit 0
-          base64 -w 0 tests.log > tests.b64
-          split -b 900 -d -a 2 tests.b64 tests_b64_
-          for f in $(ls tests_b64_* 2>/dev/null | sed -n '10,18p'); do
-            printf '::error::TESTS-%s:%s\n' "${f##tests_b64_}" "$(cat "$f")"
+          rm -f tpart* 2>/dev/null || true
+          split -b 850 -d -a 2 tests.b64 tpart
+          printf '::error::TMETA:chunks=%s bytes=%s\n' "$(ls tpart* | wc -l)" "$(wc -c < tests.log)"
+          n=0
+          for f in tpart*; do
+            n=$((n + 1))
+            [ "$n" -le 10 ] || break
+            printf '::error::TESTS-%s:%s\n' "${f##tpart}" "$(cat "$f")"
           done
