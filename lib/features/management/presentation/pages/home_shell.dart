@@ -7,9 +7,7 @@ import 'management_page.dart';
 
 /// تبويبات الهيكل الرئيسي. تُحفظ في مزوّد حتى لا يُسقط إعادة بناء
 /// [HomePage] (بعد حفظ مادة/قيد/صف/معلم) المستخدم إلى الجدول.
-class HomeShellTabs {
-  const HomeShellTabs._();
-
+abstract class HomeShellTabs {
   static const int timetable = 0;
   static const int management = 1;
 }

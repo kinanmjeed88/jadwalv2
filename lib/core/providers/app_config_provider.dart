@@ -52,7 +52,7 @@ enum AppSetupStatus {
 final appSetupStatusProvider = FutureProvider<AppSetupStatus>((ref) async {
   final setupCompleted = ref.watch(
     appConfigNotifierProvider.select(
-      (asyncValue) => asyncValue.valueOrNull?.isSetupCompleted,
+      (asyncValue) => asyncValue.asData?.value.isSetupCompleted,
     ),
   );
   if (setupCompleted == true) {
