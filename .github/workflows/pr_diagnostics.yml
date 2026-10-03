@@ -1,16 +1,16 @@
 name: PR Diagnostics
 
 # ملف مؤقت لأغراض التشخيص أثناء تطوير الميزة: يشغّل التحليل والاختبارات ثم
-# يبثّ النتيجة في تعليق على طلب الدمج وفي annotations، لأن سجلات Actions
-# لا تكون متاحة دائمًا. يُحذف قبل الدمج النهائي.
+# يبثّ سجلاتهما في هيئة annotations (base64) لتُقرأ عبر GitHub API.
+# يُحذف قبل الدمج النهائي.
 
 on:
   pull_request:
 
 jobs:
-  diagnostics:
+  report:
     name: Analyze and test report
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -21,65 +21,81 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Enable Windows Desktop
-        run: flutter config --enable-windows-desktop
-
       - name: Install Dependencies
         run: flutter pub get
 
       - name: Analyze Dart and Flutter Sources
-        shell: pwsh
         continue-on-error: true
         run: |
-          flutter analyze --no-fatal-infos 2>&1 | Tee-Object -FilePath analyze.log
-          "exit-code: $LASTEXITCODE" | Add-Content -Encoding utf8 analyze.log
-          $issues = Get-Content analyze.log | Where-Object { $_ -match '•' }
-          Write-Host "issues: $($issues.Count)"
-          $i = 0
-          foreach ($line in $issues) {
-            $i++
-            if ($i -le 8) { Write-Host "::error::$line" }
-          }
-
-      - name: Analyze report part two
-        if: always()
-        shell: pwsh
-        continue-on-error: true
-        run: |
-          if (Test-Path analyze.log) {
-            $issues = Get-Content analyze.log | Where-Object { $_ -match '•' }
-            $i = 0
-            foreach ($line in $issues) {
-              $i++
-              if ($i -gt 8 -and $i -le 18) { Write-Host "::error::$line" }
-            }
-            if ($i -eq 0) { Write-Host "no analyzer issues" }
-          }
+          flutter analyze --no-fatal-infos > analyze.log 2>&1
+          echo "exit-code: $?" >> analyze.log
+          tail -c 2000 analyze.log
 
       - name: Run Flutter Tests
         if: always()
-        shell: pwsh
         continue-on-error: true
         run: |
-          $testFiles = Get-ChildItem -Path test -Recurse -Filter '*_test.dart' |
-            Where-Object { $_.Name -ne 'backup_service_benchmark_test.dart' } |
-            ForEach-Object { $_.FullName }
-          flutter test @testFiles 2>&1 | Tee-Object -FilePath tests.log
-          "exit-code: $LASTEXITCODE" | Add-Content -Encoding utf8 tests.log
+          FILES=$(find test -name '*_test.dart' ! -name 'backup_service_benchmark_test.dart' | tr '\n' ' ')
+          flutter test $FILES > tests.log 2>&1
+          echo "exit-code: $?" >> tests.log
+          tail -c 2000 tests.log
 
-      - name: Publish report as pull request comment
+      - name: Publish analyze log chunks 1-9
         if: always()
-        shell: pwsh
         continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
         run: |
-          $parts = @()
-          foreach ($file in @('analyze.log', 'tests.log')) {
-            if (Test-Path $file) {
-              $parts += "### $file"
-              $parts += Get-Content $file
-            }
-          }
-          $parts -join "`n" | Out-File -Encoding utf8 diagnostics-report.md
-          gh pr comment ${{ github.event.pull_request.number }} --body-file diagnostics-report.md
+          [ -s analyze.log ] || exit 0
+          base64 -w 0 analyze.log > analyze.b64
+          split -b 900 -d -a 2 analyze.b64 analyze_b64_
+          for f in $(ls analyze_b64_* 2>/dev/null | head -9); do
+            printf '::error::ANALYZE-%s:%s\n' "${f##analyze_b64_}" "$(cat "$f")"
+          done
+
+      - name: Publish analyze log chunks 10-18
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          [ -s analyze.log ] || exit 0
+          base64 -w 0 analyze.log > analyze.b64
+          split -b 900 -d -a 2 analyze.b64 analyze_b64_
+          for f in $(ls analyze_b64_* 2>/dev/null | sed -n '10,18p'); do
+            printf '::error::ANALYZE-%s:%s\n' "${f##analyze_b64_}" "$(cat "$f")"
+          done
+
+      - name: Publish analyze log chunks 19-27
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          [ -s analyze.log ] || exit 0
+          base64 -w 0 analyze.log > analyze.b64
+          split -b 900 -d -a 2 analyze.b64 analyze_b64_
+          for f in $(ls analyze_b64_* 2>/dev/null | sed -n '19,27p'); do
+            printf '::error::ANALYZE-%s:%s\n' "${f##analyze_b64_}" "$(cat "$f")"
+          done
+
+      - name: Publish tests log chunks 1-9
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          [ -s tests.log ] || exit 0
+          base64 -w 0 tests.log > tests.b64
+          split -b 900 -d -a 2 tests.b64 tests_b64_
+          for f in $(ls tests_b64_* 2>/dev/null | head -9); do
+            printf '::error::TESTS-%s:%s\n' "${f##tests_b64_}" "$(cat "$f")"
+          done
+
+      - name: Publish tests log chunks 10-18
+        if: always()
+        continue-on-error: true
+        shell: bash
+        run: |
+          [ -s tests.log ] || exit 0
+          base64 -w 0 tests.log > tests.b64
+          split -b 900 -d -a 2 tests.b64 tests_b64_
+          for f in $(ls tests_b64_* 2>/dev/null | sed -n '10,18p'); do
+            printf '::error::TESTS-%s:%s\n' "${f##tests_b64_}" "$(cat "$f")"
+          done
