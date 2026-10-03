@@ -118,5 +118,18 @@ lib/features/management/presentation/pages/home_shell.dart
 | `test/core/models/app_config_test.dart` | قراءة/كتابة JSON، القيم التالفة، المرحلة الافتراضية |
 | `test/core/services/app_config_service_test.dart` | غياب الملف، الحفظ الذرّي، تلف المحتوى، إنشاء المجلد |
 | `test/features/setup/domain/setup_validation_test.dart` | تحقق كل حقل من حقول المعالج |
+| `test/core/services/app_backup_service_test.dart` | تصدير/استيراد مقطع `appConfig` مع قاعدة البيانات، واستيراد نسخة قديمة |
+| `test/core/services/backup_service_consecutiveness_test.dart` | حفظ/استعادة إعدادات المدرسة والمدير وقيود المواد، وتوافق النسخ القديمة |
+
+## ٥) النسخ الاحتياطي والاستعادة
+
+- **التصدير** يضم الآن:
+  - `settings`: اسم المدرسة واسم المدير (إضافة إلى الإعدادات السابقة).
+  - `subjectConstraints`: كل قيود المواد كما هي في قاعدة البيانات (تلقائية أو يدوية).
+  - `appConfig`: اكتمال الإعداد الأولي، المرحلة الدراسية، سجلّ القيود التلقائية المُدارة، ومفاتيح ما حذفه المستخدم.
+- **الاستيراد** متوافق خلفيًا: المقاطع الثلاثة كلها اختيارية، فالنسخة القديمة التي لا
+  تحتويها تُستورد كما هي، ويبقى ملف الإعدادات الحالي دون مساس.
+- بعد استيراد ناجح تُبطَل حالة الإعدادات في الواجهة (`appConfigNotifierProvider`) لتُقرأ
+  المرحلة وسجلّ القيود من النسخة المستوردة فورًا.
 
 </div>

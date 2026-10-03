@@ -12,8 +12,8 @@ import 'dart:typed_data';
 
 import '../../../../core/models/school_stage.dart';
 import '../../../../core/models/settings.dart';
+import '../../../../core/providers/app_backup_provider.dart';
 import '../../../../core/providers/app_config_provider.dart';
-import '../../../../core/providers/repository_provider.dart';
 import '../../../setup/presentation/pages/first_run_setup_page.dart';
 import '../../../setup/presentation/widgets/school_stage_selector.dart';
 import '../providers/management_provider.dart';
@@ -160,8 +160,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
 
   Future<void> _exportData() async {
     try {
-      final backupService = await ref.read(backupServiceProvider.future);
-      final jsonStr = await backupService.exportDatabaseToJson();
+      final backupService = await ref.read(appBackupServiceProvider.future);
+      final jsonStr = await backupService.exportToJson();
 
       final jsonBytes =
           Uint8List.fromList(const Utf8Encoder().convert(jsonStr));
@@ -224,13 +224,16 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
         final file = File(result.files.single.path!);
         final jsonStr = await file.readAsString();
 
-        final backupService = await ref.read(backupServiceProvider.future);
-        await backupService.importDatabaseFromJson(jsonStr);
+        final backupService = await ref.read(appBackupServiceProvider.future);
+        await backupService.importFromJson(jsonStr);
 
         if (mounted) {
           ref.invalidate(teachersNotifierProvider);
           ref.invalidate(subjectsNotifierProvider);
           ref.invalidate(classroomsNotifierProvider);
+          // ملف الإعدادات (المرحلة وسجلّ القيود التلقائية) يُقرأ من القرص
+          // من جديد بعد الاستيراد حتى تعكس الواجهة حالة النسخة المستوردة.
+          ref.invalidate(appConfigNotifierProvider);
 
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('تم استيراد البيانات بنجاح')),

@@ -19,6 +19,8 @@ class BackupService {
     final classrooms = await _isar.classrooms.where().findAll();
     final lessons = await _isar.lessons.where().findAll();
     final settings = await _isar.appSettings.where().findAll();
+    final subjectConstraints =
+        await _isar.subjectConstraints.where().findAll();
 
     final Map<String, dynamic> data = {
       'teachers': teachers
@@ -49,13 +51,23 @@ class BackupService {
               })
           .toList(),
       'settings': settings
-          .map((s) => {
-                'id': s.id,
-                'periodsPerDay': s.periodsPerDay,
-                'daysPerWeek': s.daysPerWeek,
-                'exportPageSize': s.exportPageSize,
-                'exportOrientation': s.exportOrientation,
-                'exportAutoScale': s.exportAutoScale,
+            .map((s) => {
+                  'id': s.id,
+                  'schoolName': s.schoolName,
+                  'principalName': s.principalName,
+                  'periodsPerDay': s.periodsPerDay,
+                  'daysPerWeek': s.daysPerWeek,
+                  'exportPageSize': s.exportPageSize,
+                  'exportOrientation': s.exportOrientation,
+                  'exportAutoScale': s.exportAutoScale,
+                })
+            .toList(),
+      'subjectConstraints': subjectConstraints
+          .map((c) => {
+                'id': c.id,
+                'grade': c.grade,
+                'subjectName': c.subjectName,
+                'maxPeriodsPerDay': c.maxPeriodsPerDay,
               })
           .toList(),
       'lessons': lessons
@@ -83,12 +95,15 @@ class BackupService {
       await _isar.classrooms.clear();
       await _isar.lessons.clear();
       await _isar.appSettings.clear();
+      await _isar.subjectConstraints.clear();
 
       if (data.containsKey('settings')) {
         final List<dynamic> settingsList = data['settings'];
         final newSettings = settingsList
             .map((s) => AppSettings()
               ..id = s['id']
+              ..schoolName = s['schoolName'] ?? ''
+              ..principalName = s['principalName'] ?? ''
               ..periodsPerDay = s['periodsPerDay']
               ..daysPerWeek = s['daysPerWeek']
               ..exportPageSize = s['exportPageSize'] ?? 'A4'
@@ -148,6 +163,20 @@ class BackupService {
         for (final c in newClassrooms) {
           classroomMap[c.id] = c;
         }
+      }
+
+      // قيود المواد: مقطع اختياري حتى تبقى النسخ القديمة (التي لا تحتويه)
+      // قابلة للاستيراد، فتُترك المجموعة فارغة كما كانت النسخة نفسها.
+      if (data.containsKey('subjectConstraints')) {
+        final List<dynamic> constraintsList = data['subjectConstraints'];
+        final newConstraints = constraintsList
+            .map((c) => SubjectConstraint()
+              ..id = c['id']
+              ..grade = c['grade']
+              ..subjectName = c['subjectName']
+              ..maxPeriodsPerDay = c['maxPeriodsPerDay'])
+            .toList();
+        await _isar.subjectConstraints.putAll(newConstraints);
       }
 
       if (data.containsKey('lessons')) {
