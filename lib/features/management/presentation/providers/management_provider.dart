@@ -82,7 +82,7 @@ class TeachersNotifier extends _$TeachersNotifier {
         }
       });
     } catch (error) {
-      return 'تعذر حفظ المعلم والإسنادات الأولية';
+      return 'تعذر حفظ المعلم والإسنادات الأولية: $error';
     }
 
     final repo = await ref.read(managementRepositoryProvider.future);
