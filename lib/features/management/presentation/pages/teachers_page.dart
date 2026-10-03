@@ -317,10 +317,12 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
             onPressed: _isSaving ? null : () => Navigator.pop(context),
             child: const Text('إلغاء')),
         ElevatedButton(
-          onPressed: _isSaving ? null : () => _save(
-                subjectsAsync.valueOrNull ?? const <Subject>[],
-                classroomsAsync.valueOrNull ?? const <Classroom>[],
-              ),
+          onPressed: _isSaving
+              ? null
+              : () => _save(
+                    subjectsAsync.asData?.value ?? const <Subject>[],
+                    classroomsAsync.asData?.value ?? const <Classroom>[],
+                  ),
           child: _isSaving
               ? const SizedBox(
                   width: 18,
@@ -340,6 +342,7 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isSaving = true);
+    final messenger = ScaffoldMessenger.of(context);
 
     final newTeacher = widget.teacher ?? Teacher();
     newTeacher
@@ -371,10 +374,10 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
         if (error != null) {
           if (mounted) {
             setState(() => _isSaving = false);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(error), backgroundColor: Colors.red),
-            );
           }
+          messenger.showSnackBar(
+            SnackBar(content: Text(error), backgroundColor: Colors.red),
+          );
           return;
         }
 
@@ -387,13 +390,13 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
     } catch (error) {
       if (mounted) {
         setState(() => _isSaving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('تعذر حفظ المعلم: $error'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('تعذر حفظ المعلم: $error'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 }

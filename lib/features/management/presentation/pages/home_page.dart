@@ -23,7 +23,6 @@ class HomePage extends ConsumerWidget {
       // إعادة تحميل الإعدادات بعد حفظ إداري يجب ألا تهدم الهيكل وتعيد
       // المستخدم إلى تبويب الجدول.
       skipLoadingOnReload: true,
-      skipLoadingOnRefresh: true,
       loading: () => const _StartupSplash(),
       error: (error, _) => _StartupErrorView(
         error: error,
