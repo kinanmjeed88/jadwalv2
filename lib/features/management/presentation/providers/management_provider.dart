@@ -7,7 +7,9 @@ import '../../../../core/models/subject.dart';
 import '../../../../core/models/subject_consecutiveness.dart';
 import '../../../../core/models/subject_constraint.dart';
 import '../../../../core/models/classroom.dart';
+import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
+import '../../domain/services/lesson_assignment_planner.dart';
 
 part 'management_provider.g.dart';
 
@@ -23,6 +25,69 @@ class TeachersNotifier extends _$TeachersNotifier {
     final repo = await ref.read(managementRepositoryProvider.future);
     await repo.addTeacher(teacher);
     state = AsyncValue.data(await repo.getTeachers());
+  }
+
+  /// ينشئ المعلم وإسناداته الأولية (مادة×صف) في معاملة Isar واحدة.
+  ///
+  /// يعيد `null` عند النجاح، أو رسالة خطأ عربية دون كتابة أي بيانات.
+  Future<String?> addTeacherWithInitialAssignments({
+    required Teacher teacher,
+    required List<Subject> subjects,
+    required List<Classroom> classrooms,
+  }) async {
+    final isar = await ref.read(isarDatabaseProvider.future);
+    final existingLessons = await isar.lessons.where().findAll();
+    for (final lesson in existingLessons) {
+      if (lesson.classroom.value == null) {
+        await lesson.classroom.load();
+      }
+      if (lesson.subject.value == null) {
+        await lesson.subject.load();
+      }
+      if (lesson.teacher.value == null) {
+        await lesson.teacher.load();
+      }
+    }
+
+    final storedSettings = await isar.appSettings.where().findFirst();
+    final settings = storedSettings ?? (AppSettings()..periodsPerDay = 7);
+
+    final plan = LessonAssignmentPlanner.plan(
+      teacher: teacher,
+      subjects: subjects,
+      classrooms: classrooms,
+      existingLessons: existingLessons,
+      settings: settings,
+      duplicateBehavior: DuplicateAssignmentBehavior.skip,
+    );
+    if (!plan.isSuccess) {
+      return plan.errorMessage;
+    }
+
+    final newLessons = LessonAssignmentPlanner.buildPoolLessons(
+      teacher: teacher,
+      pairs: plan.pairsToCreate,
+    );
+
+    try {
+      await isar.writeTxn(() async {
+        await isar.teachers.put(teacher);
+        if (newLessons.isNotEmpty) {
+          await isar.lessons.putAll(newLessons);
+          for (final lesson in newLessons) {
+            await lesson.teacher.save();
+            await lesson.subject.save();
+            await lesson.classroom.save();
+          }
+        }
+      });
+    } catch (error) {
+      return 'تعذر حفظ المعلم والإسنادات الأولية';
+    }
+
+    final repo = await ref.read(managementRepositoryProvider.future);
+    state = AsyncValue.data(await repo.getTeachers());
+    return null;
   }
 
   Future<void> deleteTeacher(int id) async {

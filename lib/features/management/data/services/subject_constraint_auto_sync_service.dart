@@ -82,12 +82,15 @@ class SubjectConstraintAutoSyncService {
 
   final Isar _isar;
 
-  /// الافتراضي عند غياب إعدادات محفوظة (يطابق القيمة الافتراضية في التطبيق).
-  static const int _fallbackDaysPerWeek = 5;
+  /// الافتراضي عند غياب إعدادات محفوظة (يطابق سياسة المرحلة الابتدائية).
+  static const int _fallbackDaysPerWeek =
+      PrimaryStageConstraintPolicy.fallbackDaysPerWeek;
 
   Future<AutoConstraintSyncOutcome> synchronize(AppConfig config) async {
     final settings = await _isar.appSettings.where().findFirst();
-    final daysPerWeek = settings?.daysPerWeek ?? _fallbackDaysPerWeek;
+    final storedDays = settings?.daysPerWeek ?? 0;
+    final daysPerWeek =
+        storedDays < 1 ? _fallbackDaysPerWeek : storedDays;
 
     final classrooms = await _isar.classrooms.where().findAll();
     final grades = classrooms.map((classroom) => classroom.grade).toList();
