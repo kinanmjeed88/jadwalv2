@@ -5,6 +5,7 @@ import 'package:jadwal_v2/core/models/classroom.dart';
 import 'package:jadwal_v2/core/models/lesson.dart';
 import 'package:jadwal_v2/core/models/settings.dart';
 import 'package:jadwal_v2/core/models/subject.dart';
+import 'package:jadwal_v2/core/models/subject_constraint.dart';
 import 'package:jadwal_v2/core/models/teacher.dart';
 import 'package:jadwal_v2/core/services/backup_service.dart';
 
@@ -21,6 +22,7 @@ void main() {
         ClassroomSchema,
         LessonSchema,
         AppSettingsSchema,
+        SubjectConstraintSchema,
       ],
       directory: '.',
       name: 'benchmark_db',

@@ -8,6 +8,7 @@ import 'package:jadwal_v2/core/models/lesson.dart';
 import 'package:jadwal_v2/core/models/settings.dart';
 import 'package:jadwal_v2/core/models/subject.dart';
 import 'package:jadwal_v2/core/models/subject_consecutiveness.dart';
+import 'package:jadwal_v2/core/models/subject_constraint.dart';
 import 'package:jadwal_v2/core/models/teacher.dart';
 import 'package:jadwal_v2/core/services/backup_service.dart';
 
@@ -24,6 +25,7 @@ void main() {
         ClassroomSchema,
         LessonSchema,
         AppSettingsSchema,
+        SubjectConstraintSchema,
       ],
       directory: Directory.systemTemp.path,
       name: 'consecutiveness_backup_test',
@@ -98,5 +100,80 @@ void main() {
       SubjectConsecutiveness.any,
       SubjectConsecutiveness.any,
     ]);
+  });
+
+  test('exports school settings and subject constraints and restores them',
+      () async {
+    await isar.writeTxn(() async {
+      await isar.appSettings.clear();
+      await isar.subjectConstraints.clear();
+      await isar.appSettings.put(
+        AppSettings()
+          ..schoolName = 'مدرسة النور'
+          ..principalName = 'الأستاذ علي'
+          ..periodsPerDay = 7
+          ..daysPerWeek = 5,
+      );
+      await isar.subjectConstraints.put(
+        SubjectConstraint()
+          ..grade = 'الصف الأول'
+          ..subjectName = 'اللغة العربية'
+          ..maxPeriodsPerDay = 2,
+      );
+    });
+
+    final exported = await backupService.exportDatabaseToJson();
+    final data = jsonDecode(exported) as Map<String, dynamic>;
+    final settingsJson = (data['settings'] as List<dynamic>).first
+        as Map<String, dynamic>;
+    expect(settingsJson['schoolName'], 'مدرسة النور');
+    expect(settingsJson['principalName'], 'الأستاذ علي');
+    final constraintsJson = data['subjectConstraints'] as List<dynamic>;
+    expect(constraintsJson, hasLength(1));
+    expect(
+      (constraintsJson.first as Map<String, dynamic>)['maxPeriodsPerDay'],
+      2,
+    );
+
+    await isar.writeTxn(() async {
+      await isar.appSettings.clear();
+      await isar.subjectConstraints.clear();
+    });
+
+    await backupService.importDatabaseFromJson(exported);
+
+    final restoredSettings = await isar.appSettings.where().findFirst();
+    expect(restoredSettings?.schoolName, 'مدرسة النور');
+    expect(restoredSettings?.principalName, 'الأستاذ علي');
+    final restoredConstraints = await isar.subjectConstraints.where().findAll();
+    expect(restoredConstraints, hasLength(1));
+    expect(restoredConstraints.single.grade, 'الصف الأول');
+    expect(restoredConstraints.single.subjectName, 'اللغة العربية');
+    expect(restoredConstraints.single.maxPeriodsPerDay, 2);
+  });
+
+  test('imports legacy backups without subject constraints section', () async {
+    await isar.writeTxn(() async {
+      await isar.subjectConstraints.clear();
+      await isar.subjectConstraints.put(
+        SubjectConstraint()
+          ..grade = 'الصف الثاني'
+          ..subjectName = 'الرياضيات'
+          ..maxPeriodsPerDay = 3,
+      );
+    });
+
+    await backupService.importDatabaseFromJson(
+      jsonEncode({
+        'settings': [
+          {'id': 1, 'periodsPerDay': 6, 'daysPerWeek': 4}
+        ],
+      }),
+    );
+
+    final restoredSettings = await isar.appSettings.where().findFirst();
+    expect(restoredSettings?.schoolName, '');
+    expect(restoredSettings?.principalName, '');
+    expect(await isar.subjectConstraints.count(), 0);
   });
 }
