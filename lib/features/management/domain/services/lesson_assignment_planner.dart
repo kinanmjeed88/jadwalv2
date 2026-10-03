@@ -15,7 +15,7 @@ enum DuplicateAssignmentBehavior {
 
 /// زوج مادة/صف سيُنشأ له حصص في المسبح.
 class AssignmentPair {
-  const AssignmentPair({required this.subject, required this.classroom});
+  AssignmentPair({required this.subject, required this.classroom});
 
   final Subject subject;
   final Classroom classroom;
@@ -23,7 +23,7 @@ class AssignmentPair {
 
 /// نتيجة تخطيط الإسناد قبل أي كتابة في Isar.
 class AssignmentPlan {
-  const AssignmentPlan({
+  AssignmentPlan({
     required this.pairsToCreate,
     required this.skippedDuplicates,
     this.errorMessage,
@@ -54,7 +54,6 @@ class AssignmentPlan {
 /// لا يكتب في قاعدة البيانات؛ يُنتج خطة يطبّقها المستدعي داخل معاملة Isar
 /// حتى تبقى عملية إنشاء المعلم مع إسناداته الأولية متسقة.
 class LessonAssignmentPlanner {
-  const LessonAssignmentPlanner._();
 
   /// يخطط إسناد كل تركيبات المواد×الصفوف المحددة إلى المعلم.
   static AssignmentPlan plan({
@@ -70,7 +69,7 @@ class LessonAssignmentPlanner {
     final uniqueClassrooms = _uniqueById(classrooms);
 
     if (uniqueSubjects.isEmpty || uniqueClassrooms.isEmpty) {
-      return const AssignmentPlan(
+      return AssignmentPlan(
         pairsToCreate: <AssignmentPair>[],
         skippedDuplicates: <AssignmentPair>[],
       );
