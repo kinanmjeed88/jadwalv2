@@ -45,13 +45,26 @@ enum AppSetupStatus {
 /// إذا لم يكن الإعداد مكتملًا لكن قاعدة البيانات تحتوي بيانات (مستخدم قديم)،
 /// تُعاد [AppSetupStatus.legacyDataDetected] ليتولّى واجهة الإقلاع اعتماد
 /// الإعداد بصمت.
+///
+/// يعتمد هذا المزوّد على **علم اكتمال الإعداد فقط**، لا على بقية [AppConfig]
+/// (سجل القيود التلقائية). خلاف ذلك فإن كل حفظ إداري يُحدّث القيود التلقائية
+/// يعيد تشغيل المزود، فتعيد [HomePage] بناء الهيكل من تبويب الجدول.
 final appSetupStatusProvider = FutureProvider<AppSetupStatus>((ref) async {
-  final config = await ref.watch(appConfigNotifierProvider.future);
+  final setupCompleted = ref.watch(
+    appConfigNotifierProvider.select(
+      (asyncValue) => asyncValue.valueOrNull?.isSetupCompleted,
+    ),
+  );
+  if (setupCompleted == true) {
+    return AppSetupStatus.completed;
+  }
+
+  final config = await ref.read(appConfigNotifierProvider.future);
   if (config.isSetupCompleted) {
     return AppSetupStatus.completed;
   }
 
-  final isar = await ref.watch(isarDatabaseProvider.future);
+  final isar = await ref.read(isarDatabaseProvider.future);
   final teachers = await isar.teachers.count();
   final subjects = await isar.subjects.count();
   final classrooms = await isar.classrooms.count();

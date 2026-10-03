@@ -34,8 +34,11 @@ class SubjectWeeklyLoad {
 /// لكن مواد المرحلة الابتدائية (اللغة العربية والرياضيات خاصة) يتجاوز نصابها
 /// الأسبوعي ست حصص، فيستحيل جدولتها بالحد الافتراضي (٥ أيام × حصة = ٥ حصص).
 /// لذلك تُشتق القيود تلقائيًا من عدد الحصص المُضافة:
-/// * أي مادة نصابها الأسبوعي **أكثر من ٦** تدخل في سياسة التخطي.
-/// * يُسمح لها بالتكرار **حصتين في اليوم** كحد أدنى، مع رفعه عند الحاجة
+/// * **٦ حصص أسبوعيًا هي نقطة البداية**: أي مادة نصابها ٦ أو أكثر تدخل السياسة.
+///   لا يُستخدم نصاب المادة نفسه (٧، ٨، ٩، ١٠…) حدًا يوميًا، ولا يُشتق حد يومي
+///   أكبر من ٦ بسبب حساب خاطئ لأيام الأسبوع.
+/// * يُسمح لها بالتكرار **حصتين في اليوم** كحد أدنى (توزيع ٦ على ٥ أيام:
+///   ٢+١+١+١+١، و٧: ٢+٢+١+١+١، و١٠: ٢+٢+٢+٢+٢)، مع رفعه فقط عند الحاجة
 ///   الرياضية الفعلية (مثال: ١٢ حصة في ٥ أيام تحتاج ٣ حصص في اليوم) حتى لا
 ///   نُنشئ قيدًا مستحيلًا بذاته.
 ///
@@ -45,15 +48,21 @@ class SubjectWeeklyLoad {
 class PrimaryStageConstraintPolicy {
   const PrimaryStageConstraintPolicy._();
 
-  /// الحد الفاصل: النصاب الأسبوعي الذي يتجاوز هذه القيمة يدخل سياسة التخطي.
+  /// الحد الفاصل: النصاب الأسبوعي الذي يبلغ هذه القيمة يدخل سياسة التخطي.
+  /// ست حصص على خمسة أيام لا يمكن جدولتها بالحد الافتراضي (حصة/يوم).
   static const int weeklyLessonsThreshold = 6;
 
-  /// أقل تكرار مسموح به في اليوم للمواد الداخلة في السياسة.
+  /// أقل تكرار مسموح به في اليوم للمواد الداخلة في السياسة (قاعدة الست حصص).
   static const int minimumDailyRepetition = 2;
+
+  /// عدد أيام الأسبوع المعتمد إذا كانت القيمة المخزّنة غير صالحة.
+  /// استخدام `1` هنا يجعل `ceil(النصاب ÷ الأيام)` يساوي النصاب نفسه
+  /// (٧، ٨، ٩، ١٠…) فيُكتب حد يومي أكبر من ٦ بالخطأ.
+  static const int fallbackDaysPerWeek = 5;
 
   /// هل نصاب المادة الأسبوعي مؤهّل لتخطي قيود المواد؟
   static bool qualifies(int effectiveWeeklyLessons) {
-    return effectiveWeeklyLessons > weeklyLessonsThreshold;
+    return effectiveWeeklyLessons >= weeklyLessonsThreshold;
   }
 
   /// الحد الأقصى اليومي المطلوب لمادة، أو `null` إذا لم تكن مؤهلة.
@@ -65,7 +74,8 @@ class PrimaryStageConstraintPolicy {
       return null;
     }
 
-    final safeDaysPerWeek = daysPerWeek < 1 ? 1 : daysPerWeek;
+    final safeDaysPerWeek =
+        daysPerWeek < 1 ? fallbackDaysPerWeek : daysPerWeek;
     final requiredPerDay =
         (weeklyLessons + safeDaysPerWeek - 1) ~/ safeDaysPerWeek;
 

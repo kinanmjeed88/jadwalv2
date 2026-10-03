@@ -16,6 +16,7 @@ import '../../../../core/providers/app_backup_provider.dart';
 import '../../../../core/providers/app_config_provider.dart';
 import '../../../setup/presentation/pages/first_run_setup_page.dart';
 import '../../../setup/presentation/widgets/school_stage_selector.dart';
+import '../../../timetable/presentation/providers/timetable_provider.dart';
 import '../providers/management_provider.dart';
 import '../providers/subject_constraint_auto_sync_provider.dart';
 
@@ -231,6 +232,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
           ref.invalidate(teachersNotifierProvider);
           ref.invalidate(subjectsNotifierProvider);
           ref.invalidate(classroomsNotifierProvider);
+          ref.invalidate(settingsNotifierProvider);
+          ref.invalidate(timetableNotifierProvider);
           // ملف الإعدادات (المرحلة وسجلّ القيود التلقائية) يُقرأ من القرص
           // من جديد بعد الاستيراد حتى تعكس الواجهة حالة النسخة المستوردة.
           ref.invalidate(appConfigNotifierProvider);

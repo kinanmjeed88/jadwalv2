@@ -20,6 +20,10 @@ class HomePage extends ConsumerWidget {
     final setupStatusAsync = ref.watch(appSetupStatusProvider);
 
     return setupStatusAsync.when(
+      // إعادة تحميل الإعدادات بعد حفظ إداري يجب ألا تهدم الهيكل وتعيد
+      // المستخدم إلى تبويب الجدول.
+      skipLoadingOnReload: true,
+      skipLoadingOnRefresh: true,
       loading: () => const _StartupSplash(),
       error: (error, _) => _StartupErrorView(
         error: error,

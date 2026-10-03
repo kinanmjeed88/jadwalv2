@@ -32,6 +32,7 @@ class BackupService {
                 'maxLessonsPerDay': t.maxLessonsPerDay,
                 'maxLessonsPerWeek': t.maxLessonsPerWeek,
                 'unavailableDays': t.unavailableDays,
+                'allowedPeriods': t.allowedPeriods,
               })
           .toList(),
       'subjects': subjects
@@ -61,6 +62,8 @@ class BackupService {
                   'exportPageSize': s.exportPageSize,
                   'exportOrientation': s.exportOrientation,
                   'exportAutoScale': s.exportAutoScale,
+                  'customPageWidth': s.customPageWidth,
+                  'customPageHeight': s.customPageHeight,
                 })
             .toList(),
       'subjectConstraints': subjectConstraints
@@ -79,6 +82,7 @@ class BackupService {
                 'classroomId': l.classroom.value?.id,
                 'dayIndex': l.dayIndex,
                 'periodIndex': l.periodIndex,
+                'isPinned': l.isPinned,
               })
           .toList(),
     };
@@ -109,7 +113,9 @@ class BackupService {
               ..daysPerWeek = s['daysPerWeek']
               ..exportPageSize = s['exportPageSize'] ?? 'A4'
               ..exportOrientation = s['exportOrientation'] ?? 'Landscape'
-              ..exportAutoScale = s['exportAutoScale'] ?? true)
+              ..exportAutoScale = s['exportAutoScale'] ?? true
+              ..customPageWidth = (s['customPageWidth'] as num?)?.toDouble()
+              ..customPageHeight = (s['customPageHeight'] as num?)?.toDouble())
             .toList();
         await _isar.appSettings.putAll(newSettings);
       }
@@ -124,7 +130,8 @@ class BackupService {
               ..specialization = t['specialization']
               ..maxLessonsPerDay = t['maxLessonsPerDay']
               ..maxLessonsPerWeek = t['maxLessonsPerWeek']
-              ..unavailableDays = List<int>.from(t['unavailableDays'] ?? []))
+              ..unavailableDays = List<int>.from(t['unavailableDays'] ?? [])
+              ..allowedPeriods = List<int>.from(t['allowedPeriods'] ?? []))
             .toList();
         await _isar.teachers.putAll(newTeachers);
         for (final t in newTeachers) {
@@ -186,7 +193,8 @@ class BackupService {
             .map((l) => Lesson()
               ..id = l['id']
               ..dayIndex = l['dayIndex']
-              ..periodIndex = l['periodIndex'])
+              ..periodIndex = l['periodIndex']
+              ..isPinned = l['isPinned'] == true)
             .toList();
 
         // Map relationships using in-memory maps
