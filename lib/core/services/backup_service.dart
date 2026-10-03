@@ -7,6 +7,7 @@ import '../models/classroom.dart';
 import '../models/lesson.dart';
 import '../models/settings.dart';
 import '../models/subject_consecutiveness.dart';
+import '../models/subject_constraint.dart';
 
 class BackupService {
   final Isar _isar;
