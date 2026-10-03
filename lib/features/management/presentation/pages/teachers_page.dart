@@ -347,10 +347,12 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
     List<Subject> allSubjects,
     List<Classroom> allClassrooms,
   ) async {
-    if (!_formKey.currentState!.validate()) return;
+    final formState = _formKey.currentState;
+    if (formState == null || !formState.validate()) return;
 
-    setState(() => _isSaving = true);
     final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    setState(() => _isSaving = true);
 
     final newTeacher = widget.teacher ?? Teacher();
     newTeacher
@@ -392,9 +394,7 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
         ref.invalidate(timetableNotifierProvider);
       }
 
-      if (mounted) {
-        Navigator.pop(context);
-      }
+      navigator.pop();
     } catch (error) {
       if (mounted) {
         setState(() => _isSaving = false);
