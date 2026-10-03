@@ -5,9 +5,12 @@ import 'package:isar/isar.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/subject.dart';
 import '../../../../core/models/subject_constraint.dart';
+import '../../../../core/models/subject_constraint_key.dart';
 import '../../../../core/models/subject_consecutiveness.dart';
+import '../../../../core/providers/app_config_provider.dart';
 import '../../../../core/providers/database_provider.dart';
 import '../providers/management_provider.dart';
+import '../providers/subject_constraint_auto_sync_provider.dart';
 
 class SubjectConstraintsPage extends ConsumerStatefulWidget {
   const SubjectConstraintsPage({super.key});
@@ -76,13 +79,24 @@ class _SubjectConstraintsPageState
           maxPeriodsPerDay: maxPeriods,
           consecutiveness: consecutiveness,
         );
+
+    // القيد الذي يكتبه المستخدم يدويًا يصبح ملكًا له، فتتوقف المزامنة التلقائية
+    // عن إدارته ولا تعيد إنشاءه إن حذفه لاحقًا.
+    await ref.read(subjectConstraintAutoSyncProvider).recordManualDefinition(
+          SubjectConstraintKey(grade: grade, subjectName: subjectName),
+        );
+
     await _loadData();
   }
 
-  Future<void> _deleteConstraint(int id) async {
+  Future<void> _deleteConstraint(SubjectConstraint constraint) async {
+    await ref.read(subjectConstraintAutoSyncProvider).recordManualDeletion(
+          SubjectConstraintKey.fromConstraint(constraint),
+        );
+
     final isar = await ref.read(isarDatabaseProvider.future);
     await isar.writeTxn(() async {
-      await isar.subjectConstraints.delete(id);
+      await isar.subjectConstraints.delete(constraint.id);
     });
     await _loadData();
   }
@@ -247,55 +261,121 @@ class _SubjectConstraintsPageState
 
   @override
   Widget build(BuildContext context) {
+    final config = ref.watch(appConfigNotifierProvider).valueOrNull;
+    final managedAutoConstraints =
+        config?.managedAutoConstraints ?? const <String, int>{};
+    final isPrimaryStage =
+        config?.schoolStage.enablesAutomaticConstraintBypass ?? false;
+
     return Scaffold(
       appBar: AppBar(title: const Text('قيود المواد')),
-      body: _constraints.isEmpty
-          ? const Center(
-              child:
-                  Text('لا توجد قيود مخصصة. كل المواد حدها حصة واحدة يومياً.'),
-            )
-          : ListView.builder(
-              itemCount: _constraints.length,
-              itemBuilder: (context, index) {
-                final constraint = _constraints[index];
-                final subject = _subjectByName(constraint.subjectName);
-                final consecutiveness =
-                    subject?.consecutiveness ?? SubjectConsecutiveness.any;
+      body: Column(
+        children: [
+          if (isPrimaryStage) _buildPrimaryStageBanner(context),
+          Expanded(
+            child: _constraints.isEmpty
+                ? const Center(
+                    child: Text(
+                        'لا توجد قيود مخصصة. كل المواد حدها حصة واحدة يومياً.'),
+                  )
+                : ListView.builder(
+                    itemCount: _constraints.length,
+                    itemBuilder: (context, index) {
+                      final constraint = _constraints[index];
+                      final key =
+                          SubjectConstraintKey.fromConstraint(constraint);
+                      final isAutoManaged =
+                          managedAutoConstraints[key.storageKey] ==
+                              constraint.maxPeriodsPerDay;
+                      final subject =
+                          _subjectByName(constraint.subjectName);
+                      final consecutiveness = subject?.consecutiveness ??
+                          SubjectConsecutiveness.any;
 
-                return ListTile(
-                  title:
-                      Text('${constraint.subjectName} - ${constraint.grade}'),
-                  subtitle: Text(
-                    'الحد الأقصى: ${constraint.maxPeriodsPerDay} حصص/يوم\n'
-                    'التتابع: ${consecutiveness.label}',
-                  ),
-                  isThreeLine: true,
-                  onTap: () =>
-                      _showConstraintDialog(existingConstraint: constraint),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit),
-                        tooltip: 'تعديل',
-                        onPressed: () => _showConstraintDialog(
+                      return ListTile(
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                '${constraint.subjectName} - ${constraint.grade}',
+                              ),
+                            ),
+                            if (isAutoManaged)
+                              const Chip(
+                                label: Text('تلقائي'),
+                                labelStyle: TextStyle(fontSize: 11),
+                                visualDensity: VisualDensity.compact,
+                                materialTapTargetSize:
+                                    MaterialTapTargetSize.shrinkWrap,
+                              ),
+                          ],
+                        ),
+                        subtitle: Text(
+                          'الحد الأقصى: ${constraint.maxPeriodsPerDay} حصص/يوم\n'
+                          'التتابع: ${consecutiveness.label}'
+                          '${isAutoManaged ? '\nقيد أنشأه النظام للمرحلة الابتدائية، ويمكنك تعديله أو حذفه.' : ''}',
+                        ),
+                        isThreeLine: true,
+                        onTap: () => _showConstraintDialog(
                           existingConstraint: constraint,
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        tooltip: 'حذف',
-                        onPressed: () => _deleteConstraint(constraint.id),
-                      ),
-                    ],
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit),
+                              tooltip: 'تعديل',
+                              onPressed: () => _showConstraintDialog(
+                                existingConstraint: constraint,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              tooltip: 'حذف',
+                              onPressed: () => _deleteConstraint(constraint),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
-                );
-              },
-            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showConstraintDialog,
         tooltip: 'إضافة قيد',
         child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  /// تنبيه يشرح سياسة القيود التلقائية عند اختيار المرحلة الابتدائية.
+  Widget _buildPrimaryStageBanner(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.teal.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.teal.shade200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.auto_awesome, size: 20, color: Colors.teal.shade800),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'المرحلة الابتدائية: يُنشئ التطبيق قيودًا تلقائية لأي مادة '
+              'يتجاوز نصابها الأسبوعي ٦ حصص (اللغة العربية والرياضيات غالبًا) '
+              'للسماح بحصتين في اليوم، وتُحدَّث هذه القيود تلقائيًا عند تغيير '
+              'عدد الحصص. القيود المعلّمة بـ«تلقائي» قابلة للتعديل والحذف.',
+              style: TextStyle(fontSize: 12.5, color: Colors.teal.shade900),
+            ),
+          ),
+        ],
       ),
     );
   }

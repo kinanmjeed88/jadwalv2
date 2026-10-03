@@ -10,9 +10,14 @@ import 'package:path/path.dart' as path;
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../../../../core/models/school_stage.dart';
 import '../../../../core/models/settings.dart';
+import '../../../../core/providers/app_config_provider.dart';
 import '../../../../core/providers/repository_provider.dart';
+import '../../../setup/presentation/pages/first_run_setup_page.dart';
+import '../../../setup/presentation/widgets/school_stage_selector.dart';
 import '../providers/management_provider.dart';
+import '../providers/subject_constraint_auto_sync_provider.dart';
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -20,10 +25,18 @@ class SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settingsAsync = ref.watch(settingsNotifierProvider);
+    final configAsync = ref.watch(appConfigNotifierProvider);
 
     return Scaffold(
       body: settingsAsync.when(
-        data: (settings) => _SettingsForm(settings: settings),
+        data: (settings) => configAsync.when(
+          data: (config) => _SettingsForm(
+            settings: settings,
+            initialStage: config.schoolStage,
+          ),
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, st) => Center(child: Text('حدث خطأ: $e')),
+        ),
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, st) => Center(child: Text('حدث خطأ: $e')),
       ),
@@ -33,7 +46,12 @@ class SettingsPage extends ConsumerWidget {
 
 class _SettingsForm extends ConsumerStatefulWidget {
   final AppSettings settings;
-  const _SettingsForm({required this.settings});
+  final SchoolStage initialStage;
+
+  const _SettingsForm({
+    required this.settings,
+    required this.initialStage,
+  });
 
   @override
   ConsumerState<_SettingsForm> createState() => _SettingsFormState();
@@ -48,6 +66,8 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
   late bool _exportAutoScale;
   late String _schoolName;
   late String _principalName;
+  late SchoolStage _schoolStage;
+  bool _isSaving = false;
   double? _customPageWidth;
   double? _customPageHeight;
 
@@ -61,29 +81,81 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     _exportAutoScale = widget.settings.exportAutoScale;
     _schoolName = widget.settings.schoolName;
     _principalName = widget.settings.principalName;
+    _schoolStage = widget.initialStage;
     _customPageWidth = widget.settings.customPageWidth;
     _customPageHeight = widget.settings.customPageHeight;
   }
 
-  void _saveSettings() {
-    if (_formKey.currentState!.validate()) {
-      _formKey.currentState!.save();
-      final newSettings = widget.settings
-        ..schoolName = _schoolName
-        ..principalName = _principalName
-        ..periodsPerDay = _periodsPerDay
-        ..daysPerWeek = _daysPerWeek
-        ..exportPageSize = _exportPageSize
-        ..exportOrientation = _exportOrientation
-        ..exportAutoScale = _exportAutoScale
-        ..customPageWidth = _customPageWidth
-        ..customPageHeight = _customPageHeight;
+  Future<void> _saveSettings() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-      ref.read(settingsNotifierProvider.notifier).saveSettings(newSettings);
+    _formKey.currentState!.save();
+    final newSettings = widget.settings
+      ..schoolName = _schoolName
+      ..principalName = _principalName
+      ..periodsPerDay = _periodsPerDay
+      ..daysPerWeek = _daysPerWeek
+      ..exportPageSize = _exportPageSize
+      ..exportOrientation = _exportOrientation
+      ..exportAutoScale = _exportAutoScale
+      ..customPageWidth = _customPageWidth
+      ..customPageHeight = _customPageHeight;
+
+    setState(() => _isSaving = true);
+
+    try {
+      await ref
+          .read(settingsNotifierProvider.notifier)
+          .saveSettings(newSettings);
+
+      // تغيير المرحلة يُعيد ضبط قيود المواد التلقائية وفق السياسة الجديدة.
+      final config = await ref.read(appConfigNotifierProvider.future);
+      if (!config.isSetupCompleted || config.schoolStage != _schoolStage) {
+        await ref
+            .read(appConfigNotifierProvider.notifier)
+            .completeSetup(stage: _schoolStage);
+      }
+
+      final outcome = await ref.read(subjectConstraintAutoSyncProvider).run();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _isSaving = false);
+      final summary = outcome?.arabicSummary;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم حفظ الإعدادات بنجاح')),
+        SnackBar(
+          content: Text(
+            summary == null
+                ? 'تم حفظ الإعدادات بنجاح'
+                : 'تم حفظ الإعدادات بنجاح، $summary',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() => _isSaving = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('تعذر حفظ الإعدادات: $error'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
+  }
+
+  void _openSetupWizard() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => const FirstRunSetupPage(isEditing: true),
+      ),
+    );
   }
 
   Future<void> _exportData() async {
@@ -380,6 +452,46 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
               ),
             ),
             const SizedBox(height: 24),
+            const Text('المرحلة الدراسية',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal)),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SchoolStageSelector(
+                      value: _schoolStage,
+                      onChanged: (stage) =>
+                          setState(() => _schoolStage = stage),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _schoolStage.description,
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.grey.shade800),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.assignment_outlined,
+                    color: Colors.teal),
+                title: const Text('معالج الإعداد الأولي'),
+                subtitle: const Text(
+                    'مراجعة بيانات المدرسة والمدير والحصص والمرحلة'),
+                trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                onTap: _openSetupWizard,
+              ),
+            ),
+            const SizedBox(height: 24),
             const Text('إعدادات التصدير (PDF)',
                 style: TextStyle(
                     fontSize: 18,
@@ -520,11 +632,17 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _saveSettings,
+                onPressed: _isSaving ? null : _saveSettings,
                 style:
                     ElevatedButton.styleFrom(padding: const EdgeInsets.all(16)),
-                child:
-                    const Text('حفظ الإعدادات', style: TextStyle(fontSize: 16)),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('حفظ الإعدادات',
+                        style: TextStyle(fontSize: 16)),
               ),
             ),
           ],
