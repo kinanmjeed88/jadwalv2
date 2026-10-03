@@ -320,13 +320,15 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
           onPressed: _isSaving
               ? null
               : () => _save(
-                    subjectsAsync.maybeWhen(
+                    subjectsAsync.when(
                       data: (subjects) => subjects,
-                      orElse: () => const <Subject>[],
+                      loading: () => const <Subject>[],
+                      error: (err, stackTrace) => const <Subject>[],
                     ),
-                    classroomsAsync.maybeWhen(
+                    classroomsAsync.when(
                       data: (classrooms) => classrooms,
-                      orElse: () => const <Classroom>[],
+                      loading: () => const <Classroom>[],
+                      error: (err, stackTrace) => const <Classroom>[],
                     ),
                   ),
           child: _isSaving

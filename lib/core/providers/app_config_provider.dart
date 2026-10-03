@@ -46,28 +46,15 @@ enum AppSetupStatus {
 /// تُعاد [AppSetupStatus.legacyDataDetected] ليتولّى واجهة الإقلاع اعتماد
 /// الإعداد بصمت.
 ///
-/// يعتمد هذا المزوّد على **علم اكتمال الإعداد فقط**، لا على بقية [AppConfig]
-/// (سجل القيود التلقائية). خلاف ذلك فإن كل حفظ إداري يُحدّث القيود التلقائية
-/// يعيد تشغيل المزود، فتعيد [HomePage] بناء الهيكل من تبويب الجدول.
+/// يعتمد هذا المزوّد على ملف الإعدادات. فهرس تبويب [HomeShell] محفوظ في
+/// مزوّد مستقل حتى لو أُعيد بناء الواجهة بعد مزامنة القيود التلقائية.
 final appSetupStatusProvider = FutureProvider<AppSetupStatus>((ref) async {
-  final setupCompleted = ref.watch(
-    appConfigNotifierProvider.select(
-      (asyncValue) => asyncValue.maybeWhen<bool?>(
-        data: (config) => config.isSetupCompleted,
-        orElse: () => null,
-      ),
-    ),
-  );
-  if (setupCompleted == true) {
-    return AppSetupStatus.completed;
-  }
-
-  final config = await ref.read(appConfigNotifierProvider.future);
+  final config = await ref.watch(appConfigNotifierProvider.future);
   if (config.isSetupCompleted) {
     return AppSetupStatus.completed;
   }
 
-  final isar = await ref.read(isarDatabaseProvider.future);
+  final isar = await ref.watch(isarDatabaseProvider.future);
   final teachers = await isar.teachers.count();
   final subjects = await isar.subjects.count();
   final classrooms = await isar.classrooms.count();
