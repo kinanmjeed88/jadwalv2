@@ -88,9 +88,14 @@ class PdfExportUseCase {
 
   pw.Widget _buildTeacherTable(Teacher teacher, Map<String, Lesson> lessonMap,
       AppSettings settings, pw.Font font, double availableHeight) {
-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
-    final displayDays = days.take(settings.daysPerWeek).toList();
-    final int periodsPerDay = settings.periodsPerDay;
+    final displayDays = timetableDayLabels(settings.daysPerWeek);
+    var periodsPerDay = settings.periodsPerDay;
+    for (final lesson in lessonMap.values) {
+      final p = lesson.periodIndex;
+      if (p != null && p + 1 > periodsPerDay) {
+        periodsPerDay = p + 1;
+      }
+    }
 
     final int totalCols = 1 + periodsPerDay;
 
@@ -409,9 +414,14 @@ class PdfExportUseCase {
       AppSettings settings,
       pw.Font font,
       double availableHeight) {
-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
-    final displayDays = days.take(settings.daysPerWeek).toList();
-    final int periodsPerDay = settings.periodsPerDay;
+    final displayDays = timetableDayLabels(settings.daysPerWeek);
+    var periodsPerDay = settings.periodsPerDay;
+    for (final lesson in lessonMap.values) {
+      final p = lesson.periodIndex;
+      if (p != null && p + 1 > periodsPerDay) {
+        periodsPerDay = p + 1;
+      }
+    }
 
     bool isA3Layout = chunk.length > 4;
 

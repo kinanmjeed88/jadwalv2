@@ -2,6 +2,8 @@ name: Flutter Build
 
 on:
   push:
+    branches: [ "main", "master", "arena/**" ]
+  pull_request:
     branches: [ "main", "master" ]
   workflow_dispatch:
 

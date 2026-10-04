@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/subject.dart';
 import '../../../../core/models/teacher.dart';
+import '../../../../core/models/weekly_load_policy.dart';
 import '../../../timetable/presentation/providers/timetable_provider.dart';
 import '../providers/management_provider.dart';
 
@@ -66,7 +67,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
 
   String _getDaysString(List<int> days) {
     if (days.isEmpty) return 'لا يوجد';
-    const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+    final dayNames = Weekday.values.map((day) => day.arabicLabel).toList();
     return days
         .map((d) => d >= 0 && d < dayNames.length ? dayNames[d] : '')
         .join('، ');
@@ -130,7 +131,12 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
 
   @override
   Widget build(BuildContext context) {
-    const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+    final daysPerWeek = ref.watch(settingsNotifierProvider).when(
+          data: (settings) => settings.daysPerWeek,
+          loading: () => 5,
+          error: (_, __) => 5,
+        );
+    final workingDays = Weekday.workingDays(daysPerWeek);
     const maxPeriods = 10;
     final subjectsAsync = ref.watch(subjectsNotifierProvider);
     final classroomsAsync = ref.watch(classroomsNotifierProvider);
@@ -179,9 +185,10 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
                   style: TextStyle(fontWeight: FontWeight.bold)),
               Wrap(
                 spacing: 8.0,
-                children: List.generate(dayNames.length, (index) {
+                children: workingDays.map((day) {
+                  final index = day.indexPosition;
                   return FilterChip(
-                    label: Text(dayNames[index]),
+                    label: Text(day.arabicLabel),
                     selected: selectedDays.contains(index),
                     onSelected: (bool selected) {
                       setState(() {
@@ -193,7 +200,7 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
                       });
                     },
                   );
-                }),
+                }).toList(),
               ),
               const SizedBox(height: 16),
               const Text('الدروس المسموحة (اتركه فارغاً للسماح بالكل):',

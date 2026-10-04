@@ -58,6 +58,34 @@ class TimetableGenerator {
     return 1;
   }
 
+  List<int> _dailyPeriodsForClassroom(
+    int classroomId,
+    int maxDays,
+    int fallbackMaxPeriods,
+  ) {
+    final classroom =
+        classrooms.where((c) => c.id == classroomId).firstOrNull;
+    if (classroom != null) {
+      return classroom.resolveDailyPeriods(settings);
+    }
+    final safeDays = maxDays < 1 ? 5 : maxDays;
+    return List<int>.filled(safeDays, fallbackMaxPeriods, growable: false);
+  }
+
+  int _periodsForClassroomOnDay(
+    int classroomId,
+    int dayIndex,
+    int maxDays,
+    int fallbackMaxPeriods,
+  ) {
+    final daily =
+        _dailyPeriodsForClassroom(classroomId, maxDays, fallbackMaxPeriods);
+    if (dayIndex < 0 || dayIndex >= daily.length) {
+      return 0;
+    }
+    return daily[dayIndex];
+  }
+
   void _runPreValidation() {
     final engine = PreValidationEngine(
       existingLessons: existingLessons,
@@ -190,33 +218,47 @@ class TimetableGenerator {
         final targetLesson = unpinnedClassroomLessons[
             random.nextInt(unpinnedClassroomLessons.length)];
 
-        // Pick a random destination slot.
-        final newDay = random.nextInt(maxDays);
-        final newPeriod = random.nextInt(maxPeriods);
+        // Pick a random destination slot within this classroom's daily profile.
+        final dailyPeriods = _dailyPeriodsForClassroom(
+          randomClassroomId,
+          maxDays,
+          maxPeriods,
+        );
+        final activeDays = <int>[
+          for (var d = 0; d < maxDays; d++)
+            if ((d < dailyPeriods.length ? dailyPeriods[d] : maxPeriods) > 0) d,
+        ];
 
-        // Check if destination slot is occupied by another lesson in the same
-        // classroom. We can only swap if it is unpinned.
-        final occupyingLessonOpt = classroomLessons
-            .where((l) => l.dayIndex == newDay && l.periodIndex == newPeriod);
+        if (activeDays.isNotEmpty) {
+          final newDay = activeDays[random.nextInt(activeDays.length)];
+          final periodsOnDay =
+              newDay < dailyPeriods.length ? dailyPeriods[newDay] : maxPeriods;
+          final newPeriod = random.nextInt(periodsOnDay);
 
-        if (occupyingLessonOpt.isNotEmpty) {
-          final occupyingLesson = occupyingLessonOpt.first;
-          if (!occupyingLesson.isPinned) {
-            // Swap.
-            final oldDay = targetLesson.dayIndex;
-            final oldPeriod = targetLesson.periodIndex;
+          // Check if destination slot is occupied by another lesson in the same
+          // classroom. We can only swap if it is unpinned.
+          final occupyingLessonOpt = classroomLessons
+              .where((l) => l.dayIndex == newDay && l.periodIndex == newPeriod);
 
+          if (occupyingLessonOpt.isNotEmpty) {
+            final occupyingLesson = occupyingLessonOpt.first;
+            if (!occupyingLesson.isPinned) {
+              // Swap.
+              final oldDay = targetLesson.dayIndex;
+              final oldPeriod = targetLesson.periodIndex;
+
+              targetLesson.dayIndex = newDay;
+              targetLesson.periodIndex = newPeriod;
+
+              occupyingLesson.dayIndex = oldDay;
+              occupyingLesson.periodIndex = oldPeriod;
+            }
+            // If it is pinned, do not mutate; try the next iteration.
+          } else {
+            // Destination is free for this classroom, just move.
             targetLesson.dayIndex = newDay;
             targetLesson.periodIndex = newPeriod;
-
-            occupyingLesson.dayIndex = oldDay;
-            occupyingLesson.periodIndex = oldPeriod;
           }
-          // If it is pinned, do not mutate; try the next iteration.
-        } else {
-          // Destination is free for this classroom, just move.
-          targetLesson.dayIndex = newDay;
-          targetLesson.periodIndex = newPeriod;
         }
       }
 
@@ -281,9 +323,18 @@ class TimetableGenerator {
       final occupiedSlots = <int>{
         for (var lesson in pinned) lesson.dayIndex! * 100 + lesson.periodIndex!,
       };
+      final dailyPeriods = _dailyPeriodsForClassroom(
+        classroomId,
+        maxDays,
+        maxPeriods,
+      );
+      final maxClassroomPeriods =
+          dailyPeriods.isEmpty ? maxPeriods : dailyPeriods.reduce(max);
       final availableSlots = <int>[];
       for (var day = 0; day < maxDays; day++) {
-        for (var period = 0; period < maxPeriods; period++) {
+        final periodsOnDay =
+            day < dailyPeriods.length ? dailyPeriods[day] : maxPeriods;
+        for (var period = 0; period < periodsOnDay; period++) {
           final slot = day * 100 + period;
           if (!occupiedSlots.contains(slot)) {
             availableSlots.add(slot);
@@ -294,7 +345,7 @@ class TimetableGenerator {
       final orderedLessons = _orderLessonsByRestriction(
         unpinned,
         maxDays: maxDays,
-        maxPeriods: maxPeriods,
+        maxPeriods: maxClassroomPeriods,
       );
 
       var assignedIndex = 0;
@@ -655,6 +706,24 @@ class TimetableGenerator {
 
       if (lesson.classroom != null) {
         final classroomId = lesson.classroom!.id;
+        final allowedPeriodsOnDay = _periodsForClassroomOnDay(
+          classroomId,
+          day,
+          maxDays,
+          maxPeriods,
+        );
+        if (day < 0 ||
+            day >= maxDays ||
+            period < 0 ||
+            period >= allowedPeriodsOnDay) {
+          addDiagnostic(
+            GenericSolverFailure(
+              'الفصل "${lesson.classroom!.name}": الحصة ${period + 1} في اليوم ${day + 1} خارج التوزيع اليومي المعتمد للصف.',
+            ),
+            lessonIds: [lesson.id],
+          );
+        }
+
         final owners = classroomSlotOwners.putIfAbsent(classroomId, () => {});
         final previousOwner = owners[timeKey];
         if (previousOwner != null) {
@@ -852,6 +921,19 @@ class TimetableGenerator {
       // Hard Constraint: Classroom Clash (Multiple lessons in same period)
       if (lesson.classroom != null) {
         int cId = lesson.classroom!.id;
+        final allowedPeriodsOnDay = _periodsForClassroomOnDay(
+          cId,
+          day,
+          maxDays,
+          maxPeriods,
+        );
+        if (day < 0 ||
+            day >= maxDays ||
+            period < 0 ||
+            period >= allowedPeriodsOnDay) {
+          cost += 1000;
+        }
+
         if (classroomSlots.containsKey(cId) &&
             classroomSlots[cId]!.contains(timeKey)) {
           cost += 1000;

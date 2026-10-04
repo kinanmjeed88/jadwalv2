@@ -12,6 +12,7 @@ on:
       - main
       - master
       - 'release/**'
+      - 'arena/**'
 
 jobs:
   build:
@@ -35,15 +36,44 @@ jobs:
         run: flutter pub get
 
       - name: Analyze Dart and Flutter Sources
-        run: flutter analyze --no-fatal-infos
+        shell: pwsh
+        run: |
+          $out = flutter analyze --no-fatal-infos 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_ }
+          if ($code -ne 0) {
+            $errors = ($out | Where-Object { $_ -match 'error -|warning -' }) -join " | "
+            if ([string]::IsNullOrWhiteSpace($errors)) {
+              $errors = ($out | Select-Object -Last 15) -join " | "
+            }
+            Write-Host "::error title=FlutterAnalyze::$errors"
+            exit $code
+          }
 
       - name: Run Flutter Tests
         shell: pwsh
         run: |
-          $testFiles = Get-ChildItem -Path test -Recurse -Filter '*_test.dart' |
-            Where-Object { $_.Name -ne 'backup_service_benchmark_test.dart' } |
-            ForEach-Object { $_.FullName }
-          flutter test @testFiles
+          $out = flutter test --machine 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_ }
+          $events = @($out | ForEach-Object {
+            try { $_.ToString() | ConvertFrom-Json -ErrorAction Stop } catch { }
+          })
+          $completed = @($events | Where-Object {
+            $_.type -eq 'testDone' -and -not $_.hidden -and -not $_.skipped
+          })
+          $passed = @($completed | Where-Object { $_.result -eq 'success' }).Count
+          $failed = @($completed | Where-Object { $_.result -ne 'success' }).Count
+          $skipped = @($events | Where-Object {
+            $_.type -eq 'testDone' -and $_.skipped -and -not $_.hidden
+          }).Count
+          Write-Host ('::warning title=Executed test results::Passed={0}; Failed={1}; Skipped={2}' -f $passed, $failed, $skipped)
+          if ($passed -eq 0) { throw 'No completed tests recorded' }
+          if ($code -ne 0) {
+            $failLines = ($out | Where-Object { $_ -match 'Exception|Error|Expected|Actual|failed|══' } | Select-Object -First 25) -join " | "
+            Write-Host "::error title=FlutterTest::$failLines"
+            exit $code
+          }
 
       - name: Build Windows Release
         run: flutter build windows --release
