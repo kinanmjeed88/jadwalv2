@@ -504,16 +504,17 @@ class DailyDistribution {
   static List<int> buildWithElevatedDays({
     required int weeklyTarget,
     required int daysPerWeek,
-    required Set<int> elevatedDays,
+    required Iterable<int> elevatedDays,
   }) {
     final safeDays = daysPerWeek < 1 ? 5 : daysPerWeek;
     final safeTarget = weeklyTarget < 0 ? 0 : weeklyTarget;
     final baseline = safeTarget ~/ safeDays;
+    final elevatedSet = elevatedDays.toSet();
 
     return List<int>.generate(
       safeDays,
       (dayIndex) =>
-          elevatedDays.contains(dayIndex) ? baseline + 1 : baseline,
+          elevatedSet.contains(dayIndex) ? baseline + 1 : baseline,
       growable: false,
     );
   }
