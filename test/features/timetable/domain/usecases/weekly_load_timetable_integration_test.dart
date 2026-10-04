@@ -71,6 +71,7 @@ void main() {
             teacher: teacher,
             subject: subject,
             classroom: classroom,
+            isPinned: false,
           ),
         );
       }

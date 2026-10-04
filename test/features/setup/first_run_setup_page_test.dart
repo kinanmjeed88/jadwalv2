@@ -54,7 +54,7 @@ class _NoOpSyncController extends SubjectConstraintAutoSyncController {
         );
 
   @override
-  Future<SubjectConstraintSyncOutcome?> run() async => null;
+  Future<AutoConstraintSyncOutcome?> run() async => null;
 }
 
 void main() {
