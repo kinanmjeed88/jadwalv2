@@ -16,10 +16,16 @@ class ClassroomsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final classroomsAsync = ref.watch(classroomsNotifierProvider);
-    final config =
-        ref.watch(appConfigNotifierProvider).valueOrNull ?? AppConfig.initial();
-    final settings = ref.watch(settingsNotifierProvider).valueOrNull ??
-        (AppSettings()..periodsPerDay = 7);
+    final config = ref.watch(appConfigNotifierProvider).when(
+          data: (c) => c,
+          loading: AppConfig.initial,
+          error: (_, __) => AppConfig.initial(),
+        );
+    final settings = ref.watch(settingsNotifierProvider).when(
+          data: (s) => s,
+          loading: () => AppSettings()..periodsPerDay = 7,
+          error: (_, __) => AppSettings()..periodsPerDay = 7,
+        );
 
     return Scaffold(
       body: classroomsAsync.when(
@@ -167,7 +173,11 @@ class _ClassroomDialogState extends ConsumerState<_ClassroomDialog> {
   }
 
   int _resolveDaysPerWeek() {
-    final settings = ref.read(settingsNotifierProvider).valueOrNull;
+    final settings = ref.read(settingsNotifierProvider).when(
+          data: (s) => s,
+          loading: () => null,
+          error: (_, __) => null,
+        );
     final days = settings?.daysPerWeek ?? 5;
     return days < 1 ? 5 : days;
   }
@@ -205,8 +215,11 @@ class _ClassroomDialogState extends ConsumerState<_ClassroomDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final config =
-        ref.watch(appConfigNotifierProvider).valueOrNull ?? AppConfig.initial();
+    final config = ref.watch(appConfigNotifierProvider).when(
+          data: (c) => c,
+          loading: AppConfig.initial,
+          error: (_, __) => AppConfig.initial(),
+        );
     final daysPerWeek = _resolveDaysPerWeek();
     final generalTarget = _resolveGeneralDefaultTarget(config);
     final parsedWeekly =

@@ -65,6 +65,11 @@ void main() {
   testWidgets(
       'FirstRunSetupPage displays weekly load options and persists officialPlan',
       (tester) async {
+    tester.view.physicalSize = const Size(1200, 1800);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final configService = _InMemoryAppConfigService();
     final settingsHolder = _SettingsHolder();
     final syncController = _NoOpSyncController();

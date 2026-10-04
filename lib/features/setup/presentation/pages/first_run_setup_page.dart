@@ -175,6 +175,10 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
 
   @override
   Widget build(BuildContext context) {
+    // إبقاء المزوّدات نشطة طوال عمر الشاشة لمنع التخلص التلقائي أثناء التحميل أو الحفظ.
+    ref.watch(settingsNotifierProvider);
+    ref.watch(appConfigNotifierProvider);
+
     return PopScope(
       // في وضع الإقلاع لا يُسمح بالخروج من الشاشة قبل إكمال البيانات.
       canPop: widget.isEditing,
