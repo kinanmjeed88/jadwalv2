@@ -30,18 +30,22 @@ class _InMemoryAppConfigService extends AppConfigService {
   }
 }
 
+class _SettingsHolder {
+  AppSettings current = AppSettings();
+}
+
 class _FakeSettingsNotifier extends SettingsNotifier {
-  _FakeSettingsNotifier(this._settings);
+  _FakeSettingsNotifier(this._holder);
 
-  AppSettings _settings;
-
-  @override
-  Future<AppSettings> build() async => _settings;
+  final _SettingsHolder _holder;
 
   @override
-  Future<void> saveSettings(AppSettings newSettings) async {
-    _settings = newSettings;
-    state = AsyncData(_settings);
+  Future<AppSettings> build() async => _holder.current;
+
+  @override
+  Future<void> saveSettings(AppSettings settings) async {
+    _holder.current = settings;
+    state = AsyncData(_holder.current);
   }
 }
 
@@ -62,14 +66,15 @@ void main() {
       'FirstRunSetupPage displays weekly load options and persists officialPlan',
       (tester) async {
     final configService = _InMemoryAppConfigService();
-    final fakeSettings = _FakeSettingsNotifier(AppSettings());
+    final settingsHolder = _SettingsHolder();
     final syncController = _NoOpSyncController();
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           appConfigServiceProvider.overrideWith((ref) async => configService),
-          settingsNotifierProvider.overrideWith(() => fakeSettings),
+          settingsNotifierProvider
+              .overrideWith(() => _FakeSettingsNotifier(settingsHolder)),
           subjectConstraintAutoSyncProvider.overrideWithValue(syncController),
         ],
         child: const MaterialApp(

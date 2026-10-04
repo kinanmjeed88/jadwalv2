@@ -60,8 +60,8 @@ jobs:
           $code = $LASTEXITCODE
           $out | ForEach-Object { Write-Host $_ }
           if ($code -ne 0) {
-            $joined = ($out | Select-Object -Last 25) -join " | "
-            Write-Host "::error title=FlutterTest::$joined"
+            $failLines = ($out | Where-Object { $_ -match 'Exception|Error|Expected|Actual|failed|══' } | Select-Object -First 25) -join " | "
+            Write-Host "::error title=FlutterTest::$failLines"
             exit $code
           }
 
