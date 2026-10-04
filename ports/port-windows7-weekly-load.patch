@@ -1,0 +1,5067 @@
+diff --git a/.github/workflows/build.yml b/.github/workflows/build.yml
+index 90e0cef..accb460 100644
+--- a/.github/workflows/build.yml
++++ b/.github/workflows/build.yml
+@@ -2,6 +2,8 @@ name: Flutter Build
+ 
+ on:
+   push:
++    branches: [ "main", "master", "arena/**" ]
++  pull_request:
+     branches: [ "main", "master" ]
+   workflow_dispatch:
+ 
+diff --git a/.github/workflows/build_windows.yml b/.github/workflows/build_windows.yml
+index 551013f..1e681ac 100644
+--- a/.github/workflows/build_windows.yml
++++ b/.github/workflows/build_windows.yml
+@@ -14,6 +14,7 @@ on:
+       - 'release/**'
+       - 'برنامج-مخصص-لوندوز-١٠-و-١١'
+       - 'برنامج-مخصص-لوندوز-٧'
++      - 'arena/**'
+ 
+ jobs:
+   build:
+@@ -42,7 +43,19 @@ jobs:
+         run: flutter pub get
+ 
+       - name: Analyze Dart and Flutter Sources
+-        run: flutter analyze --no-fatal-infos
++        shell: pwsh
++        run: |
++          $out = flutter analyze --no-fatal-infos 2>&1
++          $code = $LASTEXITCODE
++          $out | ForEach-Object { Write-Host $_ }
++          if ($code -ne 0) {
++            $errors = ($out | Where-Object { $_ -match 'error -|warning -' }) -join " | "
++            if ([string]::IsNullOrWhiteSpace($errors)) {
++              $errors = ($out | Select-Object -Last 15) -join " | "
++            }
++            Write-Host "::error title=FlutterAnalyze::$errors"
++            exit $code
++          }
+ 
+       - name: Run Flutter Tests
+         shell: pwsh
+@@ -50,7 +63,27 @@ jobs:
+           $testFiles = Get-ChildItem -Path test -Recurse -Filter '*_test.dart' |
+             Where-Object { $_.Name -ne 'backup_service_benchmark_test.dart' } |
+             ForEach-Object { $_.FullName }
+-          flutter test @testFiles
++          $out = flutter test --machine @testFiles 2>&1
++          $code = $LASTEXITCODE
++          $out | ForEach-Object { Write-Host $_ }
++          $events = @($out | ForEach-Object {
++            try { $_.ToString() | ConvertFrom-Json -ErrorAction Stop } catch { }
++          })
++          $completed = @($events | Where-Object {
++            $_.type -eq 'testDone' -and -not $_.hidden -and -not $_.skipped
++          })
++          $passed = @($completed | Where-Object { $_.result -eq 'success' }).Count
++          $failed = @($completed | Where-Object { $_.result -ne 'success' }).Count
++          $skipped = @($events | Where-Object {
++            $_.type -eq 'testDone' -and $_.skipped -and -not $_.hidden
++          }).Count
++          Write-Host ('::warning title=Executed test results::Passed={0}; Failed={1}; Skipped={2}' -f $passed, $failed, $skipped)
++          if ($passed -eq 0) { throw 'No completed tests recorded' }
++          if ($code -ne 0) {
++            $failLines = ($out | Where-Object { $_ -match 'Exception|Error|Expected|Actual|failed|══' } | Select-Object -First 25) -join " | "
++            Write-Host "::error title=FlutterTest::$failLines"
++            exit $code
++          }
+ 
+       - name: Build Windows Release
+         run: flutter build windows --release --target=lib/main_windows.dart
+diff --git a/FIRST_RUN_SETUP.md b/FIRST_RUN_SETUP.md
+index 15eba51..4284348 100644
+--- a/FIRST_RUN_SETUP.md
++++ b/FIRST_RUN_SETUP.md
+@@ -123,16 +123,33 @@ lib/features/management/presentation/pages/home_shell.dart
+ | `test/features/setup/domain/setup_validation_test.dart` | تحقق كل حقل من حقول المعالج |
+ | `test/core/services/app_backup_service_test.dart` | تصدير/استيراد مقطع `appConfig` مع قاعدة البيانات، واستيراد نسخة قديمة |
+ | `test/core/services/backup_service_consecutiveness_test.dart` | حفظ/استعادة إعدادات المدرسة والمدير وقيود المواد، وتوافق النسخ القديمة |
++| `test/core/models/weekly_load_policy_test.dart` | السياسة العامة (`30 حصة لجميع الصفوف` / `الخطة الدراسية الرسمية`)، القيم الافتراضية وتعديلها، تخصيص الصف، والتوزيع اليومي (30/31/33) |
++| `test/features/timetable/domain/usecases/weekly_load_timetable_integration_test.dart` | التحقق المسبق وتوليد الجدول والإصلاح التلقائي لـ 30 و31 و33 حصة |
++| `test/features/setup/first_run_setup_page_test.dart` | واجهة الإعداد الأولي وحفظ سياسة الحصص الأسبوعية |
+ 
+ ## ٥) النسخ الاحتياطي والاستعادة
+ 
+ - **التصدير** يضم الآن:
+   - `settings`: اسم المدرسة واسم المدير (إضافة إلى الإعدادات السابقة).
++  - `classrooms`: بيانات الصف مع التخصيص الأسبوعي الاختياري (`weeklyLessonsOverride` و`dailyPeriodsOverride`).
+   - `subjectConstraints`: كل قيود المواد كما هي في قاعدة البيانات (تلقائية أو يدوية).
+-  - `appConfig`: اكتمال الإعداد الأولي، المرحلة الدراسية، سجلّ القيود التلقائية المُدارة، ومفاتيح ما حذفه المستخدم.
+-- **الاستيراد** متوافق خلفيًا: المقاطع الثلاثة كلها اختيارية، فالنسخة القديمة التي لا
++  - `appConfig`: اكتمال الإعداد الأولي، المرحلة الدراسية، السياسة العامة للحصص الأسبوعية (`weeklyLoadMode`)، بيانات الخطة الدراسية الرسمية (`officialWeeklyPlan`)، سجلّ القيود التلقائية المُدارة، ومفاتيح ما حذفه المستخدم.
++- **الاستيراد** متوافق خلفيًا: المقاطع كلها اختيارية، فالنسخة القديمة التي لا
+   تحتويها تُستورد كما هي، ويبقى ملف الإعدادات الحالي دون مساس.
+ - بعد استيراد ناجح تُبطَل حالة الإعدادات في الواجهة (`appConfigNotifierProvider`) لتُقرأ
+-  المرحلة وسجلّ القيود من النسخة المستوردة فورًا.
++  المرحلة وسياسة الحصص وسجلّ القيود من النسخة المستوردة فورًا.
++
++## ٦) سياسة الحصص الأسبوعية والتوزيع اليومي
++
++- **الخياران العامان (`WeeklyLoadMode`)**:
++  - `30 حصة لجميع الصفوف` (`uniform30`)
++  - `الخطة الدراسية الرسمية` (`officialPlan`) — بدون ربط بأي سنة دراسية في الكود أو التخزين أو الواجهة.
++- **القيم الافتراضية القابلة للتعديل (`OfficialWeeklyPlan`)**:
++  - الابتدائي: الأول–الخامس `30`، السادس `31`
++  - المتوسط: الأول–الثالث `30`
++  - الإعدادي العلمي: الرابع–الخامس `30`، السادس `33`
++  - الإعدادي الأدبي: الرابع `30`، الخامس–السادس `31`
++- **تخصيص الصف الاختياري (`ClassroomWeeklyOverride`)**:
++  - كل صف يتبع الإعداد العام افتراضيًا (`weeklyLessonsOverride == null`)، ويمكن تفعيل تخصيص مستقل لعدد الحصص الأسبوعية وتوزيع الحصص الإضافية على أيام الدوام.
+ 
+ </div>
+diff --git a/docs/weekday-mapping-audit.md b/docs/weekday-mapping-audit.md
+new file mode 100644
+index 0000000..d01163f
+--- /dev/null
++++ b/docs/weekday-mapping-audit.md
+@@ -0,0 +1,47 @@
++# Weekday identity stabilization
++
++Baseline: b803ee2323523c359f4c75cc33b0c36dd3f07c65.
++
++## Canonical persisted mapping
++
++`Weekday` in `lib/core/models/weekly_load_policy.dart` remains unchanged:
++0 Sunday / الأحد, 1 Monday / الإثنين, 2 Tuesday / الثلاثاء,
++3 Wednesday / الأربعاء, 4 Thursday / الخميس, 5 Friday / الجمعة,
++6 Saturday / السبت. Six working days are Sunday–Friday; seven add Saturday.
++
++## Consumer audit
++
++- Classroom custom-day chips and preview already use `Weekday.workingDays`,
++  `indexPosition`, and `arabicLabel`; no remapping needed.
++- `DailyDistribution` and `EffectiveWeeklyConfig.weekdayPeriods` already use
++  the same enum for index ↔ weekday conversion.
++- Both timetable views, both PDF table layouts, and Excel now use
++  `timetableDayLabels` in the existing shared display utility. It delegates to
++  `Weekday.workingDays`, eliminating the swapped Friday/Saturday arrays.
++- Teacher availability now uses Weekday too, including six/seven-day settings;
++  saved unavailable-day values remain unchanged. Previously the UI only named
++  the first five days.
++- Lessons, teacher availability, generator, prevalidation, smart repair,
++  interaction index, and backup/restore store/use integer indices without any
++  independent Friday/Saturday conversion. No persistence or scheduling rewrite.
++- The unused `AppConstants.daysOfWeek` is a historical five-day constant whose
++  labels agree with the first five canonical days. It has no production callers;
++  its public const API is preserved, not repurposed as a configurable calendar.
++- Tracked `.dart.orig` files are historical backups, not compiled Dart sources;
++  their five-day lists were not edited.
++
++## Regression coverage
++
++- Fixed literal expectations for all seven indices, especially Friday=5 and
++  Saturday=6, independent of the enum under test.
++- Shared UI/PDF/Excel adapter checked for six and seven working days.
++- Friday/Saturday extra-day customization checked through effective config,
++  index/map round-trip, classroom DTO and interaction capacity and detail labels.
++- Wiring guard ensures all three renderers consume the tested adapter and do
++  not reintroduce private Friday/Saturday label arrays.
++- Actual XLSX generation and decoding from persisted Isar classroom/lesson data
++  checks lesson cells against literal day headings for six and seven days.
++- Existing uniform30 SmartAutoFix behavior and legacy Isar upgrade tests remain
++  unchanged. No Isar schema or generated production file changed in this fix.
++
++The unrelated First Run wording change was reverted to «أو حذفها».
+diff --git a/docs/weekly-load-generated-code-audit.md b/docs/weekly-load-generated-code-audit.md
+new file mode 100644
+index 0000000..622f44b
+--- /dev/null
++++ b/docs/weekly-load-generated-code-audit.md
+@@ -0,0 +1,24 @@
++# Classroom generated-code audit
++
++Scope: `classroom.dart` and `classroom.g.dart` at 7591c6d, unchanged by this audit.
++
++- `weeklyLessonsOverride`: nullable Dart int; Isar long; writer.writeLong and
++  reader.readLongOrNull at offset 3; deserializeProp case 3 matches.
++- `dailyPeriodsOverride`: nullable List<int> (non-null elements); Isar longList;
++  writer.writeLongList and reader.readLongList at offset 0; deserializeProp case
++  0 matches. Size estimator includes 3 bytes plus 8 bytes per element.
++- Existing grade/name use offsets 1/2 consistently in serializer, deserializer,
++  property reader and size estimator. Query helpers address properties by name.
++- Collection name, collection ID, object ID and attach behavior are unchanged.
++- Computed hasWeeklyOverride/weeklyOverride are ignored, not persisted twice.
++- The real old-schema database reopen/edit/reopen test verifies persistence and
++  null defaults, not merely JSON conversion.
++
++The file is **not a complete fresh generator output**: filter/sort/distinct/
++property query helpers for the two new fields are absent. Production code reads
++and writes those fields on Classroom objects and does not call query helpers for
++these fields (verified by source search). This does not affect the collection
++schema or serialization; no generated change is required for existing usage.
++A future feature querying these properties should regenerate with the project's
++compatible generator toolchain. No build_runner step was added to CI, and no
++schema/generated file was changed during this audit.
+diff --git a/lib/core/entities/classroom_entity.dart b/lib/core/entities/classroom_entity.dart
+index 2415f75..faa8fdd 100644
+--- a/lib/core/entities/classroom_entity.dart
++++ b/lib/core/entities/classroom_entity.dart
+@@ -1,21 +1,83 @@
+ import '../models/classroom.dart';
++import '../models/weekly_load_policy.dart';
++import 'app_settings_entity.dart';
+ 
+ class ClassroomEntity {
+   final int id;
+   final String name;
+   final String grade;
++  final int? weeklyTarget;
++  final List<int>? dailyPeriods;
+ 
+   ClassroomEntity({
+     required this.id,
+     required this.name,
+     required this.grade,
+-  });
++    this.weeklyTarget,
++    List<int>? dailyPeriods,
++  }) : dailyPeriods = dailyPeriods == null
++            ? null
++            : List<int>.unmodifiable(dailyPeriods);
++
++  factory ClassroomEntity.fromIsar(
++    Classroom classroom, {
++    EffectiveWeeklyConfig? effectiveConfig,
++  }) {
++    if (effectiveConfig != null) {
++      return ClassroomEntity(
++        id: classroom.id,
++        name: classroom.name,
++        grade: classroom.grade,
++        weeklyTarget: effectiveConfig.weeklyTarget,
++        dailyPeriods: effectiveConfig.dailyPeriods,
++      );
++    }
+ 
+-  factory ClassroomEntity.fromIsar(Classroom classroom) {
+     return ClassroomEntity(
+       id: classroom.id,
+       name: classroom.name,
+       grade: classroom.grade,
++      weeklyTarget: classroom.weeklyLessonsOverride,
++      dailyPeriods: classroom.dailyPeriodsOverride,
+     );
+   }
++
++  /// السعة الأسبوعية الفعلية للصف.
++  ///
++  /// تعتمد على [weeklyTarget] (أو مجموع [dailyPeriods]) عند توفّره،
++  /// وتعود إلى `settings.periodsPerDay * settings.daysPerWeek` فقط عند
++  /// عدم تزويد أي إعداد أسبوعي (للتوافق الخلفي مع البيانات/الاختبارات القديمة).
++  int resolveWeeklyCapacity(AppSettingsEntity settings) {
++    if (weeklyTarget != null) {
++      return weeklyTarget!;
++    }
++    if (dailyPeriods != null) {
++      return dailyPeriods!.fold<int>(0, (sum, p) => sum + p);
++    }
++    final safeDays = settings.daysPerWeek < 1 ? 5 : settings.daysPerWeek;
++    final safePeriods = settings.periodsPerDay < 1 ? 1 : settings.periodsPerDay;
++    return safeDays * safePeriods;
++  }
++
++  /// التوزيع اليومي الفعلي للحصص على أيام الدوام.
++  List<int> resolveDailyPeriods(AppSettingsEntity settings) {
++    final safeDays = settings.daysPerWeek < 1 ? 5 : settings.daysPerWeek;
++    if (dailyPeriods != null) {
++      return dailyPeriods!;
++    }
++    if (weeklyTarget != null) {
++      return DailyDistribution.buildAutomatic(weeklyTarget!, safeDays);
++    }
++    final safePeriods = settings.periodsPerDay < 1 ? 1 : settings.periodsPerDay;
++    return List<int>.filled(safeDays, safePeriods, growable: false);
++  }
++
++  /// عدد الحصص المتاحة لهذا الصف في يوم معيّن.
++  int periodsForDay(int dayIndex, AppSettingsEntity settings) {
++    final resolved = resolveDailyPeriods(settings);
++    if (dayIndex < 0 || dayIndex >= resolved.length) {
++      return 0;
++    }
++    return resolved[dayIndex];
++  }
+ }
+diff --git a/lib/core/models/app_config.dart b/lib/core/models/app_config.dart
+index df5c22c..3f3d114 100644
+--- a/lib/core/models/app_config.dart
++++ b/lib/core/models/app_config.dart
+@@ -1,12 +1,14 @@
+ import 'package:flutter/foundation.dart';
+ 
++import 'classroom.dart';
+ import 'school_stage.dart';
++import 'weekly_load_policy.dart';
+ 
+ /// إعدادات المنصة العامة التي تُخزَّن في ملف JSON مستقل عن قاعدة البيانات.
+ ///
+ /// لماذا ملف مستقل بدل مجموعة Isar جديدة؟
+-/// * هذه بيانات وصفية (أول تشغيل، المرحلة، سجلّ القيود التوليدية) ولا حاجة
+-///   لاستعلامها أو فرزها داخل قاعدة البيانات.
++/// * هذه بيانات وصفية (أول تشغيل، المرحلة، سياسة الحصص الأسبوعية، الخطة الرسمية،
++///   وسجلّ القيود التوليدية) ولا حاجة لاستعلامها أو فرزها داخل قاعدة البيانات.
+ /// * تفاديًا لأي هجرة مخطط (schema migration) على بيانات المستخدمين
+ ///   الحاليين، خصوصًا أن قيود المواد نفسها تبقى في Isar وتُقرأ كما هي.
+ ///
+@@ -18,6 +20,8 @@ class AppConfig {
+     required this.schoolStage,
+     required this.managedAutoConstraints,
+     required this.dismissedAutoConstraints,
++    this.weeklyLoadMode = WeeklyLoadMode.fallback,
++    this.officialWeeklyPlan = const OfficialWeeklyPlan.standard(),
+   });
+ 
+   /// الحالة الافتراضية: لم يُكمل المستخدم الإعداد الأولي بعد.
+@@ -27,16 +31,20 @@ class AppConfig {
+       schoolStage: SchoolStage.fallback,
+       managedAutoConstraints: <String, int>{},
+       dismissedAutoConstraints: <String>{},
++      weeklyLoadMode: WeeklyLoadMode.fallback,
++      officialWeeklyPlan: OfficialWeeklyPlan.standard(),
+     );
+   }
+ 
+   /// صيغة التخزين الحالية؛ تُستخدم لتمييز الملفات القديمة عند التوسعة.
+-  static const int currentSchemaVersion = 1;
++  static const int currentSchemaVersion = 2;
+ 
+   static const String _setupKey = 'isSetupCompleted';
+   static const String _stageKey = 'schoolStage';
+   static const String _managedKey = 'managedAutoConstraints';
+   static const String _dismissedKey = 'dismissedAutoConstraints';
++  static const String _weeklyLoadModeKey = 'weeklyLoadMode';
++  static const String _officialWeeklyPlanKey = 'officialWeeklyPlan';
+   static const String _versionKey = 'schemaVersion';
+ 
+   /// هل أتمّ المستخدم الإعداد الأولي (البيانات الإلزامية + المرحلة)؟
+@@ -45,6 +53,12 @@ class AppConfig {
+   /// المرحلة الدراسية المختارة.
+   final SchoolStage schoolStage;
+ 
++  /// السياسة العامة لتحديد عدد الحصص الأسبوعية للصفوف.
++  final WeeklyLoadMode weeklyLoadMode;
++
++  /// بيانات الخطة الدراسية الرسمية القابلة للتعديل.
++  final OfficialWeeklyPlan officialWeeklyPlan;
++
+   /// القيود التي أنشأها نظام المزامنة التلقائي للمرحلة الابتدائية.
+   /// المفتاح هو [SubjectConstraintKey.storageKey] والقيمة هي الحد اليومي
+   /// الذي كتبته المزامنة، فإذا تغيّرت القيمة يدويًا يُعتبر القيد ملكًا
+@@ -56,15 +70,35 @@ class AppConfig {
+ 
+   int get schemaVersion => currentSchemaVersion;
+ 
++  /// يحسب الإعداد الأسبوعي الفعلي لصف معيّن بناءً على السياسة العامة وتخصيص الصف.
++  EffectiveWeeklyConfig resolveWeeklyConfigForClassroom(
++    Classroom classroom, {
++    required int daysPerWeek,
++    int dailyMaximum = WeeklyLoadValidator.defaultDailyMaximum,
++  }) {
++    return WeeklyLoadResolver.resolveForClassroom(
++      classroom: classroom,
++      mode: weeklyLoadMode,
++      officialPlan: officialWeeklyPlan,
++      schoolStage: schoolStage,
++      daysPerWeek: daysPerWeek,
++      dailyMaximum: dailyMaximum,
++    );
++  }
++
+   AppConfig copyWith({
+     bool? isSetupCompleted,
+     SchoolStage? schoolStage,
++    WeeklyLoadMode? weeklyLoadMode,
++    OfficialWeeklyPlan? officialWeeklyPlan,
+     Map<String, int>? managedAutoConstraints,
+     Set<String>? dismissedAutoConstraints,
+   }) {
+     return AppConfig(
+       isSetupCompleted: isSetupCompleted ?? this.isSetupCompleted,
+       schoolStage: schoolStage ?? this.schoolStage,
++      weeklyLoadMode: weeklyLoadMode ?? this.weeklyLoadMode,
++      officialWeeklyPlan: officialWeeklyPlan ?? this.officialWeeklyPlan,
+       managedAutoConstraints:
+           managedAutoConstraints ?? this.managedAutoConstraints,
+       dismissedAutoConstraints:
+@@ -77,6 +111,8 @@ class AppConfig {
+       _versionKey: currentSchemaVersion,
+       _setupKey: isSetupCompleted,
+       _stageKey: schoolStage.storageName,
++      _weeklyLoadModeKey: weeklyLoadMode.storageName,
++      _officialWeeklyPlanKey: officialWeeklyPlan.toJson(),
+       _managedKey: Map<String, int>.from(managedAutoConstraints),
+       _dismissedKey: dismissedAutoConstraints.toList(),
+     };
+@@ -86,6 +122,9 @@ class AppConfig {
+     return AppConfig(
+       isSetupCompleted: json[_setupKey] == true,
+       schoolStage: SchoolStage.fromStorage(json[_stageKey]),
++      weeklyLoadMode: WeeklyLoadMode.fromStorage(json[_weeklyLoadModeKey]),
++      officialWeeklyPlan:
++          OfficialWeeklyPlan.fromJson(json[_officialWeeklyPlanKey]),
+       managedAutoConstraints: _decodeManaged(json[_managedKey]),
+       dismissedAutoConstraints: _decodeDismissed(json[_dismissedKey]),
+     );
+@@ -121,6 +160,8 @@ class AppConfig {
+     return other is AppConfig &&
+         other.isSetupCompleted == isSetupCompleted &&
+         other.schoolStage == schoolStage &&
++        other.weeklyLoadMode == weeklyLoadMode &&
++        other.officialWeeklyPlan == officialWeeklyPlan &&
+         mapEquals(other.managedAutoConstraints, managedAutoConstraints) &&
+         setEquals(other.dismissedAutoConstraints, dismissedAutoConstraints);
+   }
+@@ -129,6 +170,8 @@ class AppConfig {
+   int get hashCode => Object.hash(
+         isSetupCompleted,
+         schoolStage,
++        weeklyLoadMode,
++        officialWeeklyPlan,
+         Object.hashAllUnordered(managedAutoConstraints.entries
+             .map((entry) => Object.hash(entry.key, entry.value))),
+         Object.hashAllUnordered(dismissedAutoConstraints),
+@@ -137,6 +180,7 @@ class AppConfig {
+   @override
+   String toString() {
+     return 'AppConfig(setup: $isSetupCompleted, stage: ${schoolStage.name}, '
++        'weeklyMode: ${weeklyLoadMode.name}, '
+         'managed: ${managedAutoConstraints.length}, '
+         'dismissed: ${dismissedAutoConstraints.length})';
+   }
+diff --git a/lib/core/models/classroom.dart b/lib/core/models/classroom.dart
+index 780b227..b774190 100644
+--- a/lib/core/models/classroom.dart
++++ b/lib/core/models/classroom.dart
+@@ -1,5 +1,7 @@
+ import 'package:isar/isar.dart';
+ 
++import 'weekly_load_policy.dart';
++
+ part 'classroom.g.dart';
+ 
+ @collection
+@@ -11,4 +13,42 @@ class Classroom {
+ 
+   /// E.g., "الصف الأول"
+   late String grade;
++
++  /// تخصيص اختياري لعدد الحصص الأسبوعية لهذا الصف (`null` = استخدام الإعداد العام).
++  int? weeklyLessonsOverride;
++
++  /// تخصيص اختياري لتوزيع الحصص على أيام الدوام (`null` = توزيع تلقائي).
++  List<int>? dailyPeriodsOverride;
++
++  /// هل يملك الصف تخصيصًا مستقلًا عن الإعداد العام؟
++  @ignore
++  bool get hasWeeklyOverride =>
++      weeklyLessonsOverride != null && weeklyLessonsOverride! > 0;
++
++  /// قراءة أو تعيين التخصيص الأسبوعي الاختياري كـ Value Object.
++  @ignore
++  ClassroomWeeklyOverride? get weeklyOverride {
++    final weekly = weeklyLessonsOverride;
++    if (weekly == null || weekly <= 0) {
++      return null;
++    }
++    return ClassroomWeeklyOverride(
++      weeklyLessons: weekly,
++      dailyPeriods: dailyPeriodsOverride == null
++          ? null
++          : List<int>.from(dailyPeriodsOverride!),
++    );
++  }
++
++  set weeklyOverride(ClassroomWeeklyOverride? value) {
++    if (value == null) {
++      weeklyLessonsOverride = null;
++      dailyPeriodsOverride = null;
++      return;
++    }
++    weeklyLessonsOverride = value.weeklyLessons;
++    dailyPeriodsOverride = value.dailyPeriods == null
++        ? null
++        : List<int>.from(value.dailyPeriods!);
++  }
+ }
+diff --git a/lib/core/models/classroom.g.dart b/lib/core/models/classroom.g.dart
+index 6a3d87e..3bb22ba 100644
+--- a/lib/core/models/classroom.g.dart
++++ b/lib/core/models/classroom.g.dart
+@@ -17,15 +17,25 @@ const ClassroomSchema = CollectionSchema(
+   name: r'Classroom',
+   id: -8186663030834931469,
+   properties: {
+-    r'grade': PropertySchema(
++    r'dailyPeriodsOverride': PropertySchema(
+       id: 0,
++      name: r'dailyPeriodsOverride',
++      type: IsarType.longList,
++    ),
++    r'grade': PropertySchema(
++      id: 1,
+       name: r'grade',
+       type: IsarType.string,
+     ),
+     r'name': PropertySchema(
+-      id: 1,
++      id: 2,
+       name: r'name',
+       type: IsarType.string,
++    ),
++    r'weeklyLessonsOverride': PropertySchema(
++      id: 3,
++      name: r'weeklyLessonsOverride',
++      type: IsarType.long,
+     )
+   },
+   estimateSize: _classroomEstimateSize,
+@@ -48,6 +58,12 @@ int _classroomEstimateSize(
+   Map<Type, List<int>> allOffsets,
+ ) {
+   var bytesCount = offsets.last;
++  {
++    final list = object.dailyPeriodsOverride;
++    if (list != null) {
++      bytesCount += 3 + list.length * 8;
++    }
++  }
+   bytesCount += 3 + object.grade.length * 3;
+   bytesCount += 3 + object.name.length * 3;
+   return bytesCount;
+@@ -59,8 +75,10 @@ void _classroomSerialize(
+   List<int> offsets,
+   Map<Type, List<int>> allOffsets,
+ ) {
+-  writer.writeString(offsets[0], object.grade);
+-  writer.writeString(offsets[1], object.name);
++  writer.writeLongList(offsets[0], object.dailyPeriodsOverride);
++  writer.writeString(offsets[1], object.grade);
++  writer.writeString(offsets[2], object.name);
++  writer.writeLong(offsets[3], object.weeklyLessonsOverride);
+ }
+ 
+ Classroom _classroomDeserialize(
+@@ -70,9 +88,11 @@ Classroom _classroomDeserialize(
+   Map<Type, List<int>> allOffsets,
+ ) {
+   final object = Classroom();
+-  object.grade = reader.readString(offsets[0]);
++  object.dailyPeriodsOverride = reader.readLongList(offsets[0]);
++  object.grade = reader.readString(offsets[1]);
+   object.id = id;
+-  object.name = reader.readString(offsets[1]);
++  object.name = reader.readString(offsets[2]);
++  object.weeklyLessonsOverride = reader.readLongOrNull(offsets[3]);
+   return object;
+ }
+ 
+@@ -84,9 +104,13 @@ P _classroomDeserializeProp<P>(
+ ) {
+   switch (propertyId) {
+     case 0:
+-      return (reader.readString(offset)) as P;
++      return (reader.readLongList(offset)) as P;
+     case 1:
+       return (reader.readString(offset)) as P;
++    case 2:
++      return (reader.readString(offset)) as P;
++    case 3:
++      return (reader.readLongOrNull(offset)) as P;
+     default:
+       throw IsarError('Unknown property with id $propertyId');
+   }
+diff --git a/lib/core/models/weekly_load_policy.dart b/lib/core/models/weekly_load_policy.dart
+new file mode 100644
+index 0000000..0c5cd50
+--- /dev/null
++++ b/lib/core/models/weekly_load_policy.dart
+@@ -0,0 +1,849 @@
++import 'dart:math';
++
++import 'package:flutter/foundation.dart';
++
++import 'classroom.dart';
++import 'school_stage.dart';
++
++/// أيام الأسبوع المعتمدة في الجدول المدرسي (تبدأ من الأحد = 0).
++enum Weekday {
++  sunday(indexPosition: 0, arabicLabel: 'الأحد'),
++  monday(indexPosition: 1, arabicLabel: 'الإثنين'),
++  tuesday(indexPosition: 2, arabicLabel: 'الثلاثاء'),
++  wednesday(indexPosition: 3, arabicLabel: 'الأربعاء'),
++  thursday(indexPosition: 4, arabicLabel: 'الخميس'),
++  friday(indexPosition: 5, arabicLabel: 'الجمعة'),
++  saturday(indexPosition: 6, arabicLabel: 'السبت');
++
++  const Weekday({
++    required this.indexPosition,
++    required this.arabicLabel,
++  });
++
++  final int indexPosition;
++  final String arabicLabel;
++
++  static Weekday fromDayIndex(int dayIndex) {
++    for (final day in Weekday.values) {
++      if (day.indexPosition == dayIndex) {
++        return day;
++      }
++    }
++    return Weekday.sunday;
++  }
++
++  static List<Weekday> workingDays(int daysPerWeek) {
++    final count = daysPerWeek.clamp(1, Weekday.values.length);
++    return Weekday.values.take(count).toList(growable: false);
++  }
++}
++
++/// السياسة العامة لتحديد عدد الحصص الأسبوعية للصفوف.
++enum WeeklyLoadMode {
++  uniform30(
++    label: '30 حصة لجميع الصفوف',
++    description:
++        'اعتماد 30 حصة أسبوعيًا كإعداد عام لجميع الصفوف، مع إمكانية التخصيص الاختياري لكل صف.',
++  ),
++  officialPlan(
++    label: 'الخطة الدراسية الرسمية',
++    description:
++        'اعتماد عدد الحصص الافتراضي حسب الخطة الدراسية الرسمية للمرحلة والصف، مع قابلية تعديلها.',
++  );
++
++  const WeeklyLoadMode({
++    required this.label,
++    required this.description,
++  });
++
++  final String label;
++  final String description;
++
++  String get storageName => name;
++
++  /// السلوك الافتراضي المتوافق مع البيانات السابقة.
++  static const WeeklyLoadMode fallback = WeeklyLoadMode.uniform30;
++
++  static WeeklyLoadMode fromStorage(Object? value) {
++    for (final mode in WeeklyLoadMode.values) {
++      if (mode.name == value) {
++        return mode;
++      }
++    }
++    return fallback;
++  }
++}
++
++/// المسارات/المراحل المعتمدة في الخطة الدراسية الرسمية.
++enum OfficialPlanTrack {
++  primary(
++    label: 'ابتدائي',
++    grades: <AcademicGrade>[
++      AcademicGrade.first,
++      AcademicGrade.second,
++      AcademicGrade.third,
++      AcademicGrade.fourth,
++      AcademicGrade.fifth,
++      AcademicGrade.sixth,
++    ],
++  ),
++  middle(
++    label: 'متوسط',
++    grades: <AcademicGrade>[
++      AcademicGrade.first,
++      AcademicGrade.second,
++      AcademicGrade.third,
++    ],
++  ),
++  preparatoryScientific(
++    label: 'إعدادي علمي',
++    grades: <AcademicGrade>[
++      AcademicGrade.fourth,
++      AcademicGrade.fifth,
++      AcademicGrade.sixth,
++    ],
++  ),
++  preparatoryLiterary(
++    label: 'إعدادي أدبي',
++    grades: <AcademicGrade>[
++      AcademicGrade.fourth,
++      AcademicGrade.fifth,
++      AcademicGrade.sixth,
++    ],
++  );
++
++  const OfficialPlanTrack({
++    required this.label,
++    required this.grades,
++  });
++
++  final String label;
++  final List<AcademicGrade> grades;
++
++  String get storageKey => name;
++
++  static OfficialPlanTrack? fromStorage(Object? value) {
++    for (final track in OfficialPlanTrack.values) {
++      if (track.name == value) {
++        return track;
++      }
++    }
++    return null;
++  }
++
++  /// يستنتج المسار الدراسي من بيانات الصف والمرحلة المختارة في إعدادات التطبيق.
++  static OfficialPlanTrack resolve({
++    required String gradeText,
++    String nameText = '',
++    required SchoolStage schoolStage,
++    required AcademicGrade academicGrade,
++  }) {
++    final normalized = _normalizeArabic('$gradeText $nameText');
++
++    if (normalized.contains('ادبي')) {
++      return OfficialPlanTrack.preparatoryLiterary;
++    }
++    if (normalized.contains('علمي')) {
++      return OfficialPlanTrack.preparatoryScientific;
++    }
++    if (normalized.contains('ابتداي') || normalized.contains('ابتدائي')) {
++      return OfficialPlanTrack.primary;
++    }
++    if (normalized.contains('متوسط')) {
++      if (OfficialPlanTrack.middle.grades.contains(academicGrade)) {
++        return OfficialPlanTrack.middle;
++      }
++    }
++    if (normalized.contains('اعدادي')) {
++      return OfficialPlanTrack.preparatoryScientific;
++    }
++
++    if (schoolStage == SchoolStage.primary) {
++      return OfficialPlanTrack.primary;
++    }
++
++    // في مرحلة «متوسط فأعلى»: الصفوف ١-٣ متوسطة، والصفوف ٤-٦ إعدادية.
++    if (OfficialPlanTrack.middle.grades.contains(academicGrade)) {
++      return OfficialPlanTrack.middle;
++    }
++    return OfficialPlanTrack.preparatoryScientific;
++  }
++}
++
++/// الصفوف الدراسية من الأول إلى السادس.
++enum AcademicGrade {
++  first(label: 'الأول', order: 1),
++  second(label: 'الثاني', order: 2),
++  third(label: 'الثالث', order: 3),
++  fourth(label: 'الرابع', order: 4),
++  fifth(label: 'الخامس', order: 5),
++  sixth(label: 'السادس', order: 6);
++
++  const AcademicGrade({
++    required this.label,
++    required this.order,
++  });
++
++  final String label;
++  final int order;
++
++  String get storageKey => name;
++
++  static AcademicGrade? fromStorage(Object? value) {
++    for (final grade in AcademicGrade.values) {
++      if (grade.name == value) {
++        return grade;
++      }
++    }
++    return null;
++  }
++
++  /// يستخرج الصف الدراسي من اسم المرحلة أو اسم الشعبة (مثل «الصف السادس»، «السادس أ»، «6»).
++  static AcademicGrade? tryParse(String? raw) {
++    if (raw == null || raw.trim().isEmpty) {
++      return null;
++    }
++    final normalized = _normalizeArabic(raw);
++
++    if (normalized.contains('سادس') ||
++        RegExp(r'(^|\s|/)6(\s|/|$)').hasMatch(normalized) ||
++        normalized.contains('٦')) {
++      return AcademicGrade.sixth;
++    }
++    if (normalized.contains('خامس') ||
++        RegExp(r'(^|\s|/)5(\s|/|$)').hasMatch(normalized) ||
++        normalized.contains('٥')) {
++      return AcademicGrade.fifth;
++    }
++    if (normalized.contains('رابع') ||
++        RegExp(r'(^|\s|/)4(\s|/|$)').hasMatch(normalized) ||
++        normalized.contains('٤')) {
++      return AcademicGrade.fourth;
++    }
++    if (normalized.contains('ثالث') ||
++        RegExp(r'(^|\s|/)3(\s|/|$)').hasMatch(normalized) ||
++        normalized.contains('٣')) {
++      return AcademicGrade.third;
++    }
++    if (normalized.contains('ثاني') ||
++        RegExp(r'(^|\s|/)2(\s|/|$)').hasMatch(normalized) ||
++        normalized.contains('٢')) {
++      return AcademicGrade.second;
++    }
++    if (normalized.contains('اول') ||
++        RegExp(r'(^|\s|/)1(\s|/|$)').hasMatch(normalized) ||
++        normalized.contains('١')) {
++      return AcademicGrade.first;
++    }
++
++    return null;
++  }
++}
++
++String _normalizeArabic(String input) {
++  return input
++      .trim()
++      .replaceAll('أ', 'ا')
++      .replaceAll('إ', 'ا')
++      .replaceAll('آ', 'ا')
++      .replaceAll('ة', 'ه')
++      .replaceAll('ى', 'ي');
++}
++
++/// الخطة الدراسية الرسمية القابلة للتعديل بوصفها بيانات افتراضية (Seed Configuration).
++///
++/// غير مرتبطة بسنة دراسية محددة، ويمكن للمستخدم تعديل أي قيمة فيها من الإعدادات.
++class OfficialWeeklyPlan {
++  OfficialWeeklyPlan({
++    required Map<OfficialPlanTrack, Map<AcademicGrade, int>> table,
++  }) : _table = _normalizeTable(table);
++
++  /// القيم الافتراضية المعتمدة للخطة الدراسية الرسمية.
++  const OfficialWeeklyPlan.standard() : _table = _defaultTable;
++
++  static const int uniformDefaultLessons = 30;
++
++  static const Map<OfficialPlanTrack, Map<AcademicGrade, int>> _defaultTable =
++      <OfficialPlanTrack, Map<AcademicGrade, int>>{
++    OfficialPlanTrack.primary: <AcademicGrade, int>{
++      AcademicGrade.first: 30,
++      AcademicGrade.second: 30,
++      AcademicGrade.third: 30,
++      AcademicGrade.fourth: 30,
++      AcademicGrade.fifth: 30,
++      AcademicGrade.sixth: 31,
++    },
++    OfficialPlanTrack.middle: <AcademicGrade, int>{
++      AcademicGrade.first: 30,
++      AcademicGrade.second: 30,
++      AcademicGrade.third: 30,
++    },
++    OfficialPlanTrack.preparatoryScientific: <AcademicGrade, int>{
++      AcademicGrade.fourth: 30,
++      AcademicGrade.fifth: 30,
++      AcademicGrade.sixth: 33,
++    },
++    OfficialPlanTrack.preparatoryLiterary: <AcademicGrade, int>{
++      AcademicGrade.fourth: 30,
++      AcademicGrade.fifth: 31,
++      AcademicGrade.sixth: 31,
++    },
++  };
++
++  final Map<OfficialPlanTrack, Map<AcademicGrade, int>> _table;
++
++  static Map<OfficialPlanTrack, Map<AcademicGrade, int>> _normalizeTable(
++    Map<OfficialPlanTrack, Map<AcademicGrade, int>> source,
++  ) {
++    final normalized = <OfficialPlanTrack, Map<AcademicGrade, int>>{};
++    for (final track in OfficialPlanTrack.values) {
++      final defaults = _defaultTable[track]!;
++      final incoming = source[track];
++      final trackMap = <AcademicGrade, int>{};
++      for (final grade in track.grades) {
++        final candidate = incoming?[grade];
++        trackMap[grade] = (candidate != null && candidate > 0)
++            ? candidate
++            : defaults[grade]!;
++      }
++      normalized[track] = Map<AcademicGrade, int>.unmodifiable(trackMap);
++    }
++    return Map<OfficialPlanTrack, Map<AcademicGrade, int>>.unmodifiable(
++      normalized,
++    );
++  }
++
++  /// يعيد عدد الحصص الأسبوعية لمسار وصف محددين.
++  int lessonsFor(OfficialPlanTrack track, AcademicGrade grade) {
++    return _table[track]?[grade] ??
++        _defaultTable[track]?[grade] ??
++        uniformDefaultLessons;
++  }
++
++  /// يعيد خريطة القيم الخاصة بمسار معيّن.
++  Map<AcademicGrade, int> gradesForTrack(OfficialPlanTrack track) {
++    return _table[track] ?? const <AcademicGrade, int>{};
++  }
++
++  /// ينشئ نسخة جديدة بعد تعديل نصاب صف في مسار محدد.
++  OfficialWeeklyPlan copyWithEntry({
++    required OfficialPlanTrack track,
++    required AcademicGrade grade,
++    required int weeklyLessons,
++  }) {
++    if (!track.grades.contains(grade) || weeklyLessons < 1) {
++      return this;
++    }
++
++    final next = <OfficialPlanTrack, Map<AcademicGrade, int>>{};
++    for (final currentTrack in OfficialPlanTrack.values) {
++      final currentMap = Map<AcademicGrade, int>.from(_table[currentTrack]!);
++      if (currentTrack == track) {
++        currentMap[grade] = weeklyLessons;
++      }
++      next[currentTrack] = currentMap;
++    }
++    return OfficialWeeklyPlan(table: next);
++  }
++
++  /// يحسب العدد الافتراضي للحصص الأسبوعية لصف بناءً على مرحلته واسمه.
++  int resolveForClassroom({
++    required String grade,
++    String name = '',
++    required SchoolStage schoolStage,
++  }) {
++    final academicGrade =
++        AcademicGrade.tryParse(grade) ?? AcademicGrade.tryParse(name);
++    if (academicGrade == null) {
++      return uniformDefaultLessons;
++    }
++
++    final track = OfficialPlanTrack.resolve(
++      gradeText: grade,
++      nameText: name,
++      schoolStage: schoolStage,
++      academicGrade: academicGrade,
++    );
++    return lessonsFor(track, academicGrade);
++  }
++
++  Map<String, dynamic> toJson() {
++    final json = <String, dynamic>{};
++    for (final track in OfficialPlanTrack.values) {
++      final gradesJson = <String, int>{};
++      for (final grade in track.grades) {
++        gradesJson[grade.storageKey] = lessonsFor(track, grade);
++      }
++      json[track.storageKey] = gradesJson;
++    }
++    return json;
++  }
++
++  factory OfficialWeeklyPlan.fromJson(Object? raw) {
++    if (raw is! Map) {
++      return OfficialWeeklyPlan.standard();
++    }
++
++    final table = <OfficialPlanTrack, Map<AcademicGrade, int>>{};
++    raw.forEach((trackKey, trackValue) {
++      final track = OfficialPlanTrack.fromStorage(trackKey);
++      if (track == null || trackValue is! Map) {
++        return;
++      }
++      final gradeMap = <AcademicGrade, int>{};
++      trackValue.forEach((gradeKey, lessonsValue) {
++        final grade = AcademicGrade.fromStorage(gradeKey);
++        if (grade != null && lessonsValue is num && lessonsValue.toInt() > 0) {
++          gradeMap[grade] = lessonsValue.toInt();
++        }
++      });
++      table[track] = gradeMap;
++    });
++
++    return OfficialWeeklyPlan(table: table);
++  }
++
++  @override
++  bool operator ==(Object other) {
++    if (identical(this, other)) {
++      return true;
++    }
++    if (other is! OfficialWeeklyPlan) {
++      return false;
++    }
++    for (final track in OfficialPlanTrack.values) {
++      if (!mapEquals(_table[track], other._table[track])) {
++        return false;
++      }
++    }
++    return true;
++  }
++
++  @override
++  int get hashCode => Object.hashAll(
++        OfficialPlanTrack.values.map(
++          (track) => Object.hashAll(
++            track.grades.map((grade) => Object.hash(track, grade, _table[track]![grade])),
++          ),
++        ),
++      );
++}
++
++/// تخصيص اختياري لعدد الحصص الأسبوعية وتوزيعها اليومي على مستوى صف واحد.
++class ClassroomWeeklyOverride {
++  const ClassroomWeeklyOverride({
++    required this.weeklyLessons,
++    this.dailyPeriods,
++  });
++
++  /// يبني تخصيصًا مع تحديد الأيام التي تأخذ حصة إضافية فوق المعدل اليومي الأساسي.
++  factory ClassroomWeeklyOverride.withExtraDays({
++    required int weeklyLessons,
++    required int daysPerWeek,
++    required Iterable<int> extraDays,
++  }) {
++    final distribution = DailyDistribution.buildWithElevatedDays(
++      weeklyTarget: weeklyLessons,
++      daysPerWeek: daysPerWeek,
++      elevatedDays: extraDays.toSet(),
++    );
++    return ClassroomWeeklyOverride(
++      weeklyLessons: weeklyLessons,
++      dailyPeriods: distribution,
++    );
++  }
++
++  final int weeklyLessons;
++  final List<int>? dailyPeriods;
++
++  @override
++  bool operator ==(Object other) {
++    if (identical(this, other)) {
++      return true;
++    }
++    return other is ClassroomWeeklyOverride &&
++        other.weeklyLessons == weeklyLessons &&
++        listEquals(other.dailyPeriods, dailyPeriods);
++  }
++
++  @override
++  int get hashCode => Object.hash(
++        weeklyLessons,
++        dailyPeriods == null ? null : Object.hashAll(dailyPeriods!),
++      );
++}
++
++/// بناء وتحليل التوزيع اليومي للسعة الأسبوعية بشكل عام دون حالات خاصة.
++class DailyDistribution {
++  const DailyDistribution._();
++
++  /// يوزع [weeklyTarget] على [daysPerWeek] تلقائيًا بأعلى توازن ممكن.
++  ///
++  /// أمثلة على 5 أيام:
++  /// * 30 -> [6, 6, 6, 6, 6]
++  /// * 31 -> [7, 6, 6, 6, 6]
++  /// * 33 -> [7, 7, 7, 6, 6]
++  static List<int> buildAutomatic(int weeklyTarget, int daysPerWeek) {
++    final safeDays = daysPerWeek < 1 ? 5 : daysPerWeek;
++    final safeTarget = weeklyTarget < 0 ? 0 : weeklyTarget;
++    final baseline = safeTarget ~/ safeDays;
++    final remainder = safeTarget % safeDays;
++
++    return List<int>.generate(
++      safeDays,
++      (dayIndex) => dayIndex < remainder ? baseline + 1 : baseline,
++      growable: false,
++    );
++  }
++
++  /// يوزع [weeklyTarget] على [daysPerWeek] مع منح الحصص الإضافية للأيام المحددة في [elevatedDays].
++  ///
++  /// ملاحظة معمارية: هذه الدالة تحوّل اختيار الأيام في الواجهة إلى خريطة/قائمة
++  /// حصص يومية صريحة لكل يوم (مثل `[6, 6, 7, 6, 6]`)، بحيث يعتمد الـDomain
++  /// على عدد الحصص الفعلي لكل يوم وليس على مفهوم "حصة إضافية".
++  static List<int> buildWithElevatedDays({
++    required int weeklyTarget,
++    required int daysPerWeek,
++    required Iterable<int> elevatedDays,
++  }) {
++    final safeDays = daysPerWeek < 1 ? 5 : daysPerWeek;
++    final safeTarget = weeklyTarget < 0 ? 0 : weeklyTarget;
++    final baseline = safeTarget ~/ safeDays;
++    final elevatedSet = elevatedDays.toSet();
++
++    return List<int>.generate(
++      safeDays,
++      (dayIndex) =>
++          elevatedSet.contains(dayIndex) ? baseline + 1 : baseline,
++      growable: false,
++    );
++  }
++
++  /// يستنتج مؤشرات الأيام التي تزيد عن الحد اليومي الأساسي (إن وجدت).
++  static Set<int> extractElevatedDays(List<int> dailyPeriods) {
++    if (dailyPeriods.isEmpty) {
++      return const <int>{};
++    }
++    final baseline = dailyPeriods.reduce(min);
++    final result = <int>{};
++    for (var i = 0; i < dailyPeriods.length; i++) {
++      if (dailyPeriods[i] > baseline) {
++        result.add(i);
++      }
++    }
++    return result;
++  }
++
++  /// يحول خريطة `Map<Weekday, int>` إلى قائمة مرتبة حسب أيام الدوام.
++  static List<int> fromWeekdayMap(
++    Map<Weekday, int> map, {
++    required int daysPerWeek,
++  }) {
++    final safeDays = daysPerWeek < 1 ? 5 : daysPerWeek;
++    return List<int>.generate(
++      safeDays,
++      (index) => map[Weekday.fromDayIndex(index)] ?? 0,
++      growable: false,
++    );
++  }
++
++  /// يحول قائمة الحصص اليومية إلى `Map<Weekday, int>`.
++  static Map<Weekday, int> toWeekdayMap(List<int> dailyPeriods) {
++    return <Weekday, int>{
++      for (var i = 0; i < dailyPeriods.length && i < Weekday.values.length; i++)
++        Weekday.fromDayIndex(i): dailyPeriods[i],
++    };
++  }
++}
++
++/// الإعداد الفعلي المحسوب للصف (Effective Weekly Configuration).
++///
++/// يفصل صراحةً بين ثلاثة مفاهيم:
++/// * [weeklyTarget]: عدد الحصص الأسبوعية المطلوب للصف.
++/// * [dailyBaseline]: عدد الحصص المعتاد يوميًا (الحد الأساسي).
++/// * [dailyMaximum]: الحد الأقصى المسموح به للحصص في اليوم الواحد.
++class EffectiveWeeklyConfig {
++  EffectiveWeeklyConfig({
++    required this.weeklyTarget,
++    required this.dailyBaseline,
++    required this.dailyMaximum,
++    required this.daysPerWeek,
++    required List<int> dailyPeriods,
++    required this.isOverridden,
++  }) : dailyPeriods = List<int>.unmodifiable(dailyPeriods);
++
++  /// عدد الحصص الأسبوعية الفعلي للصف (Weekly Target).
++  final int weeklyTarget;
++
++  /// عدد الحصص المعتاد يوميًا (Daily Baseline).
++  final int dailyBaseline;
++
++  /// الحد الأقصى للحصص في اليوم الواحد (Daily Maximum).
++  final int dailyMaximum;
++
++  /// عدد أيام الدوام الفعلية في الأسبوع.
++  final int daysPerWeek;
++
++  /// عدد الحصص لكل يوم دوام (من اليوم 0 إلى `daysPerWeek - 1`).
++  final List<int> dailyPeriods;
++
++  /// هل جاءت هذه الإعدادات من تخصيص خاص بالصف (`true`) أم من الإعداد العام (`false`)؟
++  final bool isOverridden;
++
++  /// تمثيل التوزيع اليومي كخريطة `Map<Weekday, int>`.
++  Map<Weekday, int> get weekdayPeriods =>
++      DailyDistribution.toWeekdayMap(dailyPeriods);
++
++  /// تمثيل التوزيع اليومي كخريطة `Map<int, int>` (رقم اليوم -> عدد الحصص).
++  Map<int, int> get dailyPeriodsByDay => <int, int>{
++        for (var i = 0; i < dailyPeriods.length; i++) i: dailyPeriods[i],
++      };
++
++  /// أعلى عدد حصص في يوم واحد ضمن هذا التوزيع.
++  int get maxDailyPeriods =>
++      dailyPeriods.isEmpty ? 0 : dailyPeriods.reduce(max);
++
++  /// مجموع الحصص اليومية.
++  int get totalDailyPeriods =>
++      dailyPeriods.fold<int>(0, (sum, item) => sum + item);
++
++  /// عدد الحصص المسموح بها في اليوم ذي الفهرس [dayIndex].
++  int periodsForDay(int dayIndex) {
++    if (dayIndex < 0 || dayIndex >= dailyPeriods.length) {
++      return 0;
++    }
++    return dailyPeriods[dayIndex];
++  }
++
++  @override
++  bool operator ==(Object other) {
++    if (identical(this, other)) {
++      return true;
++    }
++    return other is EffectiveWeeklyConfig &&
++        other.weeklyTarget == weeklyTarget &&
++        other.dailyBaseline == dailyBaseline &&
++        other.dailyMaximum == dailyMaximum &&
++        other.daysPerWeek == daysPerWeek &&
++        other.isOverridden == isOverridden &&
++        listEquals(other.dailyPeriods, dailyPeriods);
++  }
++
++  @override
++  int get hashCode => Object.hash(
++        weeklyTarget,
++        dailyBaseline,
++        dailyMaximum,
++        daysPerWeek,
++        isOverridden,
++        Object.hashAll(dailyPeriods),
++      );
++}
++
++/// نتيجة التحقق من صحة إعداد الحصص الأسبوعية وتوزيعها اليومي.
++class WeeklyLoadValidationResult {
++  const WeeklyLoadValidationResult._({
++    required this.isValid,
++    this.errorMessage,
++  });
++
++  const WeeklyLoadValidationResult.valid() : this._(isValid: true);
++
++  const WeeklyLoadValidationResult.invalid(String message)
++      : this._(isValid: false, errorMessage: message);
++
++  final bool isValid;
++  final String? errorMessage;
++}
++
++/// التحقق على مستوى الـDomain من صحة عدد الحصص الأسبوعية وتوزيعها اليومي.
++class WeeklyLoadValidator {
++  const WeeklyLoadValidator._();
++
++  static const int minDaysPerWeek = 1;
++  static const int maxDaysPerWeek = 7;
++  static const int defaultDailyMaximum = 12;
++
++  /// يتحقق من توافق [weeklyTarget] مع [dailyPeriods] وأيام الدوام والحد اليومي الأقصى.
++  static WeeklyLoadValidationResult validate({
++    required int weeklyTarget,
++    required int daysPerWeek,
++    required List<int> dailyPeriods,
++    int dailyMaximum = defaultDailyMaximum,
++  }) {
++    if (daysPerWeek < minDaysPerWeek || daysPerWeek > maxDaysPerWeek) {
++      return WeeklyLoadValidationResult.invalid(
++        'عدد أيام الدوام ($daysPerWeek) غير صالح. يجب أن يكون بين $minDaysPerWeek و $maxDaysPerWeek.',
++      );
++    }
++
++    if (weeklyTarget < 1) {
++      return const WeeklyLoadValidationResult.invalid(
++        'عدد الحصص الأسبوعية يجب أن يكون أكبر من صفر.',
++      );
++    }
++
++    if (dailyMaximum < 1) {
++      return const WeeklyLoadValidationResult.invalid(
++        'الحد الأقصى للحصص اليومية يجب أن يكون أكبر من صفر.',
++      );
++    }
++
++    if (dailyPeriods.length != daysPerWeek) {
++      return WeeklyLoadValidationResult.invalid(
++        'عدد أيام التوزيع اليومي (${dailyPeriods.length}) لا يطابق عدد أيام الدوام الفعلية ($daysPerWeek).',
++      );
++    }
++
++    var sum = 0;
++    for (var day = 0; day < dailyPeriods.length; day++) {
++      final count = dailyPeriods[day];
++      final dayLabel = Weekday.fromDayIndex(day).arabicLabel;
++      if (count < 0) {
++        return WeeklyLoadValidationResult.invalid(
++          'عدد الحصص في يوم $dayLabel لا يمكن أن يكون سالبًا ($count).',
++        );
++      }
++      if (count > dailyMaximum) {
++        return WeeklyLoadValidationResult.invalid(
++          'عدد الحصص في يوم $dayLabel ($count) يتجاوز الحد الأقصى المسموح في اليوم ($dailyMaximum حصة).',
++        );
++      }
++      sum += count;
++    }
++
++    if (sum != weeklyTarget) {
++      return WeeklyLoadValidationResult.invalid(
++        'مجموع التوزيع اليومي ($sum حصة) لا يطابق عدد الحصص الأسبوعية المطلوب ($weeklyTarget حصة).',
++      );
++    }
++
++    return const WeeklyLoadValidationResult.valid();
++  }
++
++  /// يتحقق من خريطة `Map<Weekday, int>` مقابل أيام الدوام الفعلية.
++  static WeeklyLoadValidationResult validateWeekdayMap({
++    required int weeklyTarget,
++    required int daysPerWeek,
++    required Map<Weekday, int> weekdayPeriods,
++    int dailyMaximum = defaultDailyMaximum,
++  }) {
++    if (daysPerWeek < minDaysPerWeek || daysPerWeek > maxDaysPerWeek) {
++      return WeeklyLoadValidationResult.invalid(
++        'عدد أيام الدوام ($daysPerWeek) غير صالح.',
++      );
++    }
++
++    final allowedWeekdays = Weekday.workingDays(daysPerWeek).toSet();
++    for (final entry in weekdayPeriods.entries) {
++      if (!allowedWeekdays.contains(entry.key)) {
++        return WeeklyLoadValidationResult.invalid(
++          'اليوم ${entry.key.arabicLabel} ليس من أيام الدوام الفعلية.',
++        );
++      }
++    }
++
++    for (final requiredDay in allowedWeekdays) {
++      if (!weekdayPeriods.containsKey(requiredDay)) {
++        return WeeklyLoadValidationResult.invalid(
++          'يرجى تحديد عدد الحصص ليوم الدوام ${requiredDay.arabicLabel}.',
++        );
++      }
++    }
++
++    final list = DailyDistribution.fromWeekdayMap(
++      weekdayPeriods,
++      daysPerWeek: daysPerWeek,
++    );
++    return validate(
++      weeklyTarget: weeklyTarget,
++      daysPerWeek: daysPerWeek,
++      dailyPeriods: list,
++      dailyMaximum: dailyMaximum,
++    );
++  }
++}
++
++/// خدمة حساب الإعداد الأسبوعي الفعلي للصف (Effective Weekly Configuration).
++///
++/// تتبع التسلسل المعماري:
++/// Global Weekly Load Policy -> Official Defaults -> Classroom Optional Override -> Effective Configuration
++class WeeklyLoadResolver {
++  const WeeklyLoadResolver._();
++
++  /// يحسب القيمة الافتراضية من السياسة العامة دون النظر إلى تخصيص الصف.
++  static int resolveDefaultWeeklyTarget({
++    required WeeklyLoadMode mode,
++    required OfficialWeeklyPlan officialPlan,
++    required SchoolStage schoolStage,
++    required String grade,
++    String classroomName = '',
++  }) {
++    switch (mode) {
++      case WeeklyLoadMode.uniform30:
++        return OfficialWeeklyPlan.uniformDefaultLessons;
++      case WeeklyLoadMode.officialPlan:
++        return officialPlan.resolveForClassroom(
++          grade: grade,
++          name: classroomName,
++          schoolStage: schoolStage,
++        );
++    }
++  }
++
++  /// يحسب الإعداد الفعلي الكامل للصف مع أخذ التخصيص الاختياري بالاعتبار.
++  static EffectiveWeeklyConfig resolveForClassroom({
++    required Classroom classroom,
++    required WeeklyLoadMode mode,
++    required OfficialWeeklyPlan officialPlan,
++    required SchoolStage schoolStage,
++    required int daysPerWeek,
++    int dailyMaximum = WeeklyLoadValidator.defaultDailyMaximum,
++  }) {
++    final safeDays = daysPerWeek < 1 ? 5 : daysPerWeek;
++    final overrideWeekly = classroom.weeklyLessonsOverride;
++
++    final int weeklyTarget;
++    final List<int> dailyPeriods;
++    final bool isOverridden;
++
++    if (overrideWeekly != null && overrideWeekly > 0) {
++      isOverridden = true;
++      weeklyTarget = overrideWeekly;
++      final overrideDaily = classroom.dailyPeriodsOverride;
++      if (overrideDaily != null &&
++          overrideDaily.length == safeDays &&
++          overrideDaily.fold<int>(0, (a, b) => a + b) == weeklyTarget &&
++          overrideDaily.every((c) => c >= 0 && c <= dailyMaximum)) {
++        dailyPeriods = List<int>.from(overrideDaily);
++      } else {
++        dailyPeriods = DailyDistribution.buildAutomatic(weeklyTarget, safeDays);
++      }
++    } else {
++      isOverridden = false;
++      weeklyTarget = resolveDefaultWeeklyTarget(
++        mode: mode,
++        officialPlan: officialPlan,
++        schoolStage: schoolStage,
++        grade: classroom.grade,
++        classroomName: classroom.name,
++      );
++      dailyPeriods = DailyDistribution.buildAutomatic(weeklyTarget, safeDays);
++    }
++
++    final dailyBaseline = weeklyTarget ~/ safeDays;
++    final resolvedMax = max(
++      dailyMaximum,
++      dailyPeriods.isEmpty ? 0 : dailyPeriods.reduce(max),
++    );
++
++    return EffectiveWeeklyConfig(
++      weeklyTarget: weeklyTarget,
++      dailyBaseline: dailyBaseline,
++      dailyMaximum: resolvedMax,
++      daysPerWeek: safeDays,
++      dailyPeriods: dailyPeriods,
++      isOverridden: isOverridden,
++    );
++  }
++}
+diff --git a/lib/core/providers/app_config_provider.dart b/lib/core/providers/app_config_provider.dart
+index ab6a8e2..35a9e2d 100644
+--- a/lib/core/providers/app_config_provider.dart
++++ b/lib/core/providers/app_config_provider.dart
+@@ -9,6 +9,7 @@ import '../models/lesson.dart';
+ import '../models/school_stage.dart';
+ import '../models/subject.dart';
+ import '../models/teacher.dart';
++import '../models/weekly_load_policy.dart';
+ import '../services/app_config_service.dart';
+ import 'database_provider.dart';
+ 
+@@ -21,7 +22,7 @@ final appConfigServiceProvider = FutureProvider<AppConfigService>((ref) async {
+   return AppConfigService(file: file);
+ });
+ 
+-/// حالة إعدادات التطبيق (هل أُكمل الإعداد الأولي؟ وما المرحلة الدراسية؟).
++/// حالة إعدادات التطبيق (هل أُكمل الإعداد الأولي؟ وما المرحلة الدراسية وسياسة الحصص؟).
+ final appConfigNotifierProvider =
+     AsyncNotifierProvider<AppConfigNotifier, AppConfig>(
+   AppConfigNotifier.new,
+@@ -75,19 +76,41 @@ class AppConfigNotifier extends AsyncNotifier<AppConfig> {
+     return service.load();
+   }
+ 
+-  /// يُنهي الإعداد الأولي ويثبّت المرحلة المختارة.
+-  Future<void> completeSetup({required SchoolStage stage}) {
++  /// يُنهي الإعداد الأولي ويثبّت المرحلة المختارة وسياسة الحصص الأسبوعية.
++  Future<void> completeSetup({
++    required SchoolStage stage,
++    WeeklyLoadMode? weeklyLoadMode,
++    OfficialWeeklyPlan? officialWeeklyPlan,
++  }) {
+     return _update(
+       (config) => config.copyWith(
+         isSetupCompleted: true,
+         schoolStage: stage,
++        weeklyLoadMode: weeklyLoadMode ?? config.weeklyLoadMode,
++        officialWeeklyPlan: officialWeeklyPlan ?? config.officialWeeklyPlan,
+       ),
+     );
+   }
+ 
+-  /// يعتمد إعدادًا صامتًا لمستخدم قائم (ترقية) بمرحلة لا تغيّر سلوك الجدول.
++  /// يحدّث سياسة الحصص الأسبوعية و/أو بيانات الخطة الدراسية الرسمية.
++  Future<void> updateWeeklyLoadSettings({
++    WeeklyLoadMode? weeklyLoadMode,
++    OfficialWeeklyPlan? officialWeeklyPlan,
++  }) {
++    return _update(
++      (config) => config.copyWith(
++        weeklyLoadMode: weeklyLoadMode ?? config.weeklyLoadMode,
++        officialWeeklyPlan: officialWeeklyPlan ?? config.officialWeeklyPlan,
++      ),
++    );
++  }
++
++  /// يعتمد إعدادًا صامتًا لمستخدم قائم (ترقية) بمرحلة وسياسة لا تغيّران سلوك الجدول.
+   Future<void> adoptLegacySetup() {
+-    return completeSetup(stage: SchoolStage.fallback);
++    return completeSetup(
++      stage: SchoolStage.fallback,
++      weeklyLoadMode: WeeklyLoadMode.fallback,
++    );
+   }
+ 
+   /// يستبدل الإعدادات الحالية بالكامل (تستخدمه المزامنة التلقائية).
+diff --git a/lib/core/services/backup_service.dart b/lib/core/services/backup_service.dart
+index 9aecd5a..4780973 100644
+--- a/lib/core/services/backup_service.dart
++++ b/lib/core/services/backup_service.dart
+@@ -50,6 +50,10 @@ class BackupService {
+                 'id': c.id,
+                 'name': c.name,
+                 'grade': c.grade,
++                if (c.weeklyLessonsOverride != null)
++                  'weeklyLessonsOverride': c.weeklyLessonsOverride,
++                if (c.dailyPeriodsOverride != null)
++                  'dailyPeriodsOverride': c.dailyPeriodsOverride,
+               })
+           .toList(),
+       'settings': settings
+@@ -161,12 +165,22 @@ class BackupService {
+       final Map<int, Classroom> classroomMap = {};
+       if (data.containsKey('classrooms')) {
+         final List<dynamic> classroomsList = data['classrooms'];
+-        final newClassrooms = classroomsList
+-            .map((c) => Classroom()
+-              ..id = c['id']
+-              ..name = c['name']
+-              ..grade = c['grade'])
+-            .toList();
++        final newClassrooms = classroomsList.map((c) {
++          final rawWeeklyOverride = c['weeklyLessonsOverride'];
++          final rawDailyOverride = c['dailyPeriodsOverride'];
++          return Classroom()
++            ..id = c['id']
++            ..name = c['name']
++            ..grade = c['grade']
++            ..weeklyLessonsOverride =
++                rawWeeklyOverride is num ? rawWeeklyOverride.toInt() : null
++            ..dailyPeriodsOverride = rawDailyOverride is List
++                ? rawDailyOverride
++                    .whereType<num>()
++                    .map((e) => e.toInt())
++                    .toList()
++                : null;
++        }).toList();
+         await _isar.classrooms.putAll(newClassrooms);
+         for (final c in newClassrooms) {
+           classroomMap[c.id] = c;
+diff --git a/lib/core/utils/timetable_display_utils.dart b/lib/core/utils/timetable_display_utils.dart
+index ca991b8..8f0e89e 100644
+--- a/lib/core/utils/timetable_display_utils.dart
++++ b/lib/core/utils/timetable_display_utils.dart
+@@ -1,8 +1,15 @@
++import '../models/weekly_load_policy.dart';
+ import 'string_utils.dart';
+ 
+ /// Fallback used when a lesson's display value is missing.
+ const String timetableDisplayFallback = '-';
+ 
++/// Canonical day-index labels shared by timetable UI, PDF and Excel.
++/// Keep the persisted Sunday-first indices defined by [Weekday].
++List<String> timetableDayLabels(int daysPerWeek) => List<String>.unmodifiable(
++      Weekday.workingDays(daysPerWeek).map((day) => day.arabicLabel),
++    );
++
+ /// Returns a safe, trimmed display value for a timetable cell segment.
+ String normalizeTimetableDisplayValue(
+   String? value, {
+diff --git a/lib/features/management/domain/services/lesson_assignment_planner.dart b/lib/features/management/domain/services/lesson_assignment_planner.dart
+index 7c70179..2eebb96 100644
+--- a/lib/features/management/domain/services/lesson_assignment_planner.dart
++++ b/lib/features/management/domain/services/lesson_assignment_planner.dart
+@@ -1,3 +1,4 @@
++import '../../../../core/models/app_config.dart';
+ import '../../../../core/models/classroom.dart';
+ import '../../../../core/models/lesson.dart';
+ import '../../../../core/models/settings.dart';
+@@ -54,7 +55,6 @@ class AssignmentPlan {
+ /// لا يكتب في قاعدة البيانات؛ يُنتج خطة يطبّقها المستدعي داخل معاملة Isar
+ /// حتى تبقى عملية إنشاء المعلم مع إسناداته الأولية متسقة.
+ class LessonAssignmentPlanner {
+-
+   /// يخطط إسناد كل تركيبات المواد×الصفوف المحددة إلى المعلم.
+   static AssignmentPlan plan({
+     required Teacher teacher,
+@@ -62,6 +62,7 @@ class LessonAssignmentPlanner {
+     required Iterable<Classroom> classrooms,
+     required List<Lesson> existingLessons,
+     required AppSettings settings,
++    AppConfig? appConfig,
+     DuplicateAssignmentBehavior duplicateBehavior =
+         DuplicateAssignmentBehavior.skip,
+   }) {
+@@ -97,7 +98,6 @@ class LessonAssignmentPlanner {
+     final periodsPerDay =
+         settings.periodsPerDay < 1 ? 1 : settings.periodsPerDay;
+     final daysPerWeek = settings.daysPerWeek < 1 ? 5 : settings.daysPerWeek;
+-    final maxClassroomCapacity = periodsPerDay * daysPerWeek;
+ 
+     final pairsToCreate = <AssignmentPair>[];
+     final skippedDuplicates = <AssignmentPair>[];
+@@ -118,6 +118,13 @@ class LessonAssignmentPlanner {
+           continue;
+         }
+ 
++        final maxClassroomCapacity = _classroomCapacity(
++          classroom: classroom,
++          periodsPerDay: periodsPerDay,
++          daysPerWeek: daysPerWeek,
++          appConfig: appConfig,
++        );
++
+         final classAssigned = classroomCounts[classroom.id] ?? 0;
+         final proposedClassTotal = classAssigned + weekly;
+         if (proposedClassTotal > maxClassroomCapacity) {
+@@ -146,6 +153,27 @@ class LessonAssignmentPlanner {
+     );
+   }
+ 
++  static int _classroomCapacity({
++    required Classroom classroom,
++    required int periodsPerDay,
++    required int daysPerWeek,
++    required AppConfig? appConfig,
++  }) {
++    if (classroom.weeklyLessonsOverride != null &&
++        classroom.weeklyLessonsOverride! > 0) {
++      return classroom.weeklyLessonsOverride!;
++    }
++    if (appConfig != null) {
++      return appConfig
++          .resolveWeeklyConfigForClassroom(
++            classroom,
++            daysPerWeek: daysPerWeek,
++          )
++          .weeklyTarget;
++    }
++    return periodsPerDay * daysPerWeek;
++  }
++
+   /// يبني حصص المسبح غير المجدولة لكل زوج وفق نصاب المادة.
+   static List<Lesson> buildPoolLessons({
+     required Teacher teacher,
+diff --git a/lib/features/management/presentation/pages/classrooms_page.dart b/lib/features/management/presentation/pages/classrooms_page.dart
+index c77c26f..8057655 100644
+--- a/lib/features/management/presentation/pages/classrooms_page.dart
++++ b/lib/features/management/presentation/pages/classrooms_page.dart
+@@ -1,7 +1,13 @@
++// ignore_for_file: deprecated_member_use
++
+ import 'package:flutter/material.dart';
+ import 'package:flutter_riverpod/flutter_riverpod.dart';
+ 
++import '../../../../core/models/app_config.dart';
+ import '../../../../core/models/classroom.dart';
++import '../../../../core/models/settings.dart';
++import '../../../../core/models/weekly_load_policy.dart';
++import '../../../../core/providers/app_config_provider.dart';
+ import '../providers/management_provider.dart';
+ 
+ class ClassroomsPage extends ConsumerWidget {
+@@ -10,6 +16,16 @@ class ClassroomsPage extends ConsumerWidget {
+   @override
+   Widget build(BuildContext context, WidgetRef ref) {
+     final classroomsAsync = ref.watch(classroomsNotifierProvider);
++    final config = ref.watch(appConfigNotifierProvider).when(
++          data: (c) => c,
++          loading: AppConfig.initial,
++          error: (_, __) => AppConfig.initial(),
++        );
++    final settings = ref.watch(settingsNotifierProvider).when(
++          data: (s) => s,
++          loading: () => AppSettings()..periodsPerDay = 7,
++          error: (_, __) => AppSettings()..periodsPerDay = 7,
++        );
+ 
+     return Scaffold(
+       body: classroomsAsync.when(
+@@ -21,11 +37,21 @@ class ClassroomsPage extends ConsumerWidget {
+             itemCount: classrooms.length,
+             itemBuilder: (context, index) {
+               final classroom = classrooms[index];
++              final effective = config.resolveWeeklyConfigForClassroom(
++                classroom,
++                daysPerWeek: settings.daysPerWeek,
++              );
++              final sourceLabel = effective.isOverridden
++                  ? 'تخصيص مستقل'
++                  : 'يستخدم الإعداد العام';
++
+               return Card(
+                 margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                 child: ListTile(
+                   title: Text(classroom.name),
+-                  subtitle: Text('المرحلة: ' + classroom.grade),
++                  subtitle: Text(
++                    'المرحلة: ${classroom.grade} • ${effective.weeklyTarget} حصة أسبوعيًا ($sourceLabel)',
++                  ),
+                   trailing: IconButton(
+                     icon: const Icon(Icons.delete, color: Colors.red),
+                     tooltip: 'حذف',
+@@ -95,42 +121,348 @@ class _ClassroomDialog extends ConsumerStatefulWidget {
+ 
+ class _ClassroomDialogState extends ConsumerState<_ClassroomDialog> {
+   final _formKey = GlobalKey<FormState>();
+-  late String _name;
+-  late String _grade;
++  late final TextEditingController _nameController;
++  late final TextEditingController _gradeController;
++  late final TextEditingController _weeklyLessonsController;
++
++  bool _useCustomOverride = false;
++  bool _useCustomDaySelection = false;
++  final Set<int> _selectedExtraDays = <int>{};
++  String? _distributionError;
+ 
+   @override
+   void initState() {
+     super.initState();
+-    _name = widget.existingClassroom?.name ?? '';
+-    _grade = widget.existingClassroom?.grade ?? '';
++    final existing = widget.existingClassroom;
++    _nameController = TextEditingController(text: existing?.name ?? '');
++    _gradeController = TextEditingController(text: existing?.grade ?? '');
++
++    final hasOverride = existing?.hasWeeklyOverride ?? false;
++    _useCustomOverride = hasOverride;
++
++    final initialWeekly = existing?.weeklyLessonsOverride ?? 30;
++    _weeklyLessonsController =
++        TextEditingController(text: initialWeekly.toString());
++
++    final existingDaily = existing?.dailyPeriodsOverride;
++    if (existingDaily != null && existingDaily.isNotEmpty) {
++      final autoDist =
++          DailyDistribution.buildAutomatic(initialWeekly, existingDaily.length);
++      final elevated = DailyDistribution.extractElevatedDays(existingDaily);
++      _selectedExtraDays.addAll(elevated);
++      if (!_listsMatch(existingDaily, autoDist)) {
++        _useCustomDaySelection = true;
++      }
++    }
++  }
++
++  bool _listsMatch(List<int> a, List<int> b) {
++    if (a.length != b.length) return false;
++    for (var i = 0; i < a.length; i++) {
++      if (a[i] != b[i]) return false;
++    }
++    return true;
++  }
++
++  @override
++  void dispose() {
++    _nameController.dispose();
++    _gradeController.dispose();
++    _weeklyLessonsController.dispose();
++    super.dispose();
++  }
++
++  int _resolveDaysPerWeek() {
++    final settings = ref.read(settingsNotifierProvider).when(
++          data: (s) => s,
++          loading: () => null,
++          error: (_, __) => null,
++        );
++    final days = settings?.daysPerWeek ?? 5;
++    return days < 1 ? 5 : days;
++  }
++
++  int _resolveGeneralDefaultTarget(AppConfig config) {
++    return WeeklyLoadResolver.resolveDefaultWeeklyTarget(
++      mode: config.weeklyLoadMode,
++      officialPlan: config.officialWeeklyPlan,
++      schoolStage: config.schoolStage,
++      grade: _gradeController.text.trim(),
++      classroomName: _nameController.text.trim(),
++    );
++  }
++
++  void _syncExtraDaysWithWeeklyCount(int weeklyLessons, int daysPerWeek) {
++    final remainder = weeklyLessons > 0 ? weeklyLessons % daysPerWeek : 0;
++    _selectedExtraDays.removeWhere((day) => day < 0 || day >= daysPerWeek);
++    if (!_useCustomDaySelection) {
++      _selectedExtraDays
++        ..clear()
++        ..addAll(List<int>.generate(remainder, (index) => index));
++    }
++  }
++
++  List<int> _buildSelectedDailyPeriods(int weeklyLessons, int daysPerWeek) {
++    if (!_useCustomDaySelection) {
++      return DailyDistribution.buildAutomatic(weeklyLessons, daysPerWeek);
++    }
++    return DailyDistribution.buildWithElevatedDays(
++      weeklyTarget: weeklyLessons,
++      daysPerWeek: daysPerWeek,
++      elevatedDays: _selectedExtraDays,
++    );
+   }
+ 
+   @override
+   Widget build(BuildContext context) {
++    final config = ref.watch(appConfigNotifierProvider).when(
++          data: (c) => c,
++          loading: AppConfig.initial,
++          error: (_, __) => AppConfig.initial(),
++        );
++    final daysPerWeek = _resolveDaysPerWeek();
++    final generalTarget = _resolveGeneralDefaultTarget(config);
++    final parsedWeekly =
++        int.tryParse(_weeklyLessonsController.text.trim()) ?? generalTarget;
++    final remainder = parsedWeekly > 0 ? parsedWeekly % daysPerWeek : 0;
++    final workingDays = Weekday.workingDays(daysPerWeek);
++    final previewPeriods = _useCustomOverride
++        ? _buildSelectedDailyPeriods(parsedWeekly, daysPerWeek)
++        : DailyDistribution.buildAutomatic(generalTarget, daysPerWeek);
++
+     return AlertDialog(
+       title: Text(widget.existingClassroom == null ? 'إضافة صف' : 'تعديل صف'),
+-      content: Form(
+-        key: _formKey,
+-        child: Column(
+-          mainAxisSize: MainAxisSize.min,
+-          children: [
+-            TextFormField(
+-              initialValue: _name,
+-              decoration: const InputDecoration(
+-                  labelText: 'اسم الصف/الشعبة',
+-                  helperText: 'مثال: الصف الأول / أ'),
+-              validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
+-              onSaved: (val) => _name = val!,
+-            ),
+-            const SizedBox(height: 10),
+-            TextFormField(
+-              initialValue: _grade,
+-              decoration: const InputDecoration(
+-                  labelText: 'المرحلة الدراسية', helperText: 'مثال: المتوسطة'),
+-              validator: (val) => val == null || val.trim().isEmpty ? 'مطلوب' : null,
+-              onSaved: (val) => _grade = val!,
++      content: ConstrainedBox(
++        constraints: const BoxConstraints(maxWidth: 460),
++        child: SingleChildScrollView(
++          child: Form(
++            key: _formKey,
++            child: Column(
++              mainAxisSize: MainAxisSize.min,
++              crossAxisAlignment: CrossAxisAlignment.start,
++              children: [
++                TextFormField(
++                  controller: _nameController,
++                  decoration: const InputDecoration(
++                    labelText: 'اسم الصف/الشعبة',
++                    helperText: 'مثال: الصف الأول / أ',
++                  ),
++                  validator: (val) =>
++                      val == null || val.trim().isEmpty ? 'مطلوب' : null,
++                  onChanged: (_) => setState(() {}),
++                ),
++                const SizedBox(height: 10),
++                TextFormField(
++                  controller: _gradeController,
++                  decoration: const InputDecoration(
++                    labelText: 'المرحلة الدراسية',
++                    helperText: 'مثال: المتوسطة أو الصف السادس',
++                  ),
++                  validator: (val) =>
++                      val == null || val.trim().isEmpty ? 'مطلوب' : null,
++                  onChanged: (_) => setState(() {}),
++                ),
++                const SizedBox(height: 20),
++                const Divider(),
++                const SizedBox(height: 8),
++                const Text(
++                  'تخصيص عدد الحصص للصف — اختياري',
++                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
++                ),
++                const SizedBox(height: 4),
++                Text(
++                  'يمكنك ترك هذه الإعدادات كما هي لاستخدام الإعداد العام.',
++                  style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
++                ),
++                const SizedBox(height: 8),
++                CheckboxListTile(
++                  contentPadding: EdgeInsets.zero,
++                  title: const Text('تخصيص الحصص لهذا الصف'),
++                  value: _useCustomOverride,
++                  onChanged: (checked) {
++                    setState(() {
++                      _useCustomOverride = checked ?? false;
++                      _distributionError = null;
++                      if (_useCustomOverride) {
++                        final currentDefault =
++                            _resolveGeneralDefaultTarget(config);
++                        if (widget.existingClassroom?.weeklyLessonsOverride ==
++                            null) {
++                          _weeklyLessonsController.text =
++                              currentDefault.toString();
++                        }
++                        final currentWeekly = int.tryParse(
++                                _weeklyLessonsController.text.trim()) ??
++                            currentDefault;
++                        _syncExtraDaysWithWeeklyCount(
++                          currentWeekly,
++                          daysPerWeek,
++                        );
++                      }
++                    });
++                  },
++                ),
++                if (!_useCustomOverride)
++                  Container(
++                    width: double.infinity,
++                    padding: const EdgeInsets.all(12),
++                    decoration: BoxDecoration(
++                      color: Colors.grey.shade100,
++                      borderRadius: BorderRadius.circular(8),
++                    ),
++                    child: Text(
++                      'يستخدم الإعداد العام ($generalTarget حصة أسبوعيًا).',
++                      style: TextStyle(
++                        fontSize: 13,
++                        color: Colors.grey.shade800,
++                      ),
++                    ),
++                  )
++                else ...[
++                  const SizedBox(height: 8),
++                  TextFormField(
++                    controller: _weeklyLessonsController,
++                    keyboardType: TextInputType.number,
++                    decoration: const InputDecoration(
++                      labelText: 'عدد الحصص الأسبوعية',
++                      border: OutlineInputBorder(),
++                    ),
++                    validator: (val) {
++                      if (!_useCustomOverride) return null;
++                      final parsed = int.tryParse(val?.trim() ?? '');
++                      if (parsed == null || parsed < 1) {
++                        return 'أدخل رقمًا صحيحًا أكبر من صفر';
++                      }
++                      final maxWeekly =
++                          daysPerWeek * WeeklyLoadValidator.defaultDailyMaximum;
++                      if (parsed > maxWeekly) {
++                        return 'الحد الأقصى الأسبوعي هو $maxWeekly حصة';
++                      }
++                      return null;
++                    },
++                    onChanged: (val) {
++                      final parsed = int.tryParse(val.trim());
++                      setState(() {
++                        _distributionError = null;
++                        if (parsed != null && parsed > 0) {
++                          _syncExtraDaysWithWeeklyCount(parsed, daysPerWeek);
++                        }
++                      });
++                    },
++                  ),
++                  const SizedBox(height: 14),
++                  const Text(
++                    'توزيع الحصص على الأيام',
++                    style: TextStyle(fontWeight: FontWeight.w600),
++                  ),
++                  RadioListTile<bool>(
++                    contentPadding: EdgeInsets.zero,
++                    dense: true,
++                    value: false,
++                    groupValue: _useCustomDaySelection,
++                    title: const Text('تلقائي'),
++                    onChanged: (val) {
++                      setState(() {
++                        _useCustomDaySelection = false;
++                        _distributionError = null;
++                        _syncExtraDaysWithWeeklyCount(
++                          parsedWeekly,
++                          daysPerWeek,
++                        );
++                      });
++                    },
++                  ),
++                  RadioListTile<bool>(
++                    contentPadding: EdgeInsets.zero,
++                    dense: true,
++                    value: true,
++                    groupValue: _useCustomDaySelection,
++                    title: const Text('تخصيص الأيام'),
++                    onChanged: (val) {
++                      setState(() {
++                        _useCustomDaySelection = true;
++                        _distributionError = null;
++                        if (_selectedExtraDays.isEmpty && remainder > 0) {
++                          _selectedExtraDays.addAll(
++                            List<int>.generate(remainder, (i) => i),
++                          );
++                        }
++                      });
++                    },
++                  ),
++                  if (_useCustomDaySelection && remainder > 0) ...[
++                    const SizedBox(height: 6),
++                    Text(
++                      'الأيام ذات الحصة الإضافية (اختر $remainder):',
++                      style: const TextStyle(
++                        fontSize: 13,
++                        fontWeight: FontWeight.w600,
++                      ),
++                    ),
++                    const SizedBox(height: 6),
++                    Wrap(
++                      spacing: 8,
++                      runSpacing: 4,
++                      children: [
++                        for (final day in workingDays)
++                          FilterChip(
++                            label: Text(day.arabicLabel),
++                            selected:
++                                _selectedExtraDays.contains(day.indexPosition),
++                            onSelected: (selected) {
++                              setState(() {
++                                _distributionError = null;
++                                if (selected) {
++                                  if (remainder == 1) {
++                                    _selectedExtraDays
++                                      ..clear()
++                                      ..add(day.indexPosition);
++                                  } else {
++                                    _selectedExtraDays.add(day.indexPosition);
++                                  }
++                                } else {
++                                  _selectedExtraDays.remove(day.indexPosition);
++                                }
++                              });
++                            },
++                          ),
++                      ],
++                    ),
++                  ],
++                  const SizedBox(height: 10),
++                  Container(
++                    width: double.infinity,
++                    padding: const EdgeInsets.all(10),
++                    decoration: BoxDecoration(
++                      color: Colors.teal.shade50,
++                      borderRadius: BorderRadius.circular(8),
++                    ),
++                    child: Text(
++                      'التوزيع اليومي: ' +
++                          workingDays
++                              .map((d) =>
++                                  '${d.arabicLabel} (${previewPeriods[d.indexPosition]})')
++                              .join(' ، '),
++                      style: TextStyle(
++                        fontSize: 12.5,
++                        color: Colors.teal.shade900,
++                      ),
++                    ),
++                  ),
++                  if (_distributionError != null) ...[
++                    const SizedBox(height: 8),
++                    Text(
++                      _distributionError!,
++                      style: TextStyle(
++                        color: Colors.red.shade700,
++                        fontSize: 12.5,
++                      ),
++                    ),
++                  ],
++                ],
++              ],
+             ),
+-          ],
++          ),
+         ),
+       ),
+       actions: [
+@@ -147,15 +479,43 @@ class _ClassroomDialogState extends ConsumerState<_ClassroomDialog> {
+   }
+ 
+   void _save() {
+-    if (_formKey.currentState!.validate()) {
+-      _formKey.currentState!.save();
+-      final classroom = widget.existingClassroom ?? Classroom();
+-      classroom
+-        ..name = _name
+-        ..grade = _grade;
+-
+-      ref.read(classroomsNotifierProvider.notifier).addClassroom(classroom);
+-      Navigator.pop(context);
++    if (!(_formKey.currentState?.validate() ?? false)) {
++      return;
+     }
++
++    final classroom = widget.existingClassroom ?? Classroom();
++    classroom
++      ..name = _nameController.text.trim()
++      ..grade = _gradeController.text.trim();
++
++    if (!_useCustomOverride) {
++      classroom.weeklyOverride = null;
++    } else {
++      final daysPerWeek = _resolveDaysPerWeek();
++      final weeklyLessons =
++          int.parse(_weeklyLessonsController.text.trim());
++      final dailyPeriods =
++          _buildSelectedDailyPeriods(weeklyLessons, daysPerWeek);
++
++      final validation = WeeklyLoadValidator.validate(
++        weeklyTarget: weeklyLessons,
++        daysPerWeek: daysPerWeek,
++        dailyPeriods: dailyPeriods,
++      );
++      if (!validation.isValid) {
++        setState(() {
++          _distributionError = validation.errorMessage;
++        });
++        return;
++      }
++
++      classroom.weeklyOverride = ClassroomWeeklyOverride(
++        weeklyLessons: weeklyLessons,
++        dailyPeriods: _useCustomDaySelection ? dailyPeriods : null,
++      );
++    }
++
++    ref.read(classroomsNotifierProvider.notifier).addClassroom(classroom);
++    Navigator.pop(context);
+   }
+ }
+diff --git a/lib/features/management/presentation/pages/settings_page.dart b/lib/features/management/presentation/pages/settings_page.dart
+index 68242c4..18bb4cd 100644
+--- a/lib/features/management/presentation/pages/settings_page.dart
++++ b/lib/features/management/presentation/pages/settings_page.dart
+@@ -1,3 +1,5 @@
++// ignore_for_file: deprecated_member_use
++
+ import 'package:flutter/material.dart';
+ import 'package:flutter_riverpod/flutter_riverpod.dart';
+ import 'package:file_picker/file_picker.dart';
+@@ -7,13 +9,16 @@ import 'dart:io';
+ import 'dart:convert';
+ import 'dart:typed_data';
+ 
++import '../../../../core/models/app_config.dart';
+ import '../../../../core/models/school_stage.dart';
+ import '../../../../core/models/settings.dart';
++import '../../../../core/models/weekly_load_policy.dart';
+ import '../../../../core/providers/app_backup_provider.dart';
+ import '../../../../core/providers/app_config_provider.dart';
+ import '../../../../core/services/file_save_service.dart';
+ import '../../../setup/presentation/pages/first_run_setup_page.dart';
+ import '../../../setup/presentation/widgets/school_stage_selector.dart';
++import '../../../setup/presentation/widgets/weekly_load_mode_selector.dart';
+ import '../../../timetable/presentation/providers/timetable_provider.dart';
+ import '../providers/management_provider.dart';
+ import '../providers/subject_constraint_auto_sync_provider.dart';
+@@ -31,7 +36,7 @@ class SettingsPage extends ConsumerWidget {
+         data: (settings) => configAsync.when(
+           data: (config) => _SettingsForm(
+             settings: settings,
+-            initialStage: config.schoolStage,
++            initialConfig: config,
+           ),
+           loading: () => const Center(child: CircularProgressIndicator()),
+           error: (e, st) => Center(child: Text('حدث خطأ: $e')),
+@@ -45,11 +50,11 @@ class SettingsPage extends ConsumerWidget {
+ 
+ class _SettingsForm extends ConsumerStatefulWidget {
+   final AppSettings settings;
+-  final SchoolStage initialStage;
++  final AppConfig initialConfig;
+ 
+   const _SettingsForm({
+     required this.settings,
+-    required this.initialStage,
++    required this.initialConfig,
+   });
+ 
+   @override
+@@ -66,6 +71,9 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+   late String _schoolName;
+   late String _principalName;
+   late SchoolStage _schoolStage;
++  late WeeklyLoadMode _weeklyLoadMode;
++  late OfficialWeeklyPlan _officialWeeklyPlan;
++  final Map<String, TextEditingController> _officialPlanControllers = {};
+   bool _isSaving = false;
+   double? _customPageWidth;
+   double? _customPageHeight;
+@@ -80,9 +88,49 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+     _exportAutoScale = widget.settings.exportAutoScale;
+     _schoolName = widget.settings.schoolName;
+     _principalName = widget.settings.principalName;
+-    _schoolStage = widget.initialStage;
++    _schoolStage = widget.initialConfig.schoolStage;
++    _weeklyLoadMode = widget.initialConfig.weeklyLoadMode;
++    _officialWeeklyPlan = widget.initialConfig.officialWeeklyPlan;
+     _customPageWidth = widget.settings.customPageWidth;
+     _customPageHeight = widget.settings.customPageHeight;
++    _initOfficialPlanControllers();
++  }
++
++  void _initOfficialPlanControllers() {
++    for (final track in OfficialPlanTrack.values) {
++      for (final grade in track.grades) {
++        final key = _planEntryKey(track, grade);
++        final lessons = _officialWeeklyPlan.lessonsFor(track, grade);
++        _officialPlanControllers[key] =
++            TextEditingController(text: lessons.toString());
++      }
++    }
++  }
++
++  String _planEntryKey(OfficialPlanTrack track, AcademicGrade grade) {
++    return '${track.storageKey}:${grade.storageKey}';
++  }
++
++  void _resetOfficialPlanToDefaults() {
++    const defaults = OfficialWeeklyPlan.standard();
++    setState(() {
++      _officialWeeklyPlan = defaults;
++      for (final track in OfficialPlanTrack.values) {
++        for (final grade in track.grades) {
++          final key = _planEntryKey(track, grade);
++          _officialPlanControllers[key]?.text =
++              defaults.lessonsFor(track, grade).toString();
++        }
++      }
++    });
++  }
++
++  @override
++  void dispose() {
++    for (final controller in _officialPlanControllers.values) {
++      controller.dispose();
++    }
++    super.dispose();
+   }
+ 
+   Future<void> _saveSettings() async {
+@@ -91,6 +139,24 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+     }
+ 
+     _formKey.currentState!.save();
++
++    var updatedOfficialPlan = _officialWeeklyPlan;
++    for (final track in OfficialPlanTrack.values) {
++      for (final grade in track.grades) {
++        final key = _planEntryKey(track, grade);
++        final raw = _officialPlanControllers[key]?.text.trim() ?? '';
++        final parsed = int.tryParse(raw);
++        if (parsed != null && parsed > 0) {
++          updatedOfficialPlan = updatedOfficialPlan.copyWithEntry(
++            track: track,
++            grade: grade,
++            weeklyLessons: parsed,
++          );
++        }
++      }
++    }
++    _officialWeeklyPlan = updatedOfficialPlan;
++
+     final newSettings = widget.settings
+       ..schoolName = _schoolName
+       ..principalName = _principalName
+@@ -109,13 +175,11 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+           .read(settingsNotifierProvider.notifier)
+           .saveSettings(newSettings);
+ 
+-      // تغيير المرحلة يُعيد ضبط قيود المواد التلقائية وفق السياسة الجديدة.
+-      final config = await ref.read(appConfigNotifierProvider.future);
+-      if (!config.isSetupCompleted || config.schoolStage != _schoolStage) {
+-        await ref
+-            .read(appConfigNotifierProvider.notifier)
+-            .completeSetup(stage: _schoolStage);
+-      }
++      await ref.read(appConfigNotifierProvider.notifier).completeSetup(
++            stage: _schoolStage,
++            weeklyLoadMode: _weeklyLoadMode,
++            officialWeeklyPlan: _officialWeeklyPlan,
++          );
+ 
+       final outcome = await ref.read(subjectConstraintAutoSyncProvider).run();
+ 
+@@ -372,6 +436,82 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+     );
+   }
+ 
++  Widget _buildOfficialPlanSection() {
++    return Card(
++      child: Padding(
++        padding: const EdgeInsets.all(16.0),
++        child: Column(
++          crossAxisAlignment: CrossAxisAlignment.start,
++          children: [
++            Row(
++              children: [
++                const Expanded(
++                  child: Text(
++                    'الخطة الدراسية الرسمية',
++                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
++                  ),
++                ),
++                TextButton.icon(
++                  onPressed: _resetOfficialPlanToDefaults,
++                  icon: const Icon(Icons.restore, size: 18),
++                  label: const Text('استعادة الافتراضي'),
++                ),
++              ],
++            ),
++            const SizedBox(height: 6),
++            Text(
++              'هذه القيم هي القيم الافتراضية ويمكن تعديلها حسب احتياج مدرستك. تعديلها لا يغير الصفوف التي لديها تخصيص مستقل.',
++              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
++            ),
++            const SizedBox(height: 12),
++            for (final track in OfficialPlanTrack.values) ...[
++              Padding(
++                padding: const EdgeInsets.only(top: 8, bottom: 8),
++                child: Text(
++                  track.label,
++                  style: TextStyle(
++                    fontSize: 14.5,
++                    fontWeight: FontWeight.bold,
++                    color: Colors.teal.shade800,
++                  ),
++                ),
++              ),
++              Wrap(
++                spacing: 12,
++                runSpacing: 12,
++                children: [
++                  for (final grade in track.grades)
++                    SizedBox(
++                      width: 125,
++                      child: TextFormField(
++                        controller:
++                            _officialPlanControllers[_planEntryKey(track, grade)],
++                        keyboardType: TextInputType.number,
++                        decoration: InputDecoration(
++                          labelText: grade.label,
++                          suffixText: 'حصة',
++                          border: const OutlineInputBorder(),
++                          isDense: true,
++                        ),
++                        validator: (val) {
++                          final parsed = int.tryParse(val?.trim() ?? '');
++                          if (parsed == null || parsed < 1 || parsed > 84) {
++                            return 'رقم غير صالح';
++                          }
++                          return null;
++                        },
++                      ),
++                    ),
++                ],
++              ),
++              const SizedBox(height: 8),
++            ],
++          ],
++        ),
++      ),
++    );
++  }
++
+   @override
+   Widget build(BuildContext context) {
+     return SingleChildScrollView(
+@@ -470,6 +610,41 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
+               ),
+             ),
+             const SizedBox(height: 24),
++            const Text('إعداد الحصص الأسبوعية',
++                style: TextStyle(
++                    fontSize: 18,
++                    fontWeight: FontWeight.bold,
++                    color: Colors.teal)),
++            const SizedBox(height: 16),
++            Card(
++              child: Padding(
++                padding: const EdgeInsets.all(16.0),
++                child: Column(
++                  crossAxisAlignment: CrossAxisAlignment.start,
++                  children: [
++                    const Text(
++                      'اختر الطريقة الأساسية التي تريد استخدامها لتحديد عدد الحصص للصفوف.',
++                      style: TextStyle(fontWeight: FontWeight.w600),
++                    ),
++                    const SizedBox(height: 8),
++                    WeeklyLoadModeSelector(
++                      value: _weeklyLoadMode,
++                      onChanged: (mode) =>
++                          setState(() => _weeklyLoadMode = mode),
++                    ),
++                    const SizedBox(height: 8),
++                    Text(
++                      'يمكنك تعديل هذه الإعدادات لاحقًا من الإعدادات أو من تفاصيل الصف. هذا التخصيص اختياري.',
++                      style: TextStyle(
++                          fontSize: 12.5, color: Colors.grey.shade700),
++                    ),
++                  ],
++                ),
++              ),
++            ),
++            const SizedBox(height: 16),
++            _buildOfficialPlanSection(),
++            const SizedBox(height: 24),
+             Card(
+               child: ListTile(
+                 leading: const Icon(Icons.assignment_outlined,
+diff --git a/lib/features/management/presentation/pages/teachers_page.dart b/lib/features/management/presentation/pages/teachers_page.dart
+index 3bf31d2..2fef0bd 100644
+--- a/lib/features/management/presentation/pages/teachers_page.dart
++++ b/lib/features/management/presentation/pages/teachers_page.dart
+@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
+ import '../../../../core/models/classroom.dart';
+ import '../../../../core/models/subject.dart';
+ import '../../../../core/models/teacher.dart';
++import '../../../../core/models/weekly_load_policy.dart';
+ import '../../../timetable/presentation/providers/timetable_provider.dart';
+ import '../providers/management_provider.dart';
+ 
+@@ -66,7 +67,7 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
+ 
+   String _getDaysString(List<int> days) {
+     if (days.isEmpty) return 'لا يوجد';
+-    const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
++    final dayNames = Weekday.values.map((day) => day.arabicLabel).toList();
+     return days
+         .map((d) => d >= 0 && d < dayNames.length ? dayNames[d] : '')
+         .join('، ');
+@@ -130,7 +131,12 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
+ 
+   @override
+   Widget build(BuildContext context) {
+-    const dayNames = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
++    final daysPerWeek = ref.watch(settingsNotifierProvider).when(
++          data: (settings) => settings.daysPerWeek,
++          loading: () => 5,
++          error: (_, __) => 5,
++        );
++    final workingDays = Weekday.workingDays(daysPerWeek);
+     const maxPeriods = 10;
+     final subjectsAsync = ref.watch(subjectsNotifierProvider);
+     final classroomsAsync = ref.watch(classroomsNotifierProvider);
+@@ -179,9 +185,10 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
+                   style: TextStyle(fontWeight: FontWeight.bold)),
+               Wrap(
+                 spacing: 8.0,
+-                children: List.generate(dayNames.length, (index) {
++                children: workingDays.map((day) {
++                  final index = day.indexPosition;
+                   return FilterChip(
+-                    label: Text(dayNames[index]),
++                    label: Text(day.arabicLabel),
+                     selected: selectedDays.contains(index),
+                     onSelected: (bool selected) {
+                       setState(() {
+@@ -193,7 +200,7 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
+                       });
+                     },
+                   );
+-                }),
++                }).toList(),
+               ),
+               const SizedBox(height: 16),
+               const Text('الدروس المسموحة (اتركه فارغاً للسماح بالكل):',
+diff --git a/lib/features/management/presentation/providers/management_provider.dart b/lib/features/management/presentation/providers/management_provider.dart
+index 7ff1ae8..b3c7af2 100644
+--- a/lib/features/management/presentation/providers/management_provider.dart
++++ b/lib/features/management/presentation/providers/management_provider.dart
+@@ -1,5 +1,6 @@
+ import 'package:isar/isar.dart';
+ import 'package:riverpod_annotation/riverpod_annotation.dart';
++import '../../../../core/providers/app_config_provider.dart';
+ import '../../../../core/providers/database_provider.dart';
+ import '../../../../core/providers/repository_provider.dart';
+ import '../../../../core/models/teacher.dart';
+@@ -51,6 +52,7 @@ class TeachersNotifier extends _$TeachersNotifier {
+ 
+     final storedSettings = await isar.appSettings.where().findFirst();
+     final settings = storedSettings ?? (AppSettings()..periodsPerDay = 7);
++    final appConfig = await ref.read(appConfigNotifierProvider.future);
+ 
+     final plan = LessonAssignmentPlanner.plan(
+       teacher: teacher,
+@@ -58,6 +60,7 @@ class TeachersNotifier extends _$TeachersNotifier {
+       classrooms: classrooms,
+       existingLessons: existingLessons,
+       settings: settings,
++      appConfig: appConfig,
+       duplicateBehavior: DuplicateAssignmentBehavior.skip,
+     );
+     if (!plan.isSuccess) {
+@@ -185,12 +188,14 @@ class SettingsNotifier extends _$SettingsNotifier {
+   Future<AppSettings> build() async {
+     final repo = await ref.watch(managementRepositoryProvider.future);
+     final settings = await repo.getSettings();
+-    return settings ?? AppSettings();
++    return settings ?? (AppSettings()..periodsPerDay = 7);
+   }
+ 
+   Future<void> saveSettings(AppSettings settings) async {
+     final repo = await ref.read(managementRepositoryProvider.future);
+     await repo.saveSettings(settings);
+-    state = AsyncValue.data(await repo.getSettings() ?? AppSettings());
++    state = AsyncValue.data(
++      await repo.getSettings() ?? (AppSettings()..periodsPerDay = 7),
++    );
+   }
+ }
+diff --git a/lib/features/setup/domain/setup_validation.dart b/lib/features/setup/domain/setup_validation.dart
+index 8aa757e..76616b9 100644
+--- a/lib/features/setup/domain/setup_validation.dart
++++ b/lib/features/setup/domain/setup_validation.dart
+@@ -1,4 +1,5 @@
+ import '../../../core/models/school_stage.dart';
++import '../../../core/models/weekly_load_policy.dart';
+ 
+ /// حدود وقواعد التحقق الخاصة ببيانات الإعداد الأولي.
+ ///
+@@ -45,6 +46,11 @@ class SetupValidation {
+     return stage == null ? 'يرجى اختيار المرحلة الدراسية' : null;
+   }
+ 
++  /// سياسة الحصص الأسبوعية إلزامية.
++  static String? weeklyLoadMode(WeeklyLoadMode? mode) {
++    return mode == null ? 'يرجى اختيار طريقة تحديد الحصص الأسبوعية' : null;
++  }
++
+   static String? _intInRange(
+     String? value, {
+     required int min,
+diff --git a/lib/features/setup/presentation/pages/first_run_setup_page.dart b/lib/features/setup/presentation/pages/first_run_setup_page.dart
+index a9aa4fa..f0e3419 100644
+--- a/lib/features/setup/presentation/pages/first_run_setup_page.dart
++++ b/lib/features/setup/presentation/pages/first_run_setup_page.dart
+@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
+ import 'package:flutter_riverpod/flutter_riverpod.dart';
+ 
+ import '../../../../core/models/school_stage.dart';
++import '../../../../core/models/settings.dart';
++import '../../../../core/models/weekly_load_policy.dart';
+ import '../../../../core/providers/app_config_provider.dart';
+ import '../../../management/presentation/providers/management_provider.dart';
+ import '../../../management/presentation/providers/subject_constraint_auto_sync_provider.dart';
+ import '../../domain/setup_validation.dart';
+ import '../widgets/school_stage_selector.dart';
++import '../widgets/weekly_load_mode_selector.dart';
+ 
+ /// شاشة الإعداد الأولي الإلزامية.
+ ///
+ /// تُعرض كواجهة إقلاع للتطبيق عند أول تشغيل، فلا يمكن استخدام التطبيق قبل
+ /// إدخال: اسم المدرسة، اسم المدير، عدد الدروس في اليوم، عدد أيام الأسبوع،
+-/// والمرحلة الدراسية.
++/// المرحلة الدراسية، وطريقة تحديد الحصص الأسبوعية.
+ ///
+ /// عند اختيار المرحلة الابتدائية تُشغَّل سياسة تخطي قيود المواد تلقائيًا
+ /// (انظر `PrimaryStageConstraintPolicy`).
+@@ -37,6 +40,8 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
+   final _daysPerWeekController = TextEditingController(text: '5');
+ 
+   SchoolStage? _selectedStage;
++  WeeklyLoadMode _selectedWeeklyLoadMode = WeeklyLoadMode.fallback;
++  ProviderSubscription<AsyncValue<AppSettings>>? _settingsSubscription;
+   bool _isPreparing = true;
+   bool _isSaving = false;
+   bool _showStageError = false;
+@@ -45,11 +50,14 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
+   @override
+   void initState() {
+     super.initState();
++    _settingsSubscription =
++        ref.listenManual(settingsNotifierProvider, (_, __) {});
+     _prepareForm();
+   }
+ 
+   @override
+   void dispose() {
++    _settingsSubscription?.close();
+     _schoolNameController.dispose();
+     _principalNameController.dispose();
+     _periodsPerDayController.dispose();
+@@ -77,6 +85,7 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
+         _periodsPerDayController.text = settings.periodsPerDay.toString();
+         _daysPerWeekController.text = settings.daysPerWeek.toString();
+         _selectedStage = config.isSetupCompleted ? config.schoolStage : null;
++        _selectedWeeklyLoadMode = config.weeklyLoadMode;
+         _isPreparing = false;
+       });
+     } catch (error) {
+@@ -123,9 +132,10 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
+           .read(settingsNotifierProvider.notifier)
+           .saveSettings(updatedSettings);
+ 
+-      await ref
+-          .read(appConfigNotifierProvider.notifier)
+-          .completeSetup(stage: stage);
++      await ref.read(appConfigNotifierProvider.notifier).completeSetup(
++            stage: stage,
++            weeklyLoadMode: _selectedWeeklyLoadMode,
++          );
+ 
+       // تُنشأ قيود المواد التلقائية للمرحلة الابتدائية بعد حفظ المرحلة.
+       final outcome =
+@@ -170,6 +180,10 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
+ 
+   @override
+   Widget build(BuildContext context) {
++    // إبقاء المزوّدات نشطة طوال عمر الشاشة لمنع التخلص التلقائي أثناء التحميل أو الحفظ.
++    ref.watch(settingsNotifierProvider);
++    ref.watch(appConfigNotifierProvider);
++
+     return PopScope(
+       // في وضع الإقلاع لا يُسمح بالخروج من الشاشة قبل إكمال البيانات.
+       canPop: widget.isEditing,
+@@ -240,6 +254,8 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
+                   const SizedBox(height: 16),
+                   _buildPrimaryPolicyNotice(),
+                 ],
++                const SizedBox(height: 20),
++                _buildWeeklyLoadCard(),
+                 const SizedBox(height: 28),
+                 ElevatedButton(
+                   onPressed: _isSaving ? null : _submit,
+@@ -414,6 +430,42 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
+     );
+   }
+ 
++  Widget _buildWeeklyLoadCard() {
++    return Card(
++      child: Padding(
++        padding: const EdgeInsets.all(16),
++        child: Column(
++          crossAxisAlignment: CrossAxisAlignment.start,
++          children: [
++            const Text(
++              'إعداد الحصص الأسبوعية',
++              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
++            ),
++            const SizedBox(height: 6),
++            Text(
++              'اختر الطريقة الأساسية التي تريد استخدامها لتحديد عدد الحصص للصفوف.',
++              style: TextStyle(fontSize: 13.5, color: Colors.grey.shade800),
++            ),
++            const SizedBox(height: 8),
++            WeeklyLoadModeSelector(
++              value: _selectedWeeklyLoadMode,
++              onChanged: (mode) {
++                setState(() {
++                  _selectedWeeklyLoadMode = mode;
++                });
++              },
++            ),
++            const SizedBox(height: 8),
++            Text(
++              'يمكنك تعديل هذه الإعدادات لاحقًا من الإعدادات أو من تفاصيل الصف. هذا التخصيص اختياري.',
++              style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
++            ),
++          ],
++        ),
++      ),
++    );
++  }
++
+   Widget _buildPrimaryPolicyNotice() {
+     return Container(
+       decoration: BoxDecoration(
+diff --git a/lib/features/setup/presentation/widgets/weekly_load_mode_selector.dart b/lib/features/setup/presentation/widgets/weekly_load_mode_selector.dart
+new file mode 100644
+index 0000000..9ed3eec
+--- /dev/null
++++ b/lib/features/setup/presentation/widgets/weekly_load_mode_selector.dart
+@@ -0,0 +1,50 @@
++// ignore_for_file: deprecated_member_use
++
++import 'package:flutter/material.dart';
++
++import '../../../../core/models/weekly_load_policy.dart';
++
++/// مُحدِّد السياسة العامة لعدد الحصص الأسبوعية:
++/// * `30 حصة لجميع الصفوف`
++/// * `الخطة الدراسية الرسمية`
++class WeeklyLoadModeSelector extends StatelessWidget {
++  const WeeklyLoadModeSelector({
++    super.key,
++    required this.value,
++    this.onChanged,
++  });
++
++  final WeeklyLoadMode? value;
++  final ValueChanged<WeeklyLoadMode>? onChanged;
++
++  @override
++  Widget build(BuildContext context) {
++    return Column(
++      crossAxisAlignment: CrossAxisAlignment.stretch,
++      children: <Widget>[
++        for (final mode in WeeklyLoadMode.values)
++          RadioListTile<WeeklyLoadMode>(
++            value: mode,
++            groupValue: value,
++            onChanged: onChanged == null
++                ? null
++                : (selected) {
++                    if (selected != null) {
++                      onChanged!(selected);
++                    }
++                  },
++            title: Text(
++              mode.label,
++              style: const TextStyle(fontWeight: FontWeight.w600),
++            ),
++            subtitle: Text(
++              mode.description,
++              style: const TextStyle(fontSize: 12.5),
++            ),
++            contentPadding: EdgeInsets.zero,
++            dense: true,
++          ),
++      ],
++    );
++  }
++}
+diff --git a/lib/features/timetable/domain/usecases/excel_export_usecase.dart b/lib/features/timetable/domain/usecases/excel_export_usecase.dart
+index 8a07bd2..8f621f0 100644
+--- a/lib/features/timetable/domain/usecases/excel_export_usecase.dart
++++ b/lib/features/timetable/domain/usecases/excel_export_usecase.dart
+@@ -137,9 +137,14 @@ class ExcelExportUseCase {
+       );
+     }
+ 
+-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+-    final displayDays = days.take(settings.daysPerWeek).toList();
+-    final int periodsPerDay = settings.periodsPerDay;
++    final displayDays = timetableDayLabels(settings.daysPerWeek);
++    var periodsPerDay = settings.periodsPerDay;
++    for (final l in lessons) {
++      final p = l.periodIndex;
++      if (!l.isUnassigned && p != null && p + 1 > periodsPerDay) {
++        periodsPerDay = p + 1;
++      }
++    }
+ 
+     final Map<String, Lesson> lessonMap = {};
+     for (final l in lessons) {
+diff --git a/lib/features/timetable/domain/usecases/pdf_export_usecase.dart b/lib/features/timetable/domain/usecases/pdf_export_usecase.dart
+index 4eebe5c..9a485f6 100644
+--- a/lib/features/timetable/domain/usecases/pdf_export_usecase.dart
++++ b/lib/features/timetable/domain/usecases/pdf_export_usecase.dart
+@@ -88,9 +88,14 @@ class PdfExportUseCase {
+ 
+   pw.Widget _buildTeacherTable(Teacher teacher, Map<String, Lesson> lessonMap,
+       AppSettings settings, pw.Font font, double availableHeight) {
+-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+-    final displayDays = days.take(settings.daysPerWeek).toList();
+-    final int periodsPerDay = settings.periodsPerDay;
++    final displayDays = timetableDayLabels(settings.daysPerWeek);
++    var periodsPerDay = settings.periodsPerDay;
++    for (final lesson in lessonMap.values) {
++      final p = lesson.periodIndex;
++      if (p != null && p + 1 > periodsPerDay) {
++        periodsPerDay = p + 1;
++      }
++    }
+ 
+     final int totalCols = 1 + periodsPerDay;
+ 
+@@ -409,9 +414,14 @@ class PdfExportUseCase {
+       AppSettings settings,
+       pw.Font font,
+       double availableHeight) {
+-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+-    final displayDays = days.take(settings.daysPerWeek).toList();
+-    final int periodsPerDay = settings.periodsPerDay;
++    final displayDays = timetableDayLabels(settings.daysPerWeek);
++    var periodsPerDay = settings.periodsPerDay;
++    for (final lesson in lessonMap.values) {
++      final p = lesson.periodIndex;
++      if (p != null && p + 1 > periodsPerDay) {
++        periodsPerDay = p + 1;
++      }
++    }
+ 
+     bool isA3Layout = chunk.length > 4;
+ 
+diff --git a/lib/features/timetable/domain/usecases/pre_validation_engine.dart b/lib/features/timetable/domain/usecases/pre_validation_engine.dart
+index f441ddb..c8a0e16 100644
+--- a/lib/features/timetable/domain/usecases/pre_validation_engine.dart
++++ b/lib/features/timetable/domain/usecases/pre_validation_engine.dart
+@@ -4,6 +4,7 @@ import '../../../../core/entities/classroom_entity.dart';
+ import '../../../../core/entities/app_settings_entity.dart';
+ import '../../../../core/entities/subject_entity.dart';
+ import '../../../../core/entities/subject_constraint_entity.dart';
++import '../../../../core/models/weekly_load_policy.dart';
+ 
+ class PreValidationEngine {
+   final List<LessonEntity> existingLessons;
+@@ -25,57 +26,85 @@ class PreValidationEngine {
+   List<String> validateAll() {
+     List<String> errors = [];
+ 
+-    // 1. Classroom Capacity Validation (Exact Match)
+-    int maxClassroomCapacity = settings.periodsPerDay * settings.daysPerWeek;
+-
++    // 1. Classroom Capacity & Daily Distribution Validation
+     for (var classroom in classrooms) {
+-      int assignedLessons = existingLessons.where((l) => l.classroom?.id == classroom.id).length;
++      if (classroom.weeklyTarget != null && classroom.dailyPeriods != null) {
++        final validation = WeeklyLoadValidator.validate(
++          weeklyTarget: classroom.weeklyTarget!,
++          daysPerWeek: settings.daysPerWeek,
++          dailyPeriods: classroom.dailyPeriods!,
++        );
++        if (!validation.isValid) {
++          errors.add(
++            'خطأ في توزيع الحصص للصف "${classroom.name}": ${validation.errorMessage}',
++          );
++          continue;
++        }
++      }
++
++      int maxClassroomCapacity = classroom.resolveWeeklyCapacity(settings);
++
++      int assignedLessons = existingLessons
++          .where((l) => l.classroom?.id == classroom.id)
++          .length;
+       if (assignedLessons > maxClassroomCapacity) {
+-        errors.add('استحالة رياضية: الصف "${classroom.name}" مُسند إليه $assignedLessons حصة، بينما سعة الجدول الأسبوعي هي $maxClassroomCapacity حصة فقط (أيام الدوام × الحصص اليومية). الحل: تقليل حصص الصف أو زيادة أيام/حصص الدوام.');
++        errors.add(
++            'استحالة رياضية: الصف "${classroom.name}" مُسند إليه $assignedLessons حصة، بينما سعة الجدول الأسبوعي هي $maxClassroomCapacity حصة فقط (أيام الدوام × الحصص اليومية). الحل: تقليل حصص الصف أو زيادة أيام/حصص الدوام.');
+       } else if (assignedLessons < maxClassroomCapacity) {
+-        errors.add('نقص في بيانات الإسناد: الصف "${classroom.name}" مسند إليه $assignedLessons حصة فقط، بينما المطلوب لملء جدوله الأسبوعي هو $maxClassroomCapacity حصة. يرجى إسناد المواد الناقصة لهذا الصف قبل توليد الجدول.');
++        errors.add(
++            'نقص في بيانات الإسناد: الصف "${classroom.name}" مسند إليه $assignedLessons حصة فقط، بينما المطلوب لملء جدوله الأسبوعي هو $maxClassroomCapacity حصة. يرجى إسناد المواد الناقصة لهذا الصف قبل توليد الجدول.');
+       }
+ 
+       // Check subject max constraints
+       Map<int, int> subjectLessonCounts = {};
+-      for (var lesson in existingLessons.where((l) => l.classroom?.id == classroom.id && l.subject != null)) {
+-         int sId = lesson.subject!.id;
+-         subjectLessonCounts[sId] = (subjectLessonCounts[sId] ?? 0) + 1;
++      for (var lesson in existingLessons
++          .where((l) => l.classroom?.id == classroom.id && l.subject != null)) {
++        int sId = lesson.subject!.id;
++        subjectLessonCounts[sId] = (subjectLessonCounts[sId] ?? 0) + 1;
+       }
+ 
+       for (var entry in subjectLessonCounts.entries) {
+         int sId = entry.key;
+         int count = entry.value;
+ 
+-        var subject = subjects.firstWhere((s) => s.id == sId, orElse: () => subjects.first);
++        var subject = subjects.firstWhere((s) => s.id == sId,
++            orElse: () => subjects.first);
+ 
+         int maxPerDay = 1; // Default
+         for (var constraint in subjectConstraints) {
+-           if (constraint.grade == classroom.grade && constraint.subjectName == subject.name) {
+-             maxPerDay = constraint.maxPeriodsPerDay;
+-             break;
+-           }
++          if (constraint.grade == classroom.grade &&
++              constraint.subjectName == subject.name) {
++            maxPerDay = constraint.maxPeriodsPerDay;
++            break;
++          }
+         }
+ 
+         int maxPerWeek = maxPerDay * settings.daysPerWeek;
+         if (count > maxPerWeek) {
+-           errors.add('استحالة رياضية: الصف "${classroom.name}" مطلوب له $count حصص لمادة "${subject.name}" أسبوعياً، ولكن الحد الأقصى المسموح يومياً هو $maxPerDay حصة، مما يجعل الحد الأقصى الأسبوعي $maxPerWeek حصة فقط (في ${settings.daysPerWeek} أيام).');
++          errors.add(
++              'استحالة رياضية: الصف "${classroom.name}" مطلوب له $count حصص لمادة "${subject.name}" أسبوعياً، ولكن الحد الأقصى المسموح يومياً هو $maxPerDay حصة، مما يجعل الحد الأقصى الأسبوعي $maxPerWeek حصة فقط (في ${settings.daysPerWeek} أيام).');
+         }
+       }
+     }
+ 
+     // 2. Teacher Capacity Validation
+     for (var teacher in teachers) {
+-      int assignedLessons = existingLessons.where((l) => l.teacher?.id == teacher.id).length;
++      int assignedLessons =
++          existingLessons.where((l) => l.teacher?.id == teacher.id).length;
+ 
+-      int activeUnavailableDays = teacher.unavailableDays.where((day) => day < settings.daysPerWeek).length;
++      int activeUnavailableDays = teacher.unavailableDays
++          .where((day) => day < settings.daysPerWeek)
++          .length;
+       int availableDays = settings.daysPerWeek - activeUnavailableDays;
+ 
+       int maxCapacityDays = teacher.maxLessonsPerDay * availableDays;
+-      int absoluteMaxCapacity = teacher.maxLessonsPerWeek < maxCapacityDays ? teacher.maxLessonsPerWeek : maxCapacityDays;
++      int absoluteMaxCapacity = teacher.maxLessonsPerWeek < maxCapacityDays
++          ? teacher.maxLessonsPerWeek
++          : maxCapacityDays;
+ 
+       if (assignedLessons > absoluteMaxCapacity) {
+-        errors.add('استحالة رياضية: المعلم "${teacher.name}" مطلوب منه $assignedLessons حصة. لكن حده الأقصى أو أيام تفرغه تسمح له بتدريس $absoluteMaxCapacity حصة فقط كحد أقصى. الحل: رفع الحد الأقصى للمعلم، تقليل إجازاته، أو نقل بعض حصصه لمعلم آخر.');
++        errors.add(
++            'استحالة رياضية: المعلم "${teacher.name}" مطلوب منه $assignedLessons حصة. لكن حده الأقصى أو أيام تفرغه تسمح له بتدريس $absoluteMaxCapacity حصة فقط كحد أقصى. الحل: رفع الحد الأقصى للمعلم، تقليل إجازاته، أو نقل بعض حصصه لمعلم آخر.');
+       }
+     }
+ 
+diff --git a/lib/features/timetable/domain/usecases/smart_auto_fix_usecase.dart b/lib/features/timetable/domain/usecases/smart_auto_fix_usecase.dart
+index a296ccb..6761a58 100644
+--- a/lib/features/timetable/domain/usecases/smart_auto_fix_usecase.dart
++++ b/lib/features/timetable/domain/usecases/smart_auto_fix_usecase.dart
+@@ -126,6 +126,19 @@ class SmartAutoFixUseCase {
+     );
+   }
+ 
++  int _periodsForClassroomOnDay(ClassroomEntity? classroom, int day) {
++    final fallbackPeriods = maxPeriods < 1 ? 1 : maxPeriods;
++    if (classroom == null) {
++      return fallbackPeriods;
++    }
++    final resolved = _generator.classrooms
++            .where((c) => c.id == classroom.id)
++            .firstOrNull
++            ?.periodsForDay(day, _generator.settings) ??
++        classroom.periodsForDay(day, _generator.settings);
++    return resolved;
++  }
++
+   List<List<LessonEntity>> _targetedNeighbors(
+     List<LessonEntity> schedule,
+     List<ConflictDiagnostic> diagnostics,
+@@ -151,7 +164,27 @@ class SmartAutoFixUseCase {
+ 
+     for (final target in targetLessons.take(4)) {
+       final swapPartners = unpinned
+-          .where((lesson) => lesson.id != target.id)
++          .where((lesson) {
++            if (lesson.id == target.id) return false;
++            final tDay = target.dayIndex;
++            final tPeriod = target.periodIndex;
++            final pDay = lesson.dayIndex;
++            final pPeriod = lesson.periodIndex;
++            if (tDay != null &&
++                tPeriod != null &&
++                pDay != null &&
++                pPeriod != null) {
++              if (pPeriod >=
++                  _periodsForClassroomOnDay(target.classroom, pDay)) {
++                return false;
++              }
++              if (tPeriod >=
++                  _periodsForClassroomOnDay(lesson.classroom, tDay)) {
++                return false;
++              }
++            }
++            return true;
++          })
+           .toList()
+         ..shuffle(random);
+       for (final partner in swapPartners.take(12)) {
+@@ -170,7 +203,8 @@ class SmartAutoFixUseCase {
+       }
+ 
+       for (var day = 0; day < maxDays; day++) {
+-        for (var period = 0; period < maxPeriods; period++) {
++        final periodsOnDay = _periodsForClassroomOnDay(target.classroom, day);
++        for (var period = 0; period < periodsOnDay; period++) {
+           final occupyingLesson = schedule.where((lesson) {
+             return lesson.id != target.id &&
+                 lesson.classroom?.id == target.classroom?.id &&
+@@ -179,6 +213,14 @@ class SmartAutoFixUseCase {
+           }).firstOrNull;
+ 
+           if (occupyingLesson != null && occupyingLesson.isPinned) continue;
++          if (occupyingLesson != null &&
++              target.dayIndex != null &&
++              target.periodIndex != null &&
++              target.periodIndex! >=
++                  _periodsForClassroomOnDay(
++                      occupyingLesson.classroom, target.dayIndex!)) {
++            continue;
++          }
+ 
+           final candidate = _cloneState(schedule);
+           final candidateTarget =
+diff --git a/lib/features/timetable/domain/usecases/timetable_generator.dart b/lib/features/timetable/domain/usecases/timetable_generator.dart
+index 686c73f..86b37b6 100644
+--- a/lib/features/timetable/domain/usecases/timetable_generator.dart
++++ b/lib/features/timetable/domain/usecases/timetable_generator.dart
+@@ -58,6 +58,34 @@ class TimetableGenerator {
+     return 1;
+   }
+ 
++  List<int> _dailyPeriodsForClassroom(
++    int classroomId,
++    int maxDays,
++    int fallbackMaxPeriods,
++  ) {
++    final classroom =
++        classrooms.where((c) => c.id == classroomId).firstOrNull;
++    if (classroom != null) {
++      return classroom.resolveDailyPeriods(settings);
++    }
++    final safeDays = maxDays < 1 ? 5 : maxDays;
++    return List<int>.filled(safeDays, fallbackMaxPeriods, growable: false);
++  }
++
++  int _periodsForClassroomOnDay(
++    int classroomId,
++    int dayIndex,
++    int maxDays,
++    int fallbackMaxPeriods,
++  ) {
++    final daily =
++        _dailyPeriodsForClassroom(classroomId, maxDays, fallbackMaxPeriods);
++    if (dayIndex < 0 || dayIndex >= daily.length) {
++      return 0;
++    }
++    return daily[dayIndex];
++  }
++
+   void _runPreValidation() {
+     final engine = PreValidationEngine(
+       existingLessons: existingLessons,
+@@ -190,33 +218,47 @@ class TimetableGenerator {
+         final targetLesson = unpinnedClassroomLessons[
+             random.nextInt(unpinnedClassroomLessons.length)];
+ 
+-        // Pick a random destination slot.
+-        final newDay = random.nextInt(maxDays);
+-        final newPeriod = random.nextInt(maxPeriods);
+-
+-        // Check if destination slot is occupied by another lesson in the same
+-        // classroom. We can only swap if it is unpinned.
+-        final occupyingLessonOpt = classroomLessons
+-            .where((l) => l.dayIndex == newDay && l.periodIndex == newPeriod);
+-
+-        if (occupyingLessonOpt.isNotEmpty) {
+-          final occupyingLesson = occupyingLessonOpt.first;
+-          if (!occupyingLesson.isPinned) {
+-            // Swap.
+-            final oldDay = targetLesson.dayIndex;
+-            final oldPeriod = targetLesson.periodIndex;
+-
++        // Pick a random destination slot within this classroom's daily profile.
++        final dailyPeriods = _dailyPeriodsForClassroom(
++          randomClassroomId,
++          maxDays,
++          maxPeriods,
++        );
++        final activeDays = <int>[
++          for (var d = 0; d < maxDays; d++)
++            if ((d < dailyPeriods.length ? dailyPeriods[d] : maxPeriods) > 0) d,
++        ];
++
++        if (activeDays.isNotEmpty) {
++          final newDay = activeDays[random.nextInt(activeDays.length)];
++          final periodsOnDay =
++              newDay < dailyPeriods.length ? dailyPeriods[newDay] : maxPeriods;
++          final newPeriod = random.nextInt(periodsOnDay);
++
++          // Check if destination slot is occupied by another lesson in the same
++          // classroom. We can only swap if it is unpinned.
++          final occupyingLessonOpt = classroomLessons
++              .where((l) => l.dayIndex == newDay && l.periodIndex == newPeriod);
++
++          if (occupyingLessonOpt.isNotEmpty) {
++            final occupyingLesson = occupyingLessonOpt.first;
++            if (!occupyingLesson.isPinned) {
++              // Swap.
++              final oldDay = targetLesson.dayIndex;
++              final oldPeriod = targetLesson.periodIndex;
++
++              targetLesson.dayIndex = newDay;
++              targetLesson.periodIndex = newPeriod;
++
++              occupyingLesson.dayIndex = oldDay;
++              occupyingLesson.periodIndex = oldPeriod;
++            }
++            // If it is pinned, do not mutate; try the next iteration.
++          } else {
++            // Destination is free for this classroom, just move.
+             targetLesson.dayIndex = newDay;
+             targetLesson.periodIndex = newPeriod;
+-
+-            occupyingLesson.dayIndex = oldDay;
+-            occupyingLesson.periodIndex = oldPeriod;
+           }
+-          // If it is pinned, do not mutate; try the next iteration.
+-        } else {
+-          // Destination is free for this classroom, just move.
+-          targetLesson.dayIndex = newDay;
+-          targetLesson.periodIndex = newPeriod;
+         }
+       }
+ 
+@@ -281,9 +323,18 @@ class TimetableGenerator {
+       final occupiedSlots = <int>{
+         for (var lesson in pinned) lesson.dayIndex! * 100 + lesson.periodIndex!,
+       };
++      final dailyPeriods = _dailyPeriodsForClassroom(
++        classroomId,
++        maxDays,
++        maxPeriods,
++      );
++      final maxClassroomPeriods =
++          dailyPeriods.isEmpty ? maxPeriods : dailyPeriods.reduce(max);
+       final availableSlots = <int>[];
+       for (var day = 0; day < maxDays; day++) {
+-        for (var period = 0; period < maxPeriods; period++) {
++        final periodsOnDay =
++            day < dailyPeriods.length ? dailyPeriods[day] : maxPeriods;
++        for (var period = 0; period < periodsOnDay; period++) {
+           final slot = day * 100 + period;
+           if (!occupiedSlots.contains(slot)) {
+             availableSlots.add(slot);
+@@ -294,7 +345,7 @@ class TimetableGenerator {
+       final orderedLessons = _orderLessonsByRestriction(
+         unpinned,
+         maxDays: maxDays,
+-        maxPeriods: maxPeriods,
++        maxPeriods: maxClassroomPeriods,
+       );
+ 
+       var assignedIndex = 0;
+@@ -655,6 +706,24 @@ class TimetableGenerator {
+ 
+       if (lesson.classroom != null) {
+         final classroomId = lesson.classroom!.id;
++        final allowedPeriodsOnDay = _periodsForClassroomOnDay(
++          classroomId,
++          day,
++          maxDays,
++          maxPeriods,
++        );
++        if (day < 0 ||
++            day >= maxDays ||
++            period < 0 ||
++            period >= allowedPeriodsOnDay) {
++          addDiagnostic(
++            GenericSolverFailure(
++              'الفصل "${lesson.classroom!.name}": الحصة ${period + 1} في اليوم ${day + 1} خارج التوزيع اليومي المعتمد للصف.',
++            ),
++            lessonIds: [lesson.id],
++          );
++        }
++
+         final owners = classroomSlotOwners.putIfAbsent(classroomId, () => {});
+         final previousOwner = owners[timeKey];
+         if (previousOwner != null) {
+@@ -852,6 +921,19 @@ class TimetableGenerator {
+       // Hard Constraint: Classroom Clash (Multiple lessons in same period)
+       if (lesson.classroom != null) {
+         int cId = lesson.classroom!.id;
++        final allowedPeriodsOnDay = _periodsForClassroomOnDay(
++          cId,
++          day,
++          maxDays,
++          maxPeriods,
++        );
++        if (day < 0 ||
++            day >= maxDays ||
++            period < 0 ||
++            period >= allowedPeriodsOnDay) {
++          cost += 1000;
++        }
++
+         if (classroomSlots.containsKey(cId) &&
+             classroomSlots[cId]!.contains(timeKey)) {
+           cost += 1000;
+diff --git a/lib/features/timetable/presentation/pages/timetable_page.dart b/lib/features/timetable/presentation/pages/timetable_page.dart
+index 4f7910f..7b4c16b 100644
+--- a/lib/features/timetable/presentation/pages/timetable_page.dart
++++ b/lib/features/timetable/presentation/pages/timetable_page.dart
+@@ -766,8 +766,14 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
+       }
+     }
+ 
+-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+-    final displayDays = days.take(settings.daysPerWeek).toList();
++    final displayDays = timetableDayLabels(settings.daysPerWeek);
++    var effectivePeriodsPerDay = settings.periodsPerDay;
++    for (final lesson in assigned) {
++      final p = lesson.periodIndex;
++      if (p != null && p + 1 > effectivePeriodsPerDay) {
++        effectivePeriodsPerDay = p + 1;
++      }
++    }
+ 
+     List<TableRow> rows = [];
+ 
+@@ -829,7 +835,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
+         children: headerCells));
+ 
+     for (int d = 0; d < displayDays.length; d++) {
+-      for (int p = 0; p < settings.periodsPerDay; p++) {
++      for (int p = 0; p < effectivePeriodsPerDay; p++) {
+         List<Widget> cells = [];
+ 
+         if (p == 0) {
+@@ -1103,8 +1109,14 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
+       return const Center(child: Text('لا يوجد بيانات لعرضها.'));
+     }
+ 
+-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+-    final displayDays = days.take(settings.daysPerWeek).toList();
++    final displayDays = timetableDayLabels(settings.daysPerWeek);
++    var effectivePeriodsPerDay = settings.periodsPerDay;
++    for (final lesson in assigned) {
++      final p = lesson.periodIndex;
++      if (p != null && p + 1 > effectivePeriodsPerDay) {
++        effectivePeriodsPerDay = p + 1;
++      }
++    }
+     final int masterKeyId = 0; // use 0 for the master grid
+     if (!_classroomKeys.containsKey(masterKeyId)) {
+       _classroomKeys[masterKeyId] = GlobalKey();
+@@ -1164,7 +1176,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
+         children: headerCells));
+ 
+     for (int d = 0; d < displayDays.length; d++) {
+-      for (int p = 0; p < settings.periodsPerDay; p++) {
++      for (int p = 0; p < effectivePeriodsPerDay; p++) {
+         List<Widget> cells = [];
+ 
+         if (p == 0) {
+diff --git a/lib/features/timetable/presentation/providers/timetable_interaction_index.dart b/lib/features/timetable/presentation/providers/timetable_interaction_index.dart
+index fc736b0..322a426 100644
+--- a/lib/features/timetable/presentation/providers/timetable_interaction_index.dart
++++ b/lib/features/timetable/presentation/providers/timetable_interaction_index.dart
+@@ -1,5 +1,8 @@
++import '../../../../core/models/app_config.dart';
++import '../../../../core/models/classroom.dart';
+ import '../../../../core/models/lesson.dart';
+ import '../../../../core/models/subject_constraint.dart';
++import '../../../../core/models/weekly_load_policy.dart';
+ 
+ typedef TimetableTeacherSlotKey = ({
+   int teacherId,
+@@ -43,11 +46,15 @@ class TimetableInteractionIndex {
+     required this.subjectLessonsByDay,
+     required this.teacherLessonsByDay,
+     required this.maxPeriodsBySubject,
++    required this.appConfig,
++    required this.daysPerWeek,
+   });
+ 
+   factory TimetableInteractionIndex.build({
+     required List<Lesson> lessons,
+     required List<SubjectConstraint> subjectConstraints,
++    AppConfig? appConfig,
++    int daysPerWeek = 5,
+   }) {
+     final lessonsById = <int, Lesson>{};
+     final teacherLessonsBySlot = <TimetableTeacherSlotKey, Set<int>>{};
+@@ -70,6 +77,8 @@ class TimetableInteractionIndex {
+       subjectLessonsByDay: subjectLessonsByDay,
+       teacherLessonsByDay: teacherLessonsByDay,
+       maxPeriodsBySubject: maxPeriodsBySubject,
++      appConfig: appConfig,
++      daysPerWeek: daysPerWeek < 1 ? 5 : daysPerWeek,
+     );
+ 
+     for (final lesson in lessons) {
+@@ -86,9 +95,35 @@ class TimetableInteractionIndex {
+   final Map<TimetableSubjectDayKey, Set<int>> subjectLessonsByDay;
+   final Map<TimetableTeacherDayKey, Set<int>> teacherLessonsByDay;
+   final Map<TimetableConstraintKey, int> maxPeriodsBySubject;
++  final AppConfig? appConfig;
++  final int daysPerWeek;
+ 
+   Lesson? lessonById(int id) => lessonsById[id];
+ 
++  int? allowedPeriodsForClassroomOnDay({
++    required Classroom? classroom,
++    required int dayIndex,
++  }) {
++    if (classroom == null) {
++      return null;
++    }
++    // Resolve policy first: orphan daily overrides must not bypass the global
++    // policy when weeklyOverride is null.
++    if (appConfig != null) {
++      return appConfig!.resolveWeeklyConfigForClassroom(
++        classroom,
++        daysPerWeek: daysPerWeek,
++      ).periodsForDay(dayIndex);
++    }
++    final override = classroom.weeklyOverride;
++    if (override != null) {
++      final daily = override.dailyPeriods ??
++          DailyDistribution.buildAutomatic(override.weeklyLessons, daysPerWeek);
++      return dayIndex >= 0 && dayIndex < daily.length ? daily[dayIndex] : 0;
++    }
++    return null;
++  }
++
+   bool hasTeacherConflict({
+     required int? teacherId,
+     required int? dayIndex,
+diff --git a/lib/features/timetable/presentation/providers/timetable_provider.dart b/lib/features/timetable/presentation/providers/timetable_provider.dart
+index 732df64..839ad7b 100644
+--- a/lib/features/timetable/presentation/providers/timetable_provider.dart
++++ b/lib/features/timetable/presentation/providers/timetable_provider.dart
+@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
+ import 'package:isar/isar.dart';
+ import 'dart:async';
+ import 'dart:isolate';
++import '../../../../core/providers/app_config_provider.dart';
+ import '../../../../core/providers/database_provider.dart';
+ import '../../../../core/models/teacher.dart';
+ import '../../../../core/models/subject.dart';
+@@ -88,6 +89,9 @@ class TimetableNotifier extends _$TimetableNotifier {
+ 
+   @override
+   Future<List<Lesson>> build() async {
++    ref.listen(appConfigNotifierProvider, (previous, next) {
++      _interactionIndex = null;
++    });
+     final isar = await ref.watch(isarDatabaseProvider.future);
+     _startReferenceWatchers(isar);
+     return _loadPersistedLessons(isar, force: true);
+@@ -202,9 +206,16 @@ class TimetableNotifier extends _$TimetableNotifier {
+     }
+ 
+     final constraints = await _loadSubjectConstraints(isar);
++    final appConfig = await ref.read(appConfigNotifierProvider.future);
++    final settingsList = await isar.appSettings.where().findAll();
++    final settings = settingsList.isNotEmpty
++        ? settingsList.first
++        : (AppSettings()..periodsPerDay = 7);
+     final index = TimetableInteractionIndex.build(
+       lessons: visibleLessons,
+       subjectConstraints: constraints,
++      appConfig: appConfig,
++      daysPerWeek: settings.daysPerWeek,
+     );
+     _interactionIndex = index;
+     return index;
+@@ -261,6 +272,14 @@ class TimetableNotifier extends _$TimetableNotifier {
+     final subject = lesson.subject.value;
+     final classroom = lesson.classroom.value;
+ 
++    final allowedPeriodsOnDay = index.allowedPeriodsForClassroomOnDay(
++      classroom: classroom,
++      dayIndex: newDay,
++    );
++    if (allowedPeriodsOnDay != null && newPeriod >= allowedPeriodsOnDay) {
++      return 'لا يمكن $operationLabel: الحصة (${newPeriod + 1}) خارج التوزيع اليومي المعتمد للصف (${classroom?.name ?? ''}) في اليوم المقترح';
++    }
++
+     if (index.hasTeacherConflict(
+       teacherId: teacher?.id,
+       dayIndex: newDay,
+@@ -342,6 +361,7 @@ class TimetableNotifier extends _$TimetableNotifier {
+     final settings = settingsList.isNotEmpty
+         ? settingsList.first
+         : (AppSettings()..periodsPerDay = 7);
++    final appConfig = await ref.read(appConfigNotifierProvider.future);
+ 
+     final plan = LessonAssignmentPlanner.plan(
+       teacher: teacher,
+@@ -349,6 +369,7 @@ class TimetableNotifier extends _$TimetableNotifier {
+       classrooms: [classroom],
+       existingLessons: allLessons,
+       settings: settings,
++      appConfig: appConfig,
+       duplicateBehavior: DuplicateAssignmentBehavior.fail,
+     );
+     if (!plan.isSuccess) {
+@@ -436,6 +457,7 @@ class TimetableNotifier extends _$TimetableNotifier {
+       final settings = settingsList.isNotEmpty
+           ? settingsList.first
+           : (AppSettings()..periodsPerDay = 7);
++      final appConfig = await ref.read(appConfigNotifierProvider.future);
+ 
+       // Clear existing schedule assignments by resetting indexes
+       final existingLessons = await isar.lessons.where().findAll();
+@@ -448,7 +470,14 @@ class TimetableNotifier extends _$TimetableNotifier {
+         for (var s in subjects) s.id: SubjectEntity.fromIsar(s)
+       };
+       final classroomsMap = {
+-        for (var c in classrooms) c.id: ClassroomEntity.fromIsar(c)
++        for (var c in classrooms)
++          c.id: ClassroomEntity.fromIsar(
++            c,
++            effectiveConfig: appConfig.resolveWeeklyConfigForClassroom(
++              c,
++              daysPerWeek: settings.daysPerWeek,
++            ),
++          )
+       };
+ 
+       final existingLessonsEntity = existingLessons
+diff --git a/test/core/models/app_config_test.dart b/test/core/models/app_config_test.dart
+index 03cf891..0a5a155 100644
+--- a/test/core/models/app_config_test.dart
++++ b/test/core/models/app_config_test.dart
+@@ -3,6 +3,7 @@ import 'dart:convert';
+ import 'package:flutter_test/flutter_test.dart';
+ import 'package:jadwal_v2/core/models/app_config.dart';
+ import 'package:jadwal_v2/core/models/school_stage.dart';
++import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
+ 
+ void main() {
+   group('SchoolStage', () {
+@@ -81,5 +82,33 @@ void main() {
+       expect(AppConfig.initial().isSetupCompleted, isFalse);
+       expect(AppConfig.initial(), AppConfig.initial());
+     });
++
++    test('يحفظ ويستعيد سياسة الحصص الأسبوعية والخطة الرسمية المعدلة', () {
++      final customPlan = const OfficialWeeklyPlan.standard().copyWithEntry(
++        track: OfficialPlanTrack.primary,
++        grade: AcademicGrade.sixth,
++        weeklyLessons: 32,
++      );
++      final config = AppConfig(
++        isSetupCompleted: true,
++        schoolStage: SchoolStage.primary,
++        weeklyLoadMode: WeeklyLoadMode.officialPlan,
++        officialWeeklyPlan: customPlan,
++        managedAutoConstraints: const <String, int>{},
++        dismissedAutoConstraints: const <String>{},
++      );
++
++      final encoded = jsonEncode(config.toJson());
++      final decoded =
++          AppConfig.fromJson(jsonDecode(encoded) as Map<String, dynamic>);
++
++      expect(decoded, config);
++      expect(decoded.weeklyLoadMode, WeeklyLoadMode.officialPlan);
++      expect(
++        decoded.officialWeeklyPlan
++            .lessonsFor(OfficialPlanTrack.primary, AcademicGrade.sixth),
++        32,
++      );
++    });
+   });
+ }
+diff --git a/test/core/models/weekday_mapping_regression_test.dart b/test/core/models/weekday_mapping_regression_test.dart
+new file mode 100644
+index 0000000..6dcd59d
+--- /dev/null
++++ b/test/core/models/weekday_mapping_regression_test.dart
+@@ -0,0 +1,97 @@
++import 'dart:io';
++
++import 'package:flutter_test/flutter_test.dart';
++import 'package:jadwal_v2/core/entities/app_settings_entity.dart';
++import 'package:jadwal_v2/core/entities/classroom_entity.dart';
++import 'package:jadwal_v2/core/models/app_config.dart';
++import 'package:jadwal_v2/core/models/classroom.dart';
++import 'package:jadwal_v2/core/models/settings.dart';
++import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
++import 'package:jadwal_v2/core/utils/timetable_display_utils.dart';
++import 'package:jadwal_v2/features/timetable/presentation/providers/timetable_interaction_index.dart';
++
++void main() {
++  const labels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
++
++  test('persisted weekday indices stay Sunday-first, Friday=5, Saturday=6', () {
++    expect(Weekday.friday.indexPosition, 5);
++    expect(Weekday.saturday.indexPosition, 6);
++    for (var index = 0; index < labels.length; index++) {
++      final day = Weekday.fromDayIndex(index);
++      expect(day.indexPosition, index);
++      expect(day.arabicLabel, labels[index]);
++    }
++  });
++
++  for (final days in [6, 7]) {
++    test('$days-day UI/PDF/Excel adapter retains every weekday identity', () {
++      final display = timetableDayLabels(days);
++      expect(display, labels.take(days).toList());
++      expect(display[Weekday.friday.indexPosition], 'الجمعة');
++      if (days == 6) {
++        expect(display, isNot(contains('السبت')));
++      } else {
++        expect(display[Weekday.saturday.indexPosition], 'السبت');
++      }
++      for (final day in Weekday.workingDays(days)) {
++        expect(display[day.indexPosition], day.arabicLabel);
++      }
++    });
++
++    for (final selectedDay in Weekday.workingDays(days)
++        .where((day) => day == Weekday.friday || day == Weekday.saturday)) {
++      test('$days-day ${selectedDay.name} customization keeps its day through resolution', () {
++        final classroom = Classroom()
++          ..id = 1
++          ..name = 'أ'
++          ..grade = 'الصف الأول'
++          ..weeklyOverride = ClassroomWeeklyOverride.withExtraDays(
++            weeklyLessons: days * 4 + 1,
++            daysPerWeek: days,
++            extraDays: [selectedDay.indexPosition],
++          );
++        final config = AppConfig.initial();
++        final effective = config.resolveWeeklyConfigForClassroom(
++            classroom, daysPerWeek: days);
++        final settings = AppSettingsEntity.fromIsar(AppSettings()
++          ..periodsPerDay = 7
++          ..daysPerWeek = days);
++        final entity = ClassroomEntity.fromIsar(classroom,
++            effectiveConfig: effective);
++        final index = TimetableInteractionIndex.build(
++            lessons: [], subjectConstraints: [], appConfig: config,
++            daysPerWeek: days);
++        final display = timetableDayLabels(days);
++        expect(effective.weekdayPeriods[selectedDay], 5);
++        expect(DailyDistribution.fromWeekdayMap(effective.weekdayPeriods,
++            daysPerWeek: days), classroom.dailyPeriodsOverride);
++        for (final day in Weekday.workingDays(days)) {
++          final expectedPeriods = day == selectedDay ? 5 : 4;
++          expect(effective.weekdayPeriods[day], expectedPeriods);
++          expect(entity.periodsForDay(day.indexPosition, settings), expectedPeriods);
++          expect(index.allowedPeriodsForClassroomOnDay(
++              classroom: classroom, dayIndex: day.indexPosition), expectedPeriods);
++          // Same pairing used by the classroom customization preview, and
++          // the shared adapter consumed by timetable/PDF/Excel renderers.
++          expect('${display[day.indexPosition]} ($expectedPeriods)',
++              '${day.arabicLabel} (${effective.dailyPeriods[day.indexPosition]})');
++        }
++      });
++    }
++  }
++
++  test('all timetable renderers delegate day labels to the tested shared adapter', () {
++    // Wiring regression guard: a correct helper alone must not hide a renderer
++    // reverting to a private Friday/Saturday-swapped array.
++    for (final path in [
++      'lib/features/timetable/presentation/pages/timetable_page.dart',
++      'lib/features/timetable/domain/usecases/pdf_export_usecase.dart',
++      'lib/features/timetable/domain/usecases/excel_export_usecase.dart',
++    ]) {
++      final source = File(path).readAsStringSync();
++      expect(source, contains('timetableDayLabels(settings.daysPerWeek)'), reason: path);
++      expect(source, isNot(contains("'الجمعة'")), reason: path);
++      expect(source, isNot(contains("'السبت'")), reason: path);
++    }
++  });
++}
+diff --git a/test/core/models/weekly_capacity_boundary_test.dart b/test/core/models/weekly_capacity_boundary_test.dart
+new file mode 100644
+index 0000000..e221e28
+--- /dev/null
++++ b/test/core/models/weekly_capacity_boundary_test.dart
+@@ -0,0 +1,59 @@
++import 'package:flutter_test/flutter_test.dart';
++import 'package:jadwal_v2/core/entities/app_settings_entity.dart';
++import 'package:jadwal_v2/core/entities/classroom_entity.dart';
++import 'package:jadwal_v2/core/models/app_config.dart';
++import 'package:jadwal_v2/core/models/classroom.dart';
++import 'package:jadwal_v2/core/models/settings.dart';
++import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
++import 'package:jadwal_v2/features/timetable/presentation/providers/timetable_interaction_index.dart';
++
++void main() {
++  final settings = AppSettingsEntity.fromIsar(AppSettings()
++    ..periodsPerDay = 9
++    ..daysPerWeek = 5);
++  for (final daily in <List<int>>[
++    [6, 6, 6, 6, 6], [7, 6, 6, 6, 6],
++    [6, 6, 7, 6, 6], [7, 7, 7, 6, 6],
++  ]) {
++    test('effective profile $daily overrides rectangular capacity', () {
++      final target = daily.reduce((a, b) => a + b);
++      final classroom = Classroom()
++        ..id = 1
++        ..name = 'أ'
++        ..grade = 'الصف السادس'
++        ..weeklyOverride = ClassroomWeeklyOverride(
++            weeklyLessons: target, dailyPeriods: daily);
++      final config = AppConfig.initial();
++      final entity = ClassroomEntity.fromIsar(classroom,
++          effectiveConfig: config.resolveWeeklyConfigForClassroom(
++              classroom, daysPerWeek: 5));
++      expect(entity.resolveWeeklyCapacity(settings), target);
++      expect(entity.resolveDailyPeriods(settings), daily);
++      final index = TimetableInteractionIndex.build(
++          lessons: [], subjectConstraints: [], appConfig: config);
++      for (var day = 0; day < daily.length; day++) {
++        expect(index.allowedPeriodsForClassroomOnDay(
++            classroom: classroom, dayIndex: day), daily[day]);
++      }
++    });
++  }
++  test('only absent capacity uses legacy rectangular fallback', () {
++    final legacy = ClassroomEntity(id: 1, name: 'أ', grade: 'الأول');
++    expect(legacy.resolveWeeklyCapacity(settings), 45);
++    expect(legacy.resolveDailyPeriods(settings), [9, 9, 9, 9, 9]);
++    final invalid = ClassroomEntity(id: 1, name: 'أ', grade: 'الأول',
++        weeklyTarget: 0, dailyPeriods: [0]);
++    expect(invalid.resolveWeeklyCapacity(settings), 0);
++    expect(invalid.resolveDailyPeriods(settings), [0]);
++  });
++  test('orphan daily override does not bypass global policy in interaction', () {
++    final classroom = Classroom()
++      ..name = 'أ'
++      ..grade = 'الصف الأول'
++      ..dailyPeriodsOverride = [9, 9, 9, 9, 9];
++    final index = TimetableInteractionIndex.build(
++        lessons: [], subjectConstraints: [], appConfig: AppConfig.initial());
++    expect(index.allowedPeriodsForClassroomOnDay(
++        classroom: classroom, dayIndex: 0), 6);
++  });
++}
+diff --git a/test/core/models/weekly_load_migration_test.dart b/test/core/models/weekly_load_migration_test.dart
+new file mode 100644
+index 0000000..9fad029
+--- /dev/null
++++ b/test/core/models/weekly_load_migration_test.dart
+@@ -0,0 +1,64 @@
++import 'dart:io';
++
++import 'package:flutter_test/flutter_test.dart';
++import 'package:isar/isar.dart';
++import 'package:jadwal_v2/core/models/app_config.dart';
++import 'package:jadwal_v2/core/models/classroom.dart';
++import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
++
++import '../../fixtures/legacy_classroom.dart';
++
++void main() {
++  test('reopens a real old Isar file and preserves classroom through updates',
++      () async {
++    await Isar.initializeIsarCore(download: true);
++    final dir = await Directory.systemTemp.createTemp('weekly_migration_');
++    Isar? db;
++    try {
++      db = await Isar.open([LegacyClassroomSchema],
++          directory: dir.path, name: 'migration');
++      final old = LegacyClassroom()
++        ..id = 42
++        ..name = 'السادس أ'
++        ..grade = 'الصف السادس';
++      final legacyDb = db;
++      await legacyDb.writeTxn(() async {
++        await legacyDb.collection<LegacyClassroom>().put(old);
++      });
++      await db.close();
++      db = await Isar.open([ClassroomSchema],
++          directory: dir.path, name: 'migration');
++      final classroom = (await db.classrooms.get(42))!;
++      expect(classroom.name, old.name);
++      expect(classroom.grade, old.grade);
++      expect(classroom.weeklyLessonsOverride, isNull);
++      expect(classroom.dailyPeriodsOverride, isNull);
++      expect(classroom.weeklyOverride, isNull);
++      final effective = AppConfig.initial()
++          .resolveWeeklyConfigForClassroom(classroom, daysPerWeek: 5);
++      expect(effective.weeklyTarget, 30);
++      expect(effective.dailyPeriods, [6, 6, 6, 6, 6]);
++      classroom.name = 'السادس ب';
++      classroom.weeklyOverride = const ClassroomWeeklyOverride(
++          weeklyLessons: 31, dailyPeriods: [6, 6, 7, 6, 6]);
++      final updatedDb = db;
++      await updatedDb.writeTxn(() async {
++        await updatedDb.classrooms.put(classroom);
++      });
++      await db.close();
++      db = await Isar.open([ClassroomSchema],
++          directory: dir.path, name: 'migration');
++      final saved = (await db.classrooms.get(42))!;
++      expect(saved.name, 'السادس ب');
++      expect(saved.grade, old.grade);
++      expect(saved.id, 42);
++      final resolved = AppConfig.initial()
++          .resolveWeeklyConfigForClassroom(saved, daysPerWeek: 5);
++      expect(resolved.weeklyTarget, 31);
++      expect(resolved.dailyPeriods, [6, 6, 7, 6, 6]);
++    } finally {
++      if (db != null && db.isOpen) await db.close();
++      await dir.delete(recursive: true);
++    }
++  });
++}
+diff --git a/test/core/models/weekly_load_policy_test.dart b/test/core/models/weekly_load_policy_test.dart
+new file mode 100644
+index 0000000..00ae310
+--- /dev/null
++++ b/test/core/models/weekly_load_policy_test.dart
+@@ -0,0 +1,362 @@
++import 'package:flutter_test/flutter_test.dart';
++import 'package:jadwal_v2/core/models/app_config.dart';
++import 'package:jadwal_v2/core/models/classroom.dart';
++import 'package:jadwal_v2/core/models/school_stage.dart';
++import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
++
++void main() {
++  group('WeeklyLoadMode', () {
++    test('default mode is uniform30 and labels contain no year', () {
++      expect(WeeklyLoadMode.fallback, WeeklyLoadMode.uniform30);
++      expect(WeeklyLoadMode.uniform30.label, '30 حصة لجميع الصفوف');
++      expect(WeeklyLoadMode.officialPlan.label, 'الخطة الدراسية الرسمية');
++
++      for (final mode in WeeklyLoadMode.values) {
++        expect(mode.name, isNot(contains(RegExp(r'\d{4}'))));
++        expect(mode.storageName, isNot(contains(RegExp(r'\d{4}'))));
++        expect(mode.label, isNot(contains(RegExp(r'\d{4}'))));
++      }
++
++      expect(WeeklyLoadMode.fromStorage('uniform30'), WeeklyLoadMode.uniform30);
++      expect(
++        WeeklyLoadMode.fromStorage('officialPlan'),
++        WeeklyLoadMode.officialPlan,
++      );
++      expect(WeeklyLoadMode.fromStorage('unknown'), WeeklyLoadMode.uniform30);
++      expect(WeeklyLoadMode.fromStorage(null), WeeklyLoadMode.uniform30);
++    });
++  });
++
++  group('OfficialWeeklyPlan defaults & editing', () {
++    test('standard official plan matches exact curriculum defaults', () {
++      const plan = OfficialWeeklyPlan.standard();
++
++      // ابتدائي
++      expect(
++        plan.lessonsFor(OfficialPlanTrack.primary, AcademicGrade.first),
++        30,
++      );
++      expect(
++        plan.lessonsFor(OfficialPlanTrack.primary, AcademicGrade.second),
++        30,
++      );
++      expect(
++        plan.lessonsFor(OfficialPlanTrack.primary, AcademicGrade.third),
++        30,
++      );
++      expect(
++        plan.lessonsFor(OfficialPlanTrack.primary, AcademicGrade.fourth),
++        30,
++      );
++      expect(
++        plan.lessonsFor(OfficialPlanTrack.primary, AcademicGrade.fifth),
++        30,
++      );
++      expect(
++        plan.lessonsFor(OfficialPlanTrack.primary, AcademicGrade.sixth),
++        31,
++      );
++
++      // متوسط
++      expect(
++        plan.lessonsFor(OfficialPlanTrack.middle, AcademicGrade.first),
++        30,
++      );
++      expect(
++        plan.lessonsFor(OfficialPlanTrack.middle, AcademicGrade.second),
++        30,
++      );
++      expect(
++        plan.lessonsFor(OfficialPlanTrack.middle, AcademicGrade.third),
++        30,
++      );
++
++      // إعدادي علمي
++      expect(
++        plan.lessonsFor(
++          OfficialPlanTrack.preparatoryScientific,
++          AcademicGrade.fourth,
++        ),
++        30,
++      );
++      expect(
++        plan.lessonsFor(
++          OfficialPlanTrack.preparatoryScientific,
++          AcademicGrade.fifth,
++        ),
++        30,
++      );
++      expect(
++        plan.lessonsFor(
++          OfficialPlanTrack.preparatoryScientific,
++          AcademicGrade.sixth,
++        ),
++        33,
++      );
++
++      // إعدادي أدبي
++      expect(
++        plan.lessonsFor(
++          OfficialPlanTrack.preparatoryLiterary,
++          AcademicGrade.fourth,
++        ),
++        30,
++      );
++      expect(
++        plan.lessonsFor(
++          OfficialPlanTrack.preparatoryLiterary,
++          AcademicGrade.fifth,
++        ),
++        31,
++      );
++      expect(
++        plan.lessonsFor(
++          OfficialPlanTrack.preparatoryLiterary,
++          AcademicGrade.sixth,
++        ),
++        31,
++      );
++    });
++
++    test('editing official plan defaults updates non-overridden classrooms only',
++        () {
++      const standardPlan = OfficialWeeklyPlan.standard();
++      final editedPlan = standardPlan.copyWithEntry(
++        track: OfficialPlanTrack.primary,
++        grade: AcademicGrade.sixth,
++        weeklyLessons: 32,
++      );
++
++      final config = AppConfig.initial().copyWith(
++        schoolStage: SchoolStage.primary,
++        weeklyLoadMode: WeeklyLoadMode.officialPlan,
++        officialWeeklyPlan: editedPlan,
++      );
++
++      final classroomUsingDefault = Classroom()
++        ..id = 1
++        ..name = 'السادس أ'
++        ..grade = 'الصف السادس';
++
++      final classroomWithOverride = Classroom()
++        ..id = 2
++        ..name = 'السادس ب'
++        ..grade = 'الصف السادس'
++        ..weeklyOverride = const ClassroomWeeklyOverride(
++          weeklyLessons: 31,
++          dailyPeriods: <int>[6, 6, 7, 6, 6],
++        );
++
++      final resolvedDefault = config.resolveWeeklyConfigForClassroom(
++        classroomUsingDefault,
++        daysPerWeek: 5,
++      );
++      final resolvedOverridden = config.resolveWeeklyConfigForClassroom(
++        classroomWithOverride,
++        daysPerWeek: 5,
++      );
++
++      expect(resolvedDefault.weeklyTarget, 32);
++      expect(resolvedDefault.isOverridden, isFalse);
++      expect(resolvedDefault.dailyPeriods, <int>[7, 7, 6, 6, 6]);
++
++      expect(resolvedOverridden.weeklyTarget, 31);
++      expect(resolvedOverridden.isOverridden, isTrue);
++      expect(resolvedOverridden.dailyPeriods, <int>[6, 6, 7, 6, 6]);
++    });
++  });
++
++  group('Classroom resolution with and without override', () {
++    test('classroom without override uses general setting', () {
++      final sixthPrimary = Classroom()
++        ..id = 1
++        ..name = 'السادس أ'
++        ..grade = 'الصف السادس الابتدائي';
++      final sixthScientific = Classroom()
++        ..id = 2
++        ..name = 'السادس العلمي أ'
++        ..grade = 'السادس العلمي';
++      final fifthLiterary = Classroom()
++        ..id = 3
++        ..name = 'الخامس الأدبي أ'
++        ..grade = 'الخامس الأدبي';
++
++      final uniformConfig = AppConfig.initial().copyWith(
++        schoolStage: SchoolStage.primary,
++        weeklyLoadMode: WeeklyLoadMode.uniform30,
++      );
++      expect(
++        uniformConfig
++            .resolveWeeklyConfigForClassroom(sixthPrimary, daysPerWeek: 5)
++            .weeklyTarget,
++        30,
++      );
++
++      final officialPrimaryConfig = AppConfig.initial().copyWith(
++        schoolStage: SchoolStage.primary,
++        weeklyLoadMode: WeeklyLoadMode.officialPlan,
++      );
++      expect(
++        officialPrimaryConfig
++            .resolveWeeklyConfigForClassroom(sixthPrimary, daysPerWeek: 5)
++            .weeklyTarget,
++        31,
++      );
++
++      final officialSecondaryConfig = AppConfig.initial().copyWith(
++        schoolStage: SchoolStage.middleAndAbove,
++        weeklyLoadMode: WeeklyLoadMode.officialPlan,
++      );
++      expect(
++        officialSecondaryConfig
++            .resolveWeeklyConfigForClassroom(sixthScientific, daysPerWeek: 5)
++            .weeklyTarget,
++        33,
++      );
++      expect(
++        officialSecondaryConfig
++            .resolveWeeklyConfigForClassroom(fifthLiterary, daysPerWeek: 5)
++            .weeklyTarget,
++        31,
++      );
++    });
++
++    test('classroom with override uses override regardless of global mode', () {
++      final classroom = Classroom()
++        ..id = 10
++        ..name = 'الأول أ'
++        ..grade = 'الصف الأول'
++        ..weeklyOverride = const ClassroomWeeklyOverride(weeklyLessons: 31);
++
++      final uniformConfig = AppConfig.initial().copyWith(
++        weeklyLoadMode: WeeklyLoadMode.uniform30,
++      );
++      final resolved = uniformConfig.resolveWeeklyConfigForClassroom(
++        classroom,
++        daysPerWeek: 5,
++      );
++
++      expect(resolved.isOverridden, isTrue);
++      expect(resolved.weeklyTarget, 31);
++      expect(resolved.dailyPeriods, <int>[7, 6, 6, 6, 6]);
++    });
++  });
++
++  group('DailyDistribution & WeeklyLoadValidator', () {
++    test('30 lessons distribution -> [6, 6, 6, 6, 6]', () {
++      final dist = DailyDistribution.buildAutomatic(30, 5);
++      expect(dist, <int>[6, 6, 6, 6, 6]);
++
++      final validation = WeeklyLoadValidator.validate(
++        weeklyTarget: 30,
++        daysPerWeek: 5,
++        dailyPeriods: dist,
++      );
++      expect(validation.isValid, isTrue);
++    });
++
++    test('31 lessons automatic distribution -> [7, 6, 6, 6, 6]', () {
++      final dist = DailyDistribution.buildAutomatic(31, 5);
++      expect(dist, <int>[7, 6, 6, 6, 6]);
++
++      final validation = WeeklyLoadValidator.validate(
++        weeklyTarget: 31,
++        daysPerWeek: 5,
++        dailyPeriods: dist,
++      );
++      expect(validation.isValid, isTrue);
++    });
++
++    test('31 lessons custom Tuesday -> [6, 6, 7, 6, 6]', () {
++      final dist = DailyDistribution.buildWithElevatedDays(
++        weeklyTarget: 31,
++        daysPerWeek: 5,
++        elevatedDays: <int>[Weekday.tuesday.indexPosition],
++      );
++      expect(dist, <int>[6, 6, 7, 6, 6]);
++
++      final validation = WeeklyLoadValidator.validate(
++        weeklyTarget: 31,
++        daysPerWeek: 5,
++        dailyPeriods: dist,
++      );
++      expect(validation.isValid, isTrue);
++    });
++
++    test('33 lessons automatic and custom distributions', () {
++      final autoDist = DailyDistribution.buildAutomatic(33, 5);
++      expect(autoDist, <int>[7, 7, 7, 6, 6]);
++
++      final customDist = DailyDistribution.buildWithElevatedDays(
++        weeklyTarget: 33,
++        daysPerWeek: 5,
++        elevatedDays: <int>[
++          Weekday.sunday.indexPosition,
++          Weekday.tuesday.indexPosition,
++          Weekday.thursday.indexPosition,
++        ],
++      );
++      expect(customDist, <int>[7, 6, 7, 6, 7]);
++
++      expect(
++        WeeklyLoadValidator.validate(
++          weeklyTarget: 33,
++          daysPerWeek: 5,
++          dailyPeriods: autoDist,
++        ).isValid,
++        isTrue,
++      );
++      expect(
++        WeeklyLoadValidator.validate(
++          weeklyTarget: 33,
++          daysPerWeek: 5,
++          dailyPeriods: customDist,
++        ).isValid,
++        isTrue,
++      );
++    });
++
++    test('invalid daily sum rejection and bounds validation', () {
++      // مجموع الحصص (30) لا يساوي 31
++      final sumTooLow = WeeklyLoadValidator.validate(
++        weeklyTarget: 31,
++        daysPerWeek: 5,
++        dailyPeriods: const <int>[6, 6, 6, 6, 6],
++      );
++      expect(sumTooLow.isValid, isFalse);
++
++      // مجموع الحصص (32) لا يساوي 31
++      final sumTooHigh = WeeklyLoadValidator.validate(
++        weeklyTarget: 31,
++        daysPerWeek: 5,
++        dailyPeriods: const <int>[7, 7, 6, 6, 6],
++      );
++      expect(sumTooHigh.isValid, isFalse);
++
++      // عدد الأيام لا يطابق أيام الدوام
++      final wrongDaysLength = WeeklyLoadValidator.validate(
++        weeklyTarget: 30,
++        daysPerWeek: 5,
++        dailyPeriods: const <int>[6, 6, 6, 6],
++      );
++      expect(wrongDaysLength.isValid, isFalse);
++
++      // قيمة سالبة
++      final negativePeriod = WeeklyLoadValidator.validate(
++        weeklyTarget: 30,
++        daysPerWeek: 5,
++        dailyPeriods: const <int>[-1, 8, 8, 8, 7],
++      );
++      expect(negativePeriod.isValid, isFalse);
++
++      // تجاوز الحد الأقصى اليومي
++      final exceedsDailyMax = WeeklyLoadValidator.validate(
++        weeklyTarget: 30,
++        daysPerWeek: 5,
++        dailyPeriods: const <int>[13, 5, 4, 4, 4],
++        dailyMaximum: 12,
++      );
++      expect(exceedsDailyMax.isValid, isFalse);
++    });
++  });
++}
+diff --git a/test/core/services/app_backup_service_test.dart b/test/core/services/app_backup_service_test.dart
+index c88c1ba..2d490ef 100644
+--- a/test/core/services/app_backup_service_test.dart
++++ b/test/core/services/app_backup_service_test.dart
+@@ -1,3 +1,7 @@
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++import 'package:jadwal_v2/core/providers/app_config_provider.dart';
++import 'package:jadwal_v2/core/providers/database_provider.dart';
++import 'package:jadwal_v2/features/timetable/presentation/providers/timetable_provider.dart';
+ import 'dart:convert';
+ import 'dart:io';
+ 
+@@ -11,6 +15,7 @@ import 'package:jadwal_v2/core/models/settings.dart';
+ import 'package:jadwal_v2/core/models/subject.dart';
+ import 'package:jadwal_v2/core/models/subject_constraint.dart';
+ import 'package:jadwal_v2/core/models/teacher.dart';
++import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
+ import 'package:jadwal_v2/core/services/app_backup_service.dart';
+ import 'package:jadwal_v2/core/services/app_config_service.dart';
+ import 'package:jadwal_v2/core/services/backup_service.dart';
+@@ -141,4 +146,153 @@ void main() {
+     expect(config.isSetupCompleted, isTrue);
+     expect(config.schoolStage, SchoolStage.primary);
+   });
++
++  test(
++      'يصدّر ويستورد سياسة الحصص الأسبوعية والخطة الرسمية وتخصيص الصفوف',
++      () async {
++    await isar.writeTxn(() async {
++      await isar.classrooms.clear();
++      await isar.classrooms.putAll(<Classroom>[
++        Classroom()
++          ..name = 'السادس أ'
++          ..grade = 'الصف السادس',
++        Classroom()
++          ..name = 'السادس ب'
++          ..grade = 'الصف السادس'
++          ..weeklyOverride = const ClassroomWeeklyOverride(
++            weeklyLessons: 31,
++            dailyPeriods: <int>[6, 6, 7, 6, 6],
++          ),
++      ]);
++    });
++
++    final customPlan = const OfficialWeeklyPlan.standard().copyWithEntry(
++      track: OfficialPlanTrack.primary,
++      grade: AcademicGrade.sixth,
++      weeklyLessons: 32,
++    );
++    await appConfigService.save(
++      AppConfig(
++        isSetupCompleted: true,
++        schoolStage: SchoolStage.primary,
++        weeklyLoadMode: WeeklyLoadMode.officialPlan,
++        officialWeeklyPlan: customPlan,
++        managedAutoConstraints: const <String, int>{},
++        dismissedAutoConstraints: const <String>{},
++      ),
++    );
++
++    final exportedJson = await appBackupService.exportToJson();
++
++    await isar.writeTxn(() async {
++      await isar.classrooms.clear();
++    });
++    await appConfigService.save(AppConfig.initial());
++
++    await appBackupService.importFromJson(exportedJson);
++
++    final restoredConfig = await appConfigService.load();
++    expect(restoredConfig.weeklyLoadMode, WeeklyLoadMode.officialPlan);
++    expect(
++      restoredConfig.officialWeeklyPlan
++          .lessonsFor(OfficialPlanTrack.primary, AcademicGrade.sixth),
++      32,
++    );
++
++    final restoredClassrooms = await isar.classrooms.where().findAll();
++    expect(restoredClassrooms.length, 2);
++
++    final withoutOverride =
++        restoredClassrooms.firstWhere((c) => c.name == 'السادس أ');
++    expect(withoutOverride.hasWeeklyOverride, isFalse);
++    expect(withoutOverride.weeklyOverride, isNull);
++
++    final withOverride =
++        restoredClassrooms.firstWhere((c) => c.name == 'السادس ب');
++    expect(withOverride.hasWeeklyOverride, isTrue);
++    expect(withOverride.weeklyLessonsOverride, 31);
++    expect(withOverride.dailyPeriodsOverride, <int>[6, 6, 7, 6, 6]);
++    final effective = restoredConfig.resolveWeeklyConfigForClassroom(
++        withOverride, daysPerWeek: 5);
++    expect(effective.weeklyTarget, 31);
++    expect(effective.dailyPeriods, [6, 6, 7, 6, 6]);
++    final inherited = restoredConfig.resolveWeeklyConfigForClassroom(
++        withoutOverride, daysPerWeek: 5);
++    expect(inherited.weeklyTarget, 32);
++    expect(inherited.dailyPeriods, [7, 7, 6, 6, 6]);
++  });
++  test('legacy backup missing all weekly keys resolves default capacity', () async {
++    await appConfigService.save(AppConfig.initial());
++    await appBackupService.importFromJson(jsonEncode({
++      'subjects': [], 'teachers': [], 'lessons': [], 'settings': [],
++      'classrooms': [{'id': 91, 'name': 'قديم', 'grade': 'الصف السادس'}],
++      'appConfig': {'isSetupCompleted': true, 'schoolStage': 'primary'},
++    }));
++    final config = await appConfigService.load();
++    final classroom = (await isar.classrooms.get(91))!;
++    expect(config.weeklyLoadMode, WeeklyLoadMode.uniform30);
++    expect(classroom.weeklyOverride, isNull);
++    expect(classroom.dailyPeriodsOverride, isNull);
++    final effective = config.resolveWeeklyConfigForClassroom(
++        classroom, daysPerWeek: 5);
++    expect(effective.weeklyTarget, 30);
++    expect(effective.dailyPeriods, [6, 6, 6, 6, 6]);
++  });
++
++  test('Notifier rejects drag outside daily profile without persisting it', () async {
++    await appConfigService.save(AppConfig.initial());
++    final classroom = Classroom()
++      ..name = 'اختبار النقل'
++      ..grade = 'الصف السادس'
++      ..weeklyOverride = const ClassroomWeeklyOverride(
++          weeklyLessons: 31, dailyPeriods: [6, 6, 7, 6, 6]);
++    final lesson = Lesson()
++      ..dayIndex = 0
++      ..periodIndex = 0;
++    await isar.writeTxn(() async {
++      await isar.lessons.clear();
++      await isar.classrooms.put(classroom);
++      lesson.classroom.value = classroom;
++      await isar.lessons.put(lesson);
++      await lesson.classroom.save();
++    });
++    final container = ProviderContainer(overrides: [
++      isarDatabaseProvider.overrideWith((ref) async => isar),
++      appConfigServiceProvider.overrideWith((ref) async => appConfigService),
++    ]);
++    final subscription = container.listen(timetableNotifierProvider,
++        (previous, next) {});
++    try {
++      await container.read(timetableNotifierProvider.future);
++      final notifier = container.read(timetableNotifierProvider.notifier);
++      final result = await notifier.moveLessonToEmpty(lesson, 0, 6);
++      expect(result.$1, isFalse);
++      expect(result.$2, contains('خارج التوزيع اليومي'));
++      final saved = (await isar.lessons.get(lesson.id))!;
++      expect(saved.dayIndex, 0);
++      expect(saved.periodIndex, 0);
++      // Remove override, rebuild the index once under uniform30, then switch
++      // global policy without touching Isar. The cached index must be discarded.
++      classroom.weeklyOverride = null;
++      await isar.writeTxn(() async {
++        await isar.classrooms.put(classroom);
++      });
++      await Future<void>.delayed(Duration.zero);
++      final before = await notifier.moveLessonToEmpty(lesson, 0, 6);
++      expect(before.$1, isFalse);
++      await container.read(appConfigNotifierProvider.notifier).replace(
++        AppConfig.initial().copyWith(
++          schoolStage: SchoolStage.primary,
++          weeklyLoadMode: WeeklyLoadMode.officialPlan,
++        ),
++      );
++      final after = await notifier.moveLessonToEmpty(lesson, 0, 6);
++      expect(after.$1, isTrue);
++      expect((await isar.lessons.get(lesson.id))!.periodIndex, 6);
++    } finally {
++      subscription.close();
++      container.dispose();
++    }
++  });
++
+ }
+diff --git a/test/features/setup/domain/setup_validation_test.dart b/test/features/setup/domain/setup_validation_test.dart
+index fd2a5d1..2538030 100644
+--- a/test/features/setup/domain/setup_validation_test.dart
++++ b/test/features/setup/domain/setup_validation_test.dart
+@@ -1,5 +1,6 @@
+ import 'package:flutter_test/flutter_test.dart';
+ import 'package:jadwal_v2/core/models/school_stage.dart';
++import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
+ import 'package:jadwal_v2/features/setup/domain/setup_validation.dart';
+ 
+ void main() {
+@@ -63,4 +64,18 @@ void main() {
+       expect(SetupValidation.schoolStage(SchoolStage.middleAndAbove), isNull);
+     });
+   });
++
++  group('SetupValidation.weeklyLoadMode', () {
++    test('يرفض عدم الاختيار ويقبل السياسة المحددة', () {
++      expect(
++        SetupValidation.weeklyLoadMode(null),
++        'يرجى اختيار طريقة تحديد الحصص الأسبوعية',
++      );
++      expect(SetupValidation.weeklyLoadMode(WeeklyLoadMode.uniform30), isNull);
++      expect(
++        SetupValidation.weeklyLoadMode(WeeklyLoadMode.officialPlan),
++        isNull,
++      );
++    });
++  });
+ }
+diff --git a/test/features/setup/first_run_setup_page_test.dart b/test/features/setup/first_run_setup_page_test.dart
+new file mode 100644
+index 0000000..741d6d9
+--- /dev/null
++++ b/test/features/setup/first_run_setup_page_test.dart
+@@ -0,0 +1,140 @@
++import 'dart:io';
++
++import 'package:flutter/material.dart';
++import 'package:flutter_riverpod/flutter_riverpod.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:jadwal_v2/core/models/app_config.dart';
++import 'package:jadwal_v2/core/models/school_stage.dart';
++import 'package:jadwal_v2/core/models/settings.dart';
++import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
++import 'package:jadwal_v2/core/providers/app_config_provider.dart';
++import 'package:jadwal_v2/core/services/app_config_service.dart';
++import 'package:jadwal_v2/features/management/data/services/subject_constraint_auto_sync_service.dart';
++import 'package:jadwal_v2/features/management/presentation/providers/management_provider.dart';
++import 'package:jadwal_v2/features/management/presentation/providers/subject_constraint_auto_sync_provider.dart';
++import 'package:jadwal_v2/features/setup/presentation/pages/first_run_setup_page.dart';
++
++class _InMemoryAppConfigService extends AppConfigService {
++  _InMemoryAppConfigService([AppConfig? initial])
++      : _config = initial ?? AppConfig.initial(),
++        super(file: File('in_memory_config.json'));
++
++  AppConfig _config;
++
++  @override
++  Future<AppConfig> load() async => _config;
++
++  @override
++  Future<void> save(AppConfig config) async {
++    _config = config;
++  }
++}
++
++class _SettingsHolder {
++  AppSettings current = AppSettings()..periodsPerDay = 7;
++}
++
++class _FakeSettingsNotifier extends SettingsNotifier {
++  _FakeSettingsNotifier(this._holder);
++
++  final _SettingsHolder _holder;
++
++  @override
++  Future<AppSettings> build() async => _holder.current;
++
++  @override
++  Future<void> saveSettings(AppSettings settings) async {
++    _holder.current = settings;
++    state = AsyncData(_holder.current);
++  }
++}
++
++class _NoOpSyncController extends SubjectConstraintAutoSyncController {
++  _NoOpSyncController()
++      : super(
++          readIsar: () => throw UnimplementedError(),
++          readConfig: () async => AppConfig.initial(),
++          replaceConfig: (_) async {},
++        );
++
++  @override
++  Future<AutoConstraintSyncOutcome?> run() async => null;
++}
++
++void main() {
++  testWidgets(
++      'FirstRunSetupPage displays weekly load options and persists officialPlan',
++      (tester) async {
++    tester.view.physicalSize = const Size(1200, 1800);
++    tester.view.devicePixelRatio = 1.0;
++    addTearDown(tester.view.resetPhysicalSize);
++    addTearDown(tester.view.resetDevicePixelRatio);
++
++    final configService = _InMemoryAppConfigService();
++    final settingsHolder = _SettingsHolder();
++    final syncController = _NoOpSyncController();
++
++    await tester.pumpWidget(
++      ProviderScope(
++        overrides: [
++          appConfigServiceProvider.overrideWith((ref) async => configService),
++          settingsNotifierProvider
++              .overrideWith(() => _FakeSettingsNotifier(settingsHolder)),
++          subjectConstraintAutoSyncProvider.overrideWithValue(syncController),
++        ],
++        child: const MaterialApp(
++          home: Directionality(
++            textDirection: TextDirection.rtl,
++            child: FirstRunSetupPage(),
++          ),
++        ),
++      ),
++    );
++    await tester.pumpAndSettle();
++
++    final visibleTexts =
++        tester.widgetList<Text>(find.byType(Text)).map((t) => t.data).toList();
++    expect(
++      find.text('إعداد الحصص الأسبوعية'),
++      findsOneWidget,
++      reason: 'Visible texts: $visibleTexts',
++    );
++    expect(find.text('30 حصة لجميع الصفوف'), findsOneWidget);
++    expect(find.text('الخطة الدراسية الرسمية'), findsOneWidget);
++    expect(
++      find.text(
++        'يمكنك تعديل هذه الإعدادات لاحقًا من الإعدادات أو من تفاصيل الصف. هذا التخصيص اختياري.',
++      ),
++      findsOneWidget,
++    );
++
++    await tester.enterText(
++      find.widgetWithText(TextFormField, 'اسم المدرسة'),
++      'ثانوية الرافدين',
++    );
++    await tester.enterText(
++      find.widgetWithText(TextFormField, 'اسم المدير'),
++      'الأستاذ أحمد',
++    );
++
++    final stageOption = find.text(SchoolStage.middleAndAbove.label);
++    await tester.ensureVisible(stageOption);
++    await tester.tap(stageOption);
++    await tester.pumpAndSettle();
++
++    final officialOption = find.text('الخطة الدراسية الرسمية');
++    await tester.ensureVisible(officialOption);
++    await tester.tap(officialOption);
++    await tester.pumpAndSettle();
++
++    final saveButton = find.text('حفظ وبدء الاستخدام');
++    await tester.ensureVisible(saveButton);
++    await tester.tap(saveButton);
++    await tester.pumpAndSettle();
++
++    final savedConfig = await configService.load();
++    expect(savedConfig.isSetupCompleted, isTrue);
++    expect(savedConfig.schoolStage, SchoolStage.middleAndAbove);
++    expect(savedConfig.weeklyLoadMode, WeeklyLoadMode.officialPlan);
++  });
++}
+diff --git a/test/features/timetable/domain/usecases/weekday_excel_export_test.dart b/test/features/timetable/domain/usecases/weekday_excel_export_test.dart
+new file mode 100644
+index 0000000..64030d3
+--- /dev/null
++++ b/test/features/timetable/domain/usecases/weekday_excel_export_test.dart
+@@ -0,0 +1,90 @@
++import 'dart:io';
++
++import 'package:excel/excel.dart';
++import 'package:flutter_test/flutter_test.dart';
++import 'package:isar/isar.dart';
++import 'package:jadwal_v2/core/models/app_config.dart';
++import 'package:jadwal_v2/core/models/classroom.dart';
++import 'package:jadwal_v2/core/models/lesson.dart';
++import 'package:jadwal_v2/core/models/settings.dart';
++import 'package:jadwal_v2/core/models/subject.dart';
++import 'package:jadwal_v2/core/models/teacher.dart';
++import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
++import 'package:jadwal_v2/features/timetable/domain/usecases/excel_export_usecase.dart';
++
++void main() {
++  late Directory directory;
++  late Isar isar;
++
++  setUpAll(() async {
++    await Isar.initializeIsarCore(download: true);
++    directory = await Directory.systemTemp.createTemp('weekday_excel_');
++    isar = await Isar.open(
++      [ClassroomSchema, SubjectSchema, TeacherSchema, LessonSchema],
++      directory: directory.path, name: 'weekday_excel',
++    );
++  });
++
++  tearDownAll(() async {
++    await isar.close(deleteFromDisk: true);
++    await directory.delete(recursive: true);
++  });
++
++  for (final days in [6, 7]) {
++    test('$days-day saved customization exports lessons under the correct Excel day', () async {
++      final daily = List<int>.generate(days, (index) => index + 1);
++      final classroom = Classroom()
++        ..name = 'أ'
++        ..grade = 'الصف الأول'
++        ..weeklyOverride = ClassroomWeeklyOverride(
++            weeklyLessons: daily.reduce((a, b) => a + b), dailyPeriods: daily);
++      final teacher = Teacher()
++        ..name = 'معلم الاختبار'
++        ..specialization = 'عام'
++        ..maxLessonsPerDay = 7
++        ..maxLessonsPerWeek = 40;
++      final lessons = <Lesson>[];
++      await isar.writeTxn(() async {
++        await isar.classrooms.put(classroom);
++        await isar.teachers.put(teacher);
++        for (final day in Weekday.workingDays(days)) {
++          final subject = Subject()
++            ..name = 'مادة ${day.arabicLabel}'
++            ..lessonsPerWeek = 1;
++          await isar.subjects.put(subject);
++          final lesson = Lesson()
++            ..classroom.value = classroom
++            ..teacher.value = teacher
++            ..subject.value = subject
++            ..dayIndex = day.indexPosition
++            ..periodIndex = daily[day.indexPosition] - 1;
++          await isar.lessons.put(lesson);
++          await lesson.classroom.save();
++          await lesson.teacher.save();
++          await lesson.subject.save();
++          lessons.add(lesson);
++        }
++      });
++      final restored = (await isar.classrooms.get(classroom.id))!;
++      final effective = AppConfig.initial()
++          .resolveWeeklyConfigForClassroom(restored, daysPerWeek: days);
++      expect(effective.dailyPeriods, daily);
++      final settings = AppSettings()
++        ..periodsPerDay = 7
++        ..daysPerWeek = days;
++      final bytes = await ExcelExportUseCase()
++          .generateTimetableExcel(lessons, [restored], settings);
++      final sheet = Excel.decodeBytes(bytes).tables['الجدول الأسبوعي']!;
++      const expectedLabels = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
++      for (var day = 0; day < days; day++) {
++        final startRow = 4 + day * settings.periodsPerDay;
++        final lessonRow = startRow + effective.dailyPeriods[day] - 1;
++        expect(sheet.cell(CellIndex.indexByColumnRow(
++            columnIndex: 2, rowIndex: startRow)).value.toString(), expectedLabels[day]);
++        expect(sheet.cell(CellIndex.indexByColumnRow(
++            columnIndex: 0, rowIndex: lessonRow)).value.toString(),
++            'مادة ${expectedLabels[day]} | معلم');
++      }
++    });
++  }
++}
+diff --git a/test/features/timetable/domain/usecases/weekly_load_timetable_integration_test.dart b/test/features/timetable/domain/usecases/weekly_load_timetable_integration_test.dart
+new file mode 100644
+index 0000000..5314977
+--- /dev/null
++++ b/test/features/timetable/domain/usecases/weekly_load_timetable_integration_test.dart
+@@ -0,0 +1,475 @@
++import 'package:flutter_test/flutter_test.dart';
++import 'package:jadwal_v2/core/entities/app_settings_entity.dart';
++import 'package:jadwal_v2/core/entities/classroom_entity.dart';
++import 'package:jadwal_v2/core/entities/lesson_entity.dart';
++import 'package:jadwal_v2/core/entities/subject_constraint_entity.dart';
++import 'package:jadwal_v2/core/entities/subject_entity.dart';
++import 'package:jadwal_v2/core/entities/teacher_entity.dart';
++import 'package:jadwal_v2/core/models/app_config.dart';
++import 'package:jadwal_v2/core/models/classroom.dart';
++import 'package:jadwal_v2/core/models/lesson.dart';
++import 'package:jadwal_v2/core/models/school_stage.dart';
++import 'package:jadwal_v2/core/models/settings.dart';
++import 'package:jadwal_v2/core/models/subject.dart';
++import 'package:jadwal_v2/core/models/teacher.dart';
++import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
++import 'package:jadwal_v2/features/management/domain/services/lesson_assignment_planner.dart';
++import 'package:jadwal_v2/features/timetable/domain/usecases/pre_validation_engine.dart';
++import 'package:jadwal_v2/features/timetable/domain/usecases/smart_auto_fix_usecase.dart';
++import 'package:jadwal_v2/features/timetable/domain/usecases/timetable_generator.dart';
++
++void main() {
++  final defaultSettings = AppSettingsEntity(
++    periodsPerDay: 7,
++    daysPerWeek: 5,
++    exportPageSize: 'A4',
++    exportOrientation: 'Landscape',
++    exportAutoScale: true,
++    schoolName: 'مدرسة الاختبار',
++    principalName: 'المدير',
++  );
++
++  List<TeacherEntity> buildTeachers(int count) {
++    return List<TeacherEntity>.generate(
++      count,
++      (i) => TeacherEntity(
++        id: i + 1,
++        name: 'معلم ${i + 1}',
++        specialization: '',
++        maxLessonsPerWeek: 40,
++        maxLessonsPerDay: 7,
++        unavailableDays: const [],
++        allowedPeriods: const [],
++      ),
++    );
++  }
++
++  (List<SubjectEntity>, List<LessonEntity>) buildLessonsForClassroom({
++    required ClassroomEntity classroom,
++    required List<TeacherEntity> teachers,
++    required List<int> subjectWeeklyCounts,
++  }) {
++    final subjects = <SubjectEntity>[];
++    final lessons = <LessonEntity>[];
++    var lessonId = 1;
++
++    for (var i = 0; i < subjectWeeklyCounts.length; i++) {
++      final count = subjectWeeklyCounts[i];
++      final subject = SubjectEntity(
++        id: i + 1,
++        name: 'مادة ${i + 1}',
++        lessonsPerWeek: count,
++        preferEarlyPeriods: false,
++        allowedPeriods: const [],
++      );
++      subjects.add(subject);
++      final teacher = teachers[i % teachers.length];
++      for (var k = 0; k < count; k++) {
++        lessons.add(
++          LessonEntity(
++            id: lessonId++,
++            teacher: teacher,
++            subject: subject,
++            classroom: classroom,
++            isPinned: false,
++          ),
++        );
++      }
++    }
++    return (subjects, lessons);
++  }
++
++  group('PreValidationEngine with variable weekly loads', () {
++    test('accepts 31 lessons when classroom weeklyTarget is 31', () {
++      final teachers = buildTeachers(7);
++      final classroom = ClassroomEntity(
++        id: 1,
++        name: 'السادس الابتدائي أ',
++        grade: 'الصف السادس',
++        weeklyTarget: 31,
++        dailyPeriods: const <int>[7, 6, 6, 6, 6],
++      );
++      // 7 subjects: 5+5+5+5+5+3+3 = 31 lessons
++      final (subjects, lessons) = buildLessonsForClassroom(
++        classroom: classroom,
++        teachers: teachers,
++        subjectWeeklyCounts: const <int>[5, 5, 5, 5, 5, 3, 3],
++      );
++
++      final engine = PreValidationEngine(
++        existingLessons: lessons,
++        teachers: teachers,
++        classrooms: <ClassroomEntity>[classroom],
++        settings: defaultSettings,
++        subjects: subjects,
++      );
++
++      expect(engine.validateAll(), isEmpty);
++    });
++
++    test('rejects 30 lessons when classroom weeklyTarget is 31', () {
++      final teachers = buildTeachers(6);
++      final classroom = ClassroomEntity(
++        id: 1,
++        name: 'السادس الابتدائي أ',
++        grade: 'الصف السادس',
++        weeklyTarget: 31,
++        dailyPeriods: const <int>[7, 6, 6, 6, 6],
++      );
++      final (subjects, lessons) = buildLessonsForClassroom(
++        classroom: classroom,
++        teachers: teachers,
++        subjectWeeklyCounts: const <int>[5, 5, 5, 5, 5, 5],
++      );
++
++      final engine = PreValidationEngine(
++        existingLessons: lessons,
++        teachers: teachers,
++        classrooms: <ClassroomEntity>[classroom],
++        settings: defaultSettings,
++        subjects: subjects,
++      );
++
++      final errors = engine.validateAll();
++      expect(errors, isNotEmpty);
++      expect(errors.first, contains('31'));
++    });
++
++    test('rejects invalid dailyPeriods sum in PreValidationEngine', () {
++      final teachers = buildTeachers(7);
++      final classroom = ClassroomEntity(
++        id: 1,
++        name: 'السادس الابتدائي أ',
++        grade: 'الصف السادس',
++        weeklyTarget: 31,
++        dailyPeriods: const <int>[6, 6, 6, 6, 6], // sum = 30 != 31
++      );
++      final (subjects, lessons) = buildLessonsForClassroom(
++        classroom: classroom,
++        teachers: teachers,
++        subjectWeeklyCounts: const <int>[5, 5, 5, 5, 5, 3, 3],
++      );
++
++      final engine = PreValidationEngine(
++        existingLessons: lessons,
++        teachers: teachers,
++        classrooms: <ClassroomEntity>[classroom],
++        settings: defaultSettings,
++        subjects: subjects,
++      );
++
++      final errors = engine.validateAll();
++      expect(errors, isNotEmpty);
++      expect(errors.first, contains('خطأ في توزيع الحصص'));
++    });
++  });
++
++  group('TimetableGenerator with 31 and 33 lessons', () {
++    test('generates valid schedule for 31 lessons (Sunday = 7, Mon-Thu = 6)',
++        () {
++      final teachers = buildTeachers(7);
++      final classroom = ClassroomEntity(
++        id: 1,
++        name: 'السادس الابتدائي أ',
++        grade: 'الصف السادس',
++        weeklyTarget: 31,
++        dailyPeriods: const <int>[7, 6, 6, 6, 6],
++      );
++      final (subjects, lessons) = buildLessonsForClassroom(
++        classroom: classroom,
++        teachers: teachers,
++        subjectWeeklyCounts: const <int>[5, 5, 5, 5, 5, 3, 3],
++      );
++
++      final generator = TimetableGenerator(
++        teachers: teachers,
++        subjects: subjects,
++        classrooms: <ClassroomEntity>[classroom],
++        settings: defaultSettings,
++        existingLessons: lessons,
++      );
++
++      final generated = generator.generate();
++      expect(generated.length, 31);
++      expect(generator.calculateCost(generated), lessThan(1000));
++
++      final countsPerDay = List<int>.filled(5, 0);
++      for (final lesson in generated) {
++        expect(lesson.dayIndex, isNotNull);
++        expect(lesson.periodIndex, isNotNull);
++        final d = lesson.dayIndex!;
++        final p = lesson.periodIndex!;
++        countsPerDay[d]++;
++        if (d == 0) {
++          expect(p, inInclusiveRange(0, 6));
++        } else {
++          expect(p, inInclusiveRange(0, 5));
++        }
++      }
++      expect(countsPerDay, <int>[7, 6, 6, 6, 6]);
++    });
++
++    test('generates valid schedule for 31 lessons custom Tuesday = 7', () {
++      final teachers = buildTeachers(7);
++      final classroom = ClassroomEntity(
++        id: 1,
++        name: 'السادس الابتدائي ب',
++        grade: 'الصف السادس',
++        weeklyTarget: 31,
++        dailyPeriods: const <int>[6, 6, 7, 6, 6],
++      );
++      final (subjects, lessons) = buildLessonsForClassroom(
++        classroom: classroom,
++        teachers: teachers,
++        subjectWeeklyCounts: const <int>[5, 5, 5, 5, 5, 3, 3],
++      );
++
++      final generator = TimetableGenerator(
++        teachers: teachers,
++        subjects: subjects,
++        classrooms: <ClassroomEntity>[classroom],
++        settings: defaultSettings,
++        existingLessons: lessons,
++      );
++
++      final generated = generator.generate();
++      expect(generated.length, 31);
++      expect(generator.calculateCost(generated), lessThan(1000));
++
++      final countsPerDay = List<int>.filled(5, 0);
++      for (final lesson in generated) {
++        final d = lesson.dayIndex!;
++        final p = lesson.periodIndex!;
++        countsPerDay[d]++;
++        if (d == Weekday.tuesday.indexPosition) {
++          expect(p, inInclusiveRange(0, 6));
++        } else {
++          expect(p, inInclusiveRange(0, 5));
++        }
++      }
++      expect(countsPerDay, <int>[6, 6, 7, 6, 6]);
++    });
++
++    test('generates valid schedule for 33 lessons (Sun/Mon/Tue = 7, Wed/Thu = 6)',
++        () {
++      final teachers = buildTeachers(7);
++      final classroom = ClassroomEntity(
++        id: 1,
++        name: 'السادس العلمي أ',
++        grade: 'السادس العلمي',
++        weeklyTarget: 33,
++        dailyPeriods: const <int>[7, 7, 7, 6, 6],
++      );
++      // 7 subjects: 5+5+5+5+5+4+4 = 33 lessons
++      final (subjects, lessons) = buildLessonsForClassroom(
++        classroom: classroom,
++        teachers: teachers,
++        subjectWeeklyCounts: const <int>[5, 5, 5, 5, 5, 4, 4],
++      );
++
++      final generator = TimetableGenerator(
++        teachers: teachers,
++        subjects: subjects,
++        classrooms: <ClassroomEntity>[classroom],
++        settings: defaultSettings,
++        existingLessons: lessons,
++      );
++
++      final generated = generator.generate();
++      expect(generated.length, 33);
++      expect(generator.calculateCost(generated), lessThan(1000));
++
++      final countsPerDay = List<int>.filled(5, 0);
++      for (final lesson in generated) {
++        final d = lesson.dayIndex!;
++        final p = lesson.periodIndex!;
++        countsPerDay[d]++;
++        if (d < 3) {
++          expect(p, inInclusiveRange(0, 6));
++        } else {
++          expect(p, inInclusiveRange(0, 5));
++        }
++      }
++      expect(countsPerDay, <int>[7, 7, 7, 6, 6]);
++    });
++  });
++
++  group('SmartAutoFixUseCase with 31 lessons daily profile', () {
++    test('repairs hard conflict without placing lessons outside dailyPeriods',
++        () {
++      final teachers = buildTeachers(7);
++      final classroom = ClassroomEntity(
++        id: 1,
++        name: 'السادس الابتدائي أ',
++        grade: 'الصف السادس',
++        weeklyTarget: 31,
++        dailyPeriods: const <int>[7, 6, 6, 6, 6],
++      );
++      final (subjects, lessons) = buildLessonsForClassroom(
++        classroom: classroom,
++        teachers: teachers,
++        subjectWeeklyCounts: const <int>[5, 5, 5, 5, 5, 3, 3],
++      );
++
++      final generator = TimetableGenerator(
++        teachers: teachers,
++        subjects: subjects,
++        classrooms: <ClassroomEntity>[classroom],
++        settings: defaultSettings,
++        existingLessons: lessons,
++        subjectConstraints: const <SubjectConstraintEntity>[],
++      );
++
++      final validSchedule = generator.generate();
++
++      // Introduce a hard conflict: move a Monday lesson into period 6 (invalid on Monday where dailyPeriods[1] == 6)
++      final mondayLesson =
++          validSchedule.firstWhere((l) => l.dayIndex == 1 && l.periodIndex == 5);
++      mondayLesson.periodIndex = 6;
++
++      final initialDiagnostics = generator.diagnose(validSchedule);
++      expect(initialDiagnostics.where((d) => d.isHard), isNotEmpty);
++
++      final autoFix = SmartAutoFixUseCase(
++        teachers: teachers,
++        subjects: subjects,
++        classrooms: <ClassroomEntity>[classroom],
++        settings: defaultSettings,
++        subjectLessons: validSchedule,
++        subjectConstraints: const <SubjectConstraintEntity>[],
++      );
++
++      final fixed = autoFix.execute(
++        initialSchedule: validSchedule,
++        initialDiagnostics: initialDiagnostics,
++      );
++
++      expect(fixed.isResolved, isTrue);
++      for (final lesson in fixed.schedule) {
++        final d = lesson.dayIndex!;
++        final p = lesson.periodIndex!;
++        expect(p, lessThan(classroom.dailyPeriods![d]));
++      }
++    });
++  });
++
++  test('uniform30 repair rejects the extra rectangular slot and repairs via moves',
++      () {
++    final model = Classroom()
++      ..id = 1
++      ..name = 'أ'
++      ..grade = 'الصف الأول';
++    final effective = AppConfig.initial()
++        .resolveWeeklyConfigForClassroom(model, daysPerWeek: 5);
++    final classroom = ClassroomEntity.fromIsar(model, effectiveConfig: effective);
++    expect(effective.dailyPeriods, [6, 6, 6, 6, 6]);
++    expect(defaultSettings.periodsPerDay, 7);
++    final teachers = buildTeachers(6);
++    final (subjects, lessons) = buildLessonsForClassroom(
++      classroom: classroom,
++      teachers: teachers,
++      subjectWeeklyCounts: [5, 5, 5, 5, 5, 5],
++    );
++    // Deterministic complete Latin-free grid: each subject and its teacher
++    // occurs once per day. Only the deliberately displaced lesson is invalid.
++    for (var i = 0; i < lessons.length; i++) {
++      lessons[i].dayIndex = i % 5;
++      lessons[i].periodIndex = i ~/ 5;
++    }
++    final generator = TimetableGenerator(
++      teachers: teachers, subjects: subjects, classrooms: [classroom],
++      settings: defaultSettings, existingLessons: lessons,
++    );
++    expect(generator.diagnose(lessons).where((d) => d.isHard), isEmpty);
++    lessons.first.periodIndex = 6;
++    final diagnostics = generator.diagnose(lessons);
++    expect(diagnostics.where((d) => d.isHard), isNotEmpty,
++        reason: 'Period 6 must not become legal just because settings allow 7');
++    var attempts = 0;
++    final result = SmartAutoFixUseCase(
++      teachers: teachers, subjects: subjects, classrooms: [classroom],
++      settings: defaultSettings, subjectLessons: lessons,
++      subjectConstraints: const <SubjectConstraintEntity>[],
++    ).execute(
++      initialSchedule: lessons, initialDiagnostics: diagnostics,
++      onProgress: (attempt, total) => attempts++,
++    );
++    expect(attempts, greaterThan(0), reason: 'Must actually search move/swap repairs');
++    expect(result.isResolved, isTrue);
++    expect(result.schedule.map((l) => l.id).toSet(),
++        lessons.map((l) => l.id).toSet());
++    expect(result.schedule, hasLength(30));
++    for (final lesson in result.schedule) {
++      expect(lesson.dayIndex, inInclusiveRange(0, 4));
++      expect(lesson.periodIndex,
++          inInclusiveRange(0, effective.dailyPeriods[lesson.dayIndex!] - 1));
++    }
++    expect(result.schedule.where((l) => l.periodIndex == 6), isEmpty);
++  });
++
++  group('LessonAssignmentPlanner with WeeklyLoadPolicy', () {
++    test('respects officialPlan and classroom weeklyOverride capacities', () {
++      final settings = AppSettings()
++        ..periodsPerDay = 7
++        ..daysPerWeek = 5;
++      final teacher = Teacher()
++        ..id = 1
++        ..name = 'معلم'
++        ..maxLessonsPerWeek = 40
++        ..maxLessonsPerDay = 7;
++      final sixthPrimary = Classroom()
++        ..id = 1
++        ..name = 'السادس أ'
++        ..grade = 'الصف السادس الابتدائي';
++
++      final existing30Lessons = List<Lesson>.generate(30, (index) {
++        final s = Subject()
++          ..id = index + 100
++          ..name = 'مادة $index'
++          ..lessonsPerWeek = 1;
++        return Lesson()
++          ..id = index + 1
++          ..classroom.value = sixthPrimary
++          ..subject.value = s
++          ..teacher.value = teacher;
++      });
++
++      final extraSubject = Subject()
++        ..id = 1
++        ..name = 'مادة إضافية'
++        ..lessonsPerWeek = 1;
++
++      // Under uniform30, adding the 31st lesson fails (max capacity = 30)
++      final uniformConfig = AppConfig.initial().copyWith(
++        schoolStage: SchoolStage.primary,
++        weeklyLoadMode: WeeklyLoadMode.uniform30,
++      );
++      final planUnderUniform = LessonAssignmentPlanner.plan(
++        teacher: teacher,
++        subjects: <Subject>[extraSubject],
++        classrooms: <Classroom>[sixthPrimary],
++        existingLessons: existing30Lessons,
++        settings: settings,
++        appConfig: uniformConfig,
++      );
++      expect(planUnderUniform.isSuccess, isFalse);
++      expect(planUnderUniform.errorMessage, contains('30 حصة'));
++
++      // Under officialPlan, 6th primary has capacity 31, so adding the 31st lesson succeeds
++      final officialConfig = AppConfig.initial().copyWith(
++        schoolStage: SchoolStage.primary,
++        weeklyLoadMode: WeeklyLoadMode.officialPlan,
++      );
++      final planUnderOfficial = LessonAssignmentPlanner.plan(
++        teacher: teacher,
++        subjects: <Subject>[extraSubject],
++        classrooms: <Classroom>[sixthPrimary],
++        existingLessons: existing30Lessons,
++        settings: settings,
++        appConfig: officialConfig,
++      );
++      expect(planUnderOfficial.isSuccess, isTrue);
++      expect(planUnderOfficial.pairsToCreate.length, 1);
++    });
++  });
++}
+diff --git a/test/fixtures/legacy_classroom.dart b/test/fixtures/legacy_classroom.dart
+new file mode 100644
+index 0000000..b9c4bf2
+--- /dev/null
++++ b/test/fixtures/legacy_classroom.dart
+@@ -0,0 +1,99 @@
++// Frozen pre-weekly-load schema from b362b5c. Same persisted name and ID.
++import 'package:isar/isar.dart';
++
++class LegacyClassroom {
++  Id id = Isar.autoIncrement;
++  late String name;
++  late String grade;
++}
++
++const LegacyClassroomSchema = CollectionSchema(
++  name: r'Classroom',
++  id: -8186663030834931469,
++  properties: {
++    r'grade': PropertySchema(
++      id: 0,
++      name: r'grade',
++      type: IsarType.string,
++    ),
++    r'name': PropertySchema(
++      id: 1,
++      name: r'name',
++      type: IsarType.string,
++    )
++  },
++  estimateSize: _classroomEstimateSize,
++  serialize: _classroomSerialize,
++  deserialize: _classroomDeserialize,
++  deserializeProp: _classroomDeserializeProp,
++  idName: r'id',
++  indexes: {},
++  links: {},
++  embeddedSchemas: {},
++  getId: _classroomGetId,
++  getLinks: _classroomGetLinks,
++  attach: _classroomAttach,
++  version: '3.1.0+1',
++);
++
++int _classroomEstimateSize(
++  LegacyClassroom object,
++  List<int> offsets,
++  Map<Type, List<int>> allOffsets,
++) {
++  var bytesCount = offsets.last;
++  bytesCount += 3 + object.grade.length * 3;
++  bytesCount += 3 + object.name.length * 3;
++  return bytesCount;
++}
++
++void _classroomSerialize(
++  LegacyClassroom object,
++  IsarWriter writer,
++  List<int> offsets,
++  Map<Type, List<int>> allOffsets,
++) {
++  writer.writeString(offsets[0], object.grade);
++  writer.writeString(offsets[1], object.name);
++}
++
++LegacyClassroom _classroomDeserialize(
++  Id id,
++  IsarReader reader,
++  List<int> offsets,
++  Map<Type, List<int>> allOffsets,
++) {
++  final object = LegacyClassroom();
++  object.grade = reader.readString(offsets[0]);
++  object.id = id;
++  object.name = reader.readString(offsets[1]);
++  return object;
++}
++
++P _classroomDeserializeProp<P>(
++  IsarReader reader,
++  int propertyId,
++  int offset,
++  Map<Type, List<int>> allOffsets,
++) {
++  switch (propertyId) {
++    case 0:
++      return (reader.readString(offset)) as P;
++    case 1:
++      return (reader.readString(offset)) as P;
++    default:
++      throw IsarError('Unknown property with id $propertyId');
++  }
++}
++
++Id _classroomGetId(LegacyClassroom object) {
++  return object.id;
++}
++
++List<IsarLinkBase<dynamic>> _classroomGetLinks(LegacyClassroom object) {
++  return [];
++}
++
++void _classroomAttach(IsarCollection<dynamic> col, Id id, LegacyClassroom object) {
++  object.id = id;
++}

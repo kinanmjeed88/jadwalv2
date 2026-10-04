@@ -1,0 +1,245 @@
+name: Port Verification
+
+# Independent verification of the weekly-load feature port for the three
+# official targets, without pushing to the official branches:
+#   * main (Android)      -> feature head of arena/01a10437-jadwalv2 (PR #132)
+#   * Windows 7           -> برنامج-مخصص-لوندوز-٧ + ports/port-windows7-weekly-load.patch
+#   * Windows 10/11       -> برنامج-مخصص-لوندوز-١٠-و-١١ + ports/port-windows10-11-weekly-load.patch
+#
+# The target branches are fetched and materialized inside the runner, the port
+# patch is applied there, and analyze / tests / release build / smoke test run
+# exactly as the branch workflows do.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'arena/01a106af-jadwalv2'
+
+env:
+  TARGET_DIR: ${{ runner.temp }}/porttarget
+
+jobs:
+  verify-windows-7:
+    name: Verify Windows 7 port
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Materialize Windows 7 branch with the port
+        run: python ports/ci/materialize_target.py win7 "${{ env.TARGET_DIR }}"
+        shell: pwsh
+
+      - name: Set up Flutter 3.16.9
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: '3.16.9'
+          cache: true
+
+      - name: Enable Windows Desktop
+        working-directory: ${{ env.TARGET_DIR }}
+        run: flutter config --enable-windows-desktop
+
+      - name: Isolate Windows-only dependency resolution
+        working-directory: ${{ env.TARGET_DIR }}
+        shell: pwsh
+        run: Remove-Item -Recurse -Force android
+
+      - name: Install Dependencies
+        working-directory: ${{ env.TARGET_DIR }}
+        run: flutter pub get
+
+      - name: Analyze Dart and Flutter Sources
+        working-directory: ${{ env.TARGET_DIR }}
+        shell: pwsh
+        run: |
+          $out = flutter analyze --no-fatal-infos 2>&1
+          $code = $LASTEXITCODE
+          $out | Tee-Object -FilePath analyze.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run Flutter Tests
+        working-directory: ${{ env.TARGET_DIR }}
+        shell: pwsh
+        run: |
+          $testFiles = Get-ChildItem -Path test -Recurse -Filter '*_test.dart' |
+            Where-Object { $_.Name -ne 'backup_service_benchmark_test.dart' } |
+            ForEach-Object { $_.FullName }
+          $out = flutter test --machine @testFiles 2>&1
+          $code = $LASTEXITCODE
+          $out | Set-Content -Encoding utf8 test-machine.log
+          python "$env:GITHUB_WORKSPACE/ports/ci/summarize_tests.py" test-machine.log --label "Windows 7"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($code -ne 0) { exit $code }
+
+      - name: Build Windows Release
+        working-directory: ${{ env.TARGET_DIR }}
+        run: flutter build windows --release --target=lib/main_windows.dart
+
+      - name: Verify Windows Release Bundle
+        working-directory: ${{ env.TARGET_DIR }}
+        shell: pwsh
+        run: |
+          $releaseDir = 'build\windows\x64\runner\Release'
+          $executable = Join-Path $releaseDir 'JadwalV2_Windows7.exe'
+          $dataDir = Join-Path $releaseDir 'data'
+          if (-not (Test-Path $executable)) { throw "Missing executable: $executable" }
+          if (-not (Test-Path $dataDir)) { throw "Missing Flutter data directory: $dataDir" }
+
+      - name: Run Windows Smoke Test
+        working-directory: ${{ env.TARGET_DIR }}
+        shell: pwsh
+        timeout-minutes: 2
+        run: >-
+          pwsh -File windows\packaging\smoke_test.ps1
+          -ExecutablePath build\windows\x64\runner\Release\JadwalV2_Windows7.exe
+
+      - name: Upload verification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: port-verify-windows-7
+          path: |
+            ${{ env.TARGET_DIR }}/analyze.log
+            ${{ env.TARGET_DIR }}/test-machine.log
+          if-no-files-found: warn
+          retention-days: 30
+
+  verify-windows-10-11:
+    name: Verify Windows 10/11 port
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Materialize Windows 10/11 branch with the port
+        run: python ports/ci/materialize_target.py win10 "${{ env.TARGET_DIR }}"
+        shell: pwsh
+
+      - name: Set up Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows Desktop
+        working-directory: ${{ env.TARGET_DIR }}
+        run: flutter config --enable-windows-desktop
+
+      - name: Install Dependencies
+        working-directory: ${{ env.TARGET_DIR }}
+        run: flutter pub get
+
+      - name: Analyze Dart and Flutter Sources
+        working-directory: ${{ env.TARGET_DIR }}
+        shell: pwsh
+        run: |
+          $out = flutter analyze --no-fatal-infos 2>&1
+          $code = $LASTEXITCODE
+          $out | Tee-Object -FilePath analyze.log
+          if ($code -ne 0) { exit $code }
+
+      - name: Run Flutter Tests
+        working-directory: ${{ env.TARGET_DIR }}
+        shell: pwsh
+        run: |
+          $testFiles = Get-ChildItem -Path test -Recurse -Filter '*_test.dart' |
+            Where-Object { $_.Name -ne 'backup_service_benchmark_test.dart' } |
+            ForEach-Object { $_.FullName }
+          $out = flutter test --machine @testFiles 2>&1
+          $code = $LASTEXITCODE
+          $out | Set-Content -Encoding utf8 test-machine.log
+          python "$env:GITHUB_WORKSPACE/ports/ci/summarize_tests.py" test-machine.log --label "Windows 10/11"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($code -ne 0) { exit $code }
+
+      - name: Build Windows Release
+        working-directory: ${{ env.TARGET_DIR }}
+        run: flutter build windows --release --target=lib/main_windows.dart
+
+      - name: Verify Windows Release Bundle
+        working-directory: ${{ env.TARGET_DIR }}
+        shell: pwsh
+        run: |
+          $releaseDir = 'build\windows\x64\runner\Release'
+          $executable = Join-Path $releaseDir 'JadwalV2_Windows10_11.exe'
+          $dataDir = Join-Path $releaseDir 'data'
+          if (-not (Test-Path $executable)) { throw "Missing executable: $executable" }
+          if (-not (Test-Path $dataDir)) { throw "Missing Flutter data directory: $dataDir" }
+
+      - name: Run Windows Smoke Test
+        working-directory: ${{ env.TARGET_DIR }}
+        shell: pwsh
+        timeout-minutes: 2
+        run: >-
+          pwsh -File windows\packaging\smoke_test.ps1
+          -ExecutablePath build\windows\x64\runner\Release\JadwalV2_Windows10_11.exe
+
+      - name: Upload verification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: port-verify-windows-10-11
+          path: |
+            ${{ env.TARGET_DIR }}/analyze.log
+            ${{ env.TARGET_DIR }}/test-machine.log
+          if-no-files-found: warn
+          retention-days: 30
+
+  verify-main-android:
+    name: Verify main (Android) feature head
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Materialize feature head (PR #132)
+        run: python3 ports/ci/materialize_target.py feature "${{ env.TARGET_DIR }}"
+
+      - name: Set up Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Dependencies
+        working-directory: ${{ env.TARGET_DIR }}
+        run: flutter pub get
+
+      - name: Analyze Dart and Flutter Sources
+        working-directory: ${{ env.TARGET_DIR }}
+        run: |
+          set -o pipefail
+          flutter analyze --no-fatal-infos 2>&1 | tee analyze.log
+
+      - name: Run Flutter Tests
+        working-directory: ${{ env.TARGET_DIR }}
+        run: |
+          set +e
+          flutter test --machine > test-machine.log 2>&1
+          code=$?
+          set -e
+          python3 "$GITHUB_WORKSPACE/ports/ci/summarize_tests.py" test-machine.log --label "main (Android)"
+          exit "$code"
+
+      - name: Upload verification logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: port-verify-main
+          path: |
+            ${{ env.TARGET_DIR }}/analyze.log
+            ${{ env.TARGET_DIR }}/test-machine.log
+          if-no-files-found: warn
+          retention-days: 30
