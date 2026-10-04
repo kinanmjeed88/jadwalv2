@@ -107,27 +107,19 @@ class TimetableInteractionIndex {
     if (classroom == null) {
       return null;
     }
-    if (classroom.dailyPeriodsOverride != null &&
-        dayIndex >= 0 &&
-        dayIndex < classroom.dailyPeriodsOverride!.length) {
-      return classroom.dailyPeriodsOverride![dayIndex];
-    }
-    if (classroom.weeklyLessonsOverride != null &&
-        classroom.weeklyLessonsOverride! > 0) {
-      final dist = DailyDistribution.buildAutomatic(
-        classroom.weeklyLessonsOverride!,
-        daysPerWeek,
-      );
-      if (dayIndex >= 0 && dayIndex < dist.length) {
-        return dist[dayIndex];
-      }
-    }
+    // Resolve policy first: orphan daily overrides must not bypass the global
+    // policy when weeklyOverride is null.
     if (appConfig != null) {
-      final effective = appConfig!.resolveWeeklyConfigForClassroom(
+      return appConfig!.resolveWeeklyConfigForClassroom(
         classroom,
         daysPerWeek: daysPerWeek,
-      );
-      return effective.periodsForDay(dayIndex);
+      ).periodsForDay(dayIndex);
+    }
+    final override = classroom.weeklyOverride;
+    if (override != null) {
+      final daily = override.dailyPeriods ??
+          DailyDistribution.buildAutomatic(override.weeklyLessons, daysPerWeek);
+      return dayIndex >= 0 && dayIndex < daily.length ? daily[dayIndex] : 0;
     }
     return null;
   }

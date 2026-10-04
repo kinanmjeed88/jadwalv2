@@ -48,10 +48,10 @@ class ClassroomEntity {
   /// وتعود إلى `settings.periodsPerDay * settings.daysPerWeek` فقط عند
   /// عدم تزويد أي إعداد أسبوعي (للتوافق الخلفي مع البيانات/الاختبارات القديمة).
   int resolveWeeklyCapacity(AppSettingsEntity settings) {
-    if (weeklyTarget != null && weeklyTarget! > 0) {
+    if (weeklyTarget != null) {
       return weeklyTarget!;
     }
-    if (dailyPeriods != null && dailyPeriods!.isNotEmpty) {
+    if (dailyPeriods != null) {
       return dailyPeriods!.fold<int>(0, (sum, p) => sum + p);
     }
     final safeDays = settings.daysPerWeek < 1 ? 5 : settings.daysPerWeek;
@@ -62,10 +62,10 @@ class ClassroomEntity {
   /// التوزيع اليومي الفعلي للحصص على أيام الدوام.
   List<int> resolveDailyPeriods(AppSettingsEntity settings) {
     final safeDays = settings.daysPerWeek < 1 ? 5 : settings.daysPerWeek;
-    if (dailyPeriods != null && dailyPeriods!.length == safeDays) {
+    if (dailyPeriods != null) {
       return dailyPeriods!;
     }
-    if (weeklyTarget != null && weeklyTarget! > 0) {
+    if (weeklyTarget != null) {
       return DailyDistribution.buildAutomatic(weeklyTarget!, safeDays);
     }
     final safePeriods = settings.periodsPerDay < 1 ? 1 : settings.periodsPerDay;

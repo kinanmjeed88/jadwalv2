@@ -208,5 +208,31 @@ void main() {
     expect(withOverride.hasWeeklyOverride, isTrue);
     expect(withOverride.weeklyLessonsOverride, 31);
     expect(withOverride.dailyPeriodsOverride, <int>[6, 6, 7, 6, 6]);
+    final effective = restoredConfig.resolveWeeklyConfigForClassroom(
+        withOverride, daysPerWeek: 5);
+    expect(effective.weeklyTarget, 31);
+    expect(effective.dailyPeriods, [6, 6, 7, 6, 6]);
+    final inherited = restoredConfig.resolveWeeklyConfigForClassroom(
+        withoutOverride, daysPerWeek: 5);
+    expect(inherited.weeklyTarget, 32);
+    expect(inherited.dailyPeriods, [7, 7, 6, 6, 6]);
   });
+  test('legacy backup missing all weekly keys resolves default capacity', () async {
+    await appConfigService.save(AppConfig.initial());
+    await appBackupService.importFromJson(jsonEncode({
+      'subjects': [], 'teachers': [], 'lessons': [], 'settings': [],
+      'classrooms': [{'id': 91, 'name': 'قديم', 'grade': 'الصف السادس'}],
+      'appConfig': {'isSetupCompleted': true, 'schoolStage': 'primary'},
+    }));
+    final config = await appConfigService.load();
+    final classroom = (await isar.classrooms.get(91))!;
+    expect(config.weeklyLoadMode, WeeklyLoadMode.uniform30);
+    expect(classroom.weeklyOverride, isNull);
+    expect(classroom.dailyPeriodsOverride, isNull);
+    final effective = config.resolveWeeklyConfigForClassroom(
+        classroom, daysPerWeek: 5);
+    expect(effective.weeklyTarget, 30);
+    expect(effective.dailyPeriods, [6, 6, 6, 6, 6]);
+  });
+
 }
