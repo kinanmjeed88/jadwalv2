@@ -1,3 +1,7 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jadwal_v2/core/providers/app_config_provider.dart';
+import 'package:jadwal_v2/core/providers/database_provider.dart';
+import 'package:jadwal_v2/features/timetable/presentation/providers/timetable_provider.dart';
 import 'dart:convert';
 import 'dart:io';
 
@@ -233,6 +237,44 @@ void main() {
         classroom, daysPerWeek: 5);
     expect(effective.weeklyTarget, 30);
     expect(effective.dailyPeriods, [6, 6, 6, 6, 6]);
+  });
+
+  test('Notifier rejects drag outside daily profile without persisting it', () async {
+    await appConfigService.save(AppConfig.initial());
+    final classroom = Classroom()
+      ..name = 'اختبار النقل'
+      ..grade = 'الصف السادس'
+      ..weeklyOverride = const ClassroomWeeklyOverride(
+          weeklyLessons: 31, dailyPeriods: [6, 6, 7, 6, 6]);
+    final lesson = Lesson()
+      ..dayIndex = 0
+      ..periodIndex = 0;
+    await isar.writeTxn(() async {
+      await isar.lessons.clear();
+      await isar.classrooms.put(classroom);
+      lesson.classroom.value = classroom;
+      await isar.lessons.put(lesson);
+      await lesson.classroom.save();
+    });
+    final container = ProviderContainer(overrides: [
+      isarDatabaseProvider.overrideWith((ref) async => isar),
+      appConfigServiceProvider.overrideWith((ref) async => appConfigService),
+    ]);
+    final subscription = container.listen(timetableNotifierProvider,
+        (previous, next) {});
+    try {
+      await container.read(timetableNotifierProvider.future);
+      final notifier = container.read(timetableNotifierProvider.notifier);
+      final result = await notifier.moveLessonToEmpty(lesson, 0, 6);
+      expect(result.$1, isFalse);
+      expect(result.$2, contains('خارج التوزيع اليومي'));
+      final saved = (await isar.lessons.get(lesson.id))!;
+      expect(saved.dayIndex, 0);
+      expect(saved.periodIndex, 0);
+    } finally {
+      subscription.close();
+      container.dispose();
+    }
   });
 
 }

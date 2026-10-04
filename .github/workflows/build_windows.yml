@@ -53,12 +53,11 @@ jobs:
       - name: Run Flutter Tests
         shell: pwsh
         run: |
-          $testFiles = Get-ChildItem -Path test -Recurse -Filter '*_test.dart' |
-            Where-Object { $_.Name -ne 'backup_service_benchmark_test.dart' } |
-            ForEach-Object { $_.FullName }
-          $out = flutter test @testFiles 2>&1
+          $out = flutter test 2>&1
           $code = $LASTEXITCODE
           $out | ForEach-Object { Write-Host $_ }
+          $summary = ($out | Where-Object { $_ -match 'All tests passed|Some tests failed' }) -join " "
+          Write-Host "::notice title=FlutterTestSummary::$summary"
           if ($code -ne 0) {
             $failLines = ($out | Where-Object { $_ -match 'Exception|Error|Expected|Actual|failed|══' } | Select-Object -First 25) -join " | "
             Write-Host "::error title=FlutterTest::$failLines"
