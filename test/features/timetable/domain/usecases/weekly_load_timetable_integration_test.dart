@@ -389,6 +389,7 @@ void main() {
     final result = SmartAutoFixUseCase(
       teachers: teachers, subjects: subjects, classrooms: [classroom],
       settings: defaultSettings, subjectLessons: lessons,
+      subjectConstraints: const <SubjectConstraintEntity>[],
     ).execute(
       initialSchedule: lessons, initialDiagnostics: diagnostics,
       onProgress: (attempt, total) => attempts++,
