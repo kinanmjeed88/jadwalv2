@@ -66,3 +66,55 @@ git push origin برنامج-مخصص-لوندوز-١٠-و-١١
   تستخدمان `HomePage` كما هي، وواجهة الإقلاع الجديدة داخل `HomePage` نفسها.
 
 </div>
+
+---
+
+## رقعة ميزة «الحِمل الأسبوعي» (weekly load) — 2026-10-04
+
+الرقعة الأصلية لهذه الميزة موجودة في فرع المصدر `arena/01a10437-jadwalv2`
+(الالتزام `b522ff0`) وطُبِّقت على `main` عبر PR #132، وبقيت بحاجة إلى نقل
+إلى فرعي ويندوز. الرقعتان:
+
+* `ports/port-windows7-weekly-load.patch` — تُطبَّق على `برنامج-مخصص-لوندوز-٧`
+  (قمة الفرع `b9b6215`) بـ 40 ملفًا.
+* `ports/port-windows10-11-weekly-load.patch` — تُطبَّق على
+  `برنامج-مخصص-لوندوز-١٠-و-١١` (قمة الفرع `6b253a3`) بـ 40 ملفًا.
+
+### طريقة التطبيق
+
+```bash
+git checkout برنامج-مخصص-لوندوز-٧        # أو الفرع الآخر
+git apply --check ports/port-windows7-weekly-load.patch
+git apply ports/port-windows7-weekly-load.patch
+git add -A
+git commit -m "feat(weekly-load): سياسة الحِمل الأسبوعي والتوزيع اليومي للصفوف"
+git push origin برنامج-مخصص-لوندوز-٧
+```
+
+### ما الذي تنقله الرقعة؟
+
+نفس ملفات ميزة الحِمل الأسبوعي في `main`: `weekly_load_policy.dart`، تخصيص
+الصفوف (`weeklyLessonsOverride` و`dailyPeriodsOverride` في `Classroom` مع
+`classroom.g.dart` مولَّد بنفس معرّف المجموعة)، محرر الخطة الأسبوعية في
+الإعدادات، أوضاع الحِمل، تكامل `SmartAutoFix` و`PreValidationEngine`، توحيد
+خرائط الأيام في الجدول وPDF وExcel، والاختبارات (بما فيها اختبار ترحيل قاعدة
+بيانات Isar القديمة واختبار انحدار خريطة الأيام)، والتوثيق.
+
+### ما بقي خاصًّا بكل فرع ويندوز (لم تُستبدل ملفاته)
+
+* `lib/features/management/presentation/pages/settings_page.dart` و
+  `lib/features/timetable/presentation/pages/timetable_page.dart`
+  (حفظ الملفات عبر `file_save_service.dart` بدل `FilePicker`/`SharePlus`).
+* `.github/workflows/build.yml` و`.github/workflows/build_windows.yml`
+  (اسم المنفذ التنفيذي، إصدار Flutter 3.16.9 في فرع ويندوز ٧، استبعاد
+  `backup_service_benchmark_test.dart` من تشغيل الاختبارات)، مع إضافة
+  `arena/**` إلى المشغّلات وتقرير أعداد الاختبارات عبر `flutter test --machine`.
+* `lib/main_windows.dart`، `lib/app/*`، `windows/**`، `pubspec.yaml`
+  (قيود الإصدارات)، `tools/**` وملفات `WINDOWS*.md`.
+
+### التحقق
+
+`.github/workflows/port-verify.yml` ينفّذ التحقق المستقل لكل هدف على بيئة CI
+دون الدفع إلى الفروع الرسمية: يجلب الفرع، يطبّق الرقعة، ثم يشغّل
+`flutter analyze --no-fatal-infos` و`flutter test --machine` وبناء
+Windows Release واختبار الدخان. سكربتا المساعدة في `ports/ci/`.
