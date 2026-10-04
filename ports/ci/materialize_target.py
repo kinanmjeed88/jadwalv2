@@ -100,7 +100,8 @@ def main() -> int:
         run(["git", "apply", "--check", str(patch_path)], cwd=destination)
         run(["git", "apply", str(patch_path)], cwd=destination)
 
-    changed = run(["git", "status", "--short"], cwd=destination).stdout.strip().splitlines()
+    # -uall: list every untracked file instead of collapsing directories
+    changed = run(["git", "status", "--porcelain", "-uall"], cwd=destination).stdout.strip().splitlines()
     summary = {
         "target": args.target,
         "label": spec["label"],
