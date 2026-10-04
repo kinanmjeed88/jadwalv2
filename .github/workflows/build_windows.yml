@@ -42,8 +42,11 @@ jobs:
           $code = $LASTEXITCODE
           $out | ForEach-Object { Write-Host $_ }
           if ($code -ne 0) {
-            $joined = ($out | Select-Object -Last 25) -join " | "
-            Write-Host "::error title=FlutterAnalyze::$joined"
+            $errors = ($out | Where-Object { $_ -match 'error -|warning -' }) -join " | "
+            if ([string]::IsNullOrWhiteSpace($errors)) {
+              $errors = ($out | Select-Object -Last 15) -join " | "
+            }
+            Write-Host "::error title=FlutterAnalyze::$errors"
             exit $code
           }
 
