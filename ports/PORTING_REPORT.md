@@ -18,11 +18,21 @@
 | Windows 7 | PASS (رقعة 40 ملفًا، تطبيق نظيف) | PASS (Flutter 3.16.9) | PASS 111/0/0 | PASS | PASS | PASS | PASS | رقعة `757ab42…` (لم يُدفع — قيد الجلسة) | — (BLOCKED) | PORTED + VERIFIED |
 | Windows 10/11 | PASS (رقعة 40 ملفًا، تطبيق نظيف) | PASS (stable) | PASS 111/0/0 | PASS | PASS | PASS | PASS | رقعة `3cfd958…` (لم يُدفع — قيد الجلسة) | — (BLOCKED) | PORTED + VERIFIED |
 
+أضاف التحقق النهائي (run 37200776769) إثباتًا صريحًا أن حِزم اختبار الميزة
+العشر نُفِّذت فعلًا في كل هدف (إشعارات `weekly-load suites executed (10)`)،
+وتشمل: سياسة الحِمل، التوزيع اليومي والسعة، ترحيل قاعدة Isar القديمة، انحدار
+خريطة الأيام، تصدير Excel، تكامل الجدول مع SmartAutoFix، معالج الإعداد
+الأول، التحقق من الإعدادات، والنسخ الاحتياطي. كما نجح فحص
+«Analyze, Test, and Build Windows» الخاص بـPR #133 على شجرة الدمج.
+
 أعداد الاختبارات الفعلية المقيسة (لا منقولة عن المصدر):
 
 * main: `Passed = 101, Failed = 0, Skipped = 0`
 * Windows 7: `Passed = 111, Failed = 0, Skipped = 0`
 * Windows 10/11: `Passed = 111, Failed = 0, Skipped = 0`
+
+وسيط التسليم إلى `main` (الرقعتان + أدوات التحقق + التقرير):
+[PR #133](https://github.com/kinanmjeed88/jadwalv2/pull/133).
 
 حالة الإنهاء: **PORTING PARTIAL** — النقل والتحقق نجحا للأهداف الثلاثة، لكن
 دفع الفروع الرسمية لفرعي ويندوز وفتح PR مباشر إليهما متعذّر داخل هذه الجلسة
@@ -55,7 +65,8 @@
 * Flutter المستخدم في التحقق: **3.16.9** كما في workflow الفرع (Dart 3.2).
 * Analyze: PASS — Tests: PASS 111/0/0 — Windows Release (الهدف
   `lib/main_windows.dart`): PASS — bundle (`JadwalV2_Windows7.exe` + `data`):
-  PASS — Smoke (`windows/packaging/smoke_test.ps1`): PASS (run 37199771331).
+  PASS — Smoke (`windows/packaging/smoke_test.ps1`): PASS
+  (run 37199771331 وrun 37200776769 النهائي).
 
 ### 3) Windows 10/11 — `برنامج-مخصص-لوندوز-١٠-و-١١`
 
@@ -65,7 +76,8 @@
   40 ملفًا، شجرة نتيجة التطبيق `650f7d9b…`).
 * Flutter: قناة stable كما في workflow الفرع.
 * Analyze: PASS — Tests: PASS 111/0/0 — Windows Release: PASS — bundle
-  (`JadwalV2_Windows10_11.exe` + `data`): PASS — Smoke: PASS (run 37199771331).
+  (`JadwalV2_Windows10_11.exe` + `data`): PASS — Smoke: PASS
+  (run 37199771331 وrun 37200776769 النهائي).
 
 ## التعارضات وكيف حُلّت
 
