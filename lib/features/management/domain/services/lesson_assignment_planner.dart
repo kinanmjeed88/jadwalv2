@@ -1,3 +1,4 @@
+import '../../../../core/models/app_config.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/settings.dart';
@@ -54,7 +55,6 @@ class AssignmentPlan {
 /// لا يكتب في قاعدة البيانات؛ يُنتج خطة يطبّقها المستدعي داخل معاملة Isar
 /// حتى تبقى عملية إنشاء المعلم مع إسناداته الأولية متسقة.
 class LessonAssignmentPlanner {
-
   /// يخطط إسناد كل تركيبات المواد×الصفوف المحددة إلى المعلم.
   static AssignmentPlan plan({
     required Teacher teacher,
@@ -62,6 +62,7 @@ class LessonAssignmentPlanner {
     required Iterable<Classroom> classrooms,
     required List<Lesson> existingLessons,
     required AppSettings settings,
+    AppConfig? appConfig,
     DuplicateAssignmentBehavior duplicateBehavior =
         DuplicateAssignmentBehavior.skip,
   }) {
@@ -97,7 +98,6 @@ class LessonAssignmentPlanner {
     final periodsPerDay =
         settings.periodsPerDay < 1 ? 1 : settings.periodsPerDay;
     final daysPerWeek = settings.daysPerWeek < 1 ? 5 : settings.daysPerWeek;
-    final maxClassroomCapacity = periodsPerDay * daysPerWeek;
 
     final pairsToCreate = <AssignmentPair>[];
     final skippedDuplicates = <AssignmentPair>[];
@@ -117,6 +117,13 @@ class LessonAssignmentPlanner {
           skippedDuplicates.add(pair);
           continue;
         }
+
+        final maxClassroomCapacity = _classroomCapacity(
+          classroom: classroom,
+          periodsPerDay: periodsPerDay,
+          daysPerWeek: daysPerWeek,
+          appConfig: appConfig,
+        );
 
         final classAssigned = classroomCounts[classroom.id] ?? 0;
         final proposedClassTotal = classAssigned + weekly;
@@ -144,6 +151,27 @@ class LessonAssignmentPlanner {
       pairsToCreate: pairsToCreate,
       skippedDuplicates: skippedDuplicates,
     );
+  }
+
+  static int _classroomCapacity({
+    required Classroom classroom,
+    required int periodsPerDay,
+    required int daysPerWeek,
+    required AppConfig? appConfig,
+  }) {
+    if (classroom.weeklyLessonsOverride != null &&
+        classroom.weeklyLessonsOverride! > 0) {
+      return classroom.weeklyLessonsOverride!;
+    }
+    if (appConfig != null) {
+      return appConfig
+          .resolveWeeklyConfigForClassroom(
+            classroom,
+            daysPerWeek: daysPerWeek,
+          )
+          .weeklyTarget;
+    }
+    return periodsPerDay * daysPerWeek;
   }
 
   /// يبني حصص المسبح غير المجدولة لكل زوج وفق نصاب المادة.

@@ -17,15 +17,25 @@ const ClassroomSchema = CollectionSchema(
   name: r'Classroom',
   id: -8186663030834931469,
   properties: {
-    r'grade': PropertySchema(
+    r'dailyPeriodsOverride': PropertySchema(
       id: 0,
+      name: r'dailyPeriodsOverride',
+      type: IsarType.longList,
+    ),
+    r'grade': PropertySchema(
+      id: 1,
       name: r'grade',
       type: IsarType.string,
     ),
     r'name': PropertySchema(
-      id: 1,
+      id: 2,
       name: r'name',
       type: IsarType.string,
+    ),
+    r'weeklyLessonsOverride': PropertySchema(
+      id: 3,
+      name: r'weeklyLessonsOverride',
+      type: IsarType.long,
     )
   },
   estimateSize: _classroomEstimateSize,
@@ -48,6 +58,12 @@ int _classroomEstimateSize(
   Map<Type, List<int>> allOffsets,
 ) {
   var bytesCount = offsets.last;
+  {
+    final list = object.dailyPeriodsOverride;
+    if (list != null) {
+      bytesCount += 3 + list.length * 8;
+    }
+  }
   bytesCount += 3 + object.grade.length * 3;
   bytesCount += 3 + object.name.length * 3;
   return bytesCount;
@@ -59,8 +75,10 @@ void _classroomSerialize(
   List<int> offsets,
   Map<Type, List<int>> allOffsets,
 ) {
-  writer.writeString(offsets[0], object.grade);
-  writer.writeString(offsets[1], object.name);
+  writer.writeLongList(offsets[0], object.dailyPeriodsOverride);
+  writer.writeString(offsets[1], object.grade);
+  writer.writeString(offsets[2], object.name);
+  writer.writeLong(offsets[3], object.weeklyLessonsOverride);
 }
 
 Classroom _classroomDeserialize(
@@ -70,9 +88,11 @@ Classroom _classroomDeserialize(
   Map<Type, List<int>> allOffsets,
 ) {
   final object = Classroom();
-  object.grade = reader.readString(offsets[0]);
+  object.dailyPeriodsOverride = reader.readLongList(offsets[0]);
+  object.grade = reader.readString(offsets[1]);
   object.id = id;
-  object.name = reader.readString(offsets[1]);
+  object.name = reader.readString(offsets[2]);
+  object.weeklyLessonsOverride = reader.readLongOrNull(offsets[3]);
   return object;
 }
 
@@ -84,9 +104,13 @@ P _classroomDeserializeProp<P>(
 ) {
   switch (propertyId) {
     case 0:
-      return (reader.readString(offset)) as P;
+      return (reader.readLongList(offset)) as P;
     case 1:
       return (reader.readString(offset)) as P;
+    case 2:
+      return (reader.readString(offset)) as P;
+    case 3:
+      return (reader.readLongOrNull(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
   }
