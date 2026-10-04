@@ -86,6 +86,8 @@ jobs:
           $out | Set-Content -Encoding utf8 test-machine.log
           python "$env:GITHUB_WORKSPACE/ports/ci/summarize_tests.py" test-machine.log --label "Windows 7"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python "$env:GITHUB_WORKSPACE/ports/ci/assert_feature_tests.py" test-machine.log --label "Windows 7"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($code -ne 0) { exit $code }
 
       - name: Build Windows Release
@@ -184,6 +186,8 @@ jobs:
           $out | Set-Content -Encoding utf8 test-machine.log
           python "$env:GITHUB_WORKSPACE/ports/ci/summarize_tests.py" test-machine.log --label "Windows 10/11"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python "$env:GITHUB_WORKSPACE/ports/ci/assert_feature_tests.py" test-machine.log --label "Windows 10/11"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($code -ne 0) { exit $code }
 
       - name: Build Windows Release
@@ -256,6 +260,7 @@ jobs:
           code=$?
           set -e
           python3 "$GITHUB_WORKSPACE/ports/ci/summarize_tests.py" test-machine.log --label "main (Android)"
+          python3 "$GITHUB_WORKSPACE/ports/ci/assert_feature_tests.py" test-machine.log --label "main (Android)"
           exit "$code"
 
       - name: Upload verification logs
