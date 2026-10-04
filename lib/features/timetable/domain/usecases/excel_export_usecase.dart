@@ -137,9 +137,14 @@ class ExcelExportUseCase {
       );
     }
 
-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
-    final displayDays = days.take(settings.daysPerWeek).toList();
-    final int periodsPerDay = settings.periodsPerDay;
+    final displayDays = timetableDayLabels(settings.daysPerWeek);
+    var periodsPerDay = settings.periodsPerDay;
+    for (final l in lessons) {
+      final p = l.periodIndex;
+      if (!l.isUnassigned && p != null && p + 1 > periodsPerDay) {
+        periodsPerDay = p + 1;
+      }
+    }
 
     final Map<String, Lesson> lessonMap = {};
     for (final l in lessons) {
