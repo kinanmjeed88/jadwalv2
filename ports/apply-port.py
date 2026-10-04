@@ -24,8 +24,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import pathlib
+import shutil
 import subprocess
 import sys
+import tempfile
 
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
@@ -118,15 +120,31 @@ def deliver(target: str, branch_name: str, push: bool, open_pr: bool, dry_run: b
         )
 
     print(f"\n=== {spec['label']}: base {tip} ===")
-    run(["git", "apply", "--check", str(patch_path)], cwd=REPO_ROOT)
-    print("git apply --check: CLEAN")
 
     if dry_run:
-        run(["git", "apply", "--stat", str(patch_path)], cwd=REPO_ROOT)
+        # Verify in a throwaway worktree at the official tip so the current
+        # checkout is never touched.
+        scratch = pathlib.Path(tempfile.mkdtemp(prefix="port-check-"))
+        dest = scratch / "tree"
+        try:
+            run(["git", "worktree", "add", "-q", "--detach", str(dest), tip], cwd=REPO_ROOT)
+            run(["git", "apply", "--check", str(patch_path)], cwd=dest)
+            print("git apply --check: CLEAN")
+            run(["git", "apply", "--stat", str(patch_path)], cwd=dest)
+        finally:
+            run(["git", "worktree", "remove", "--force", str(dest)], cwd=REPO_ROOT, check=False)
+            shutil.rmtree(scratch, ignore_errors=True)
         print("dry run complete: nothing was created.")
         return {}
 
+    previous = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=REPO_ROOT).stdout.strip()
     run(["git", "checkout", "-b", branch_name, tip], cwd=REPO_ROOT)
+    check = run(["git", "apply", "--check", str(patch_path)], cwd=REPO_ROOT, check=False)
+    if check.returncode != 0:
+        run(["git", "checkout", previous], cwd=REPO_ROOT)
+        run(["git", "branch", "-D", branch_name], cwd=REPO_ROOT)
+        raise SystemExit("git apply --check failed: the temporary branch was removed and nothing changed")
+    print("git apply --check: CLEAN")
     run(["git", "apply", str(patch_path)], cwd=REPO_ROOT)
 
     status = run(["git", "status", "--porcelain", "-uall"], cwd=REPO_ROOT).stdout.strip().splitlines()
