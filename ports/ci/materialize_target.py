@@ -50,7 +50,17 @@ TARGETS = {
 
 def run(cmd: list[str], cwd: pathlib.Path | None = None) -> subprocess.CompletedProcess:
     print("+", " ".join(cmd), flush=True)
-    return subprocess.run(cmd, cwd=cwd, check=True, text=True, capture_output=True)
+    result = subprocess.run(cmd, cwd=cwd, text=True, capture_output=True)
+    if result.stdout:
+        print(result.stdout, flush=True)
+    if result.stderr:
+        print(result.stderr, flush=True)
+    if result.returncode != 0:
+        raise SystemExit(
+            f"command failed with exit code {result.returncode}: {' '.join(cmd)}\n"
+            f"{(result.stderr or result.stdout or '').strip()[-1500:]}"
+        )
+    return result
 
 
 def main() -> int:

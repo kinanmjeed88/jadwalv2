@@ -28,8 +28,19 @@ jobs:
           python-version: '3.x'
 
       - name: Materialize Windows 7 branch with the port
-        run: python ports/ci/materialize_target.py win7 "$env:RUNNER_TEMP\porttarget"
         shell: pwsh
+        run: |
+          Write-Host "runner temp: $env:RUNNER_TEMP"
+          git --version
+          python --version
+          $out = python ports/ci/materialize_target.py win7 "$env:RUNNER_TEMP\porttarget" 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_ }
+          if ($code -ne 0) {
+            $msg = (($out | Select-Object -Last 25) -join ' | ')
+            Write-Host "::error title=MaterializeWin7::$msg"
+            exit $code
+          }
 
       - name: Set up Flutter 3.16.9
         uses: subosito/flutter-action@v2
@@ -118,8 +129,19 @@ jobs:
           python-version: '3.x'
 
       - name: Materialize Windows 10/11 branch with the port
-        run: python ports/ci/materialize_target.py win10 "$env:RUNNER_TEMP\porttarget"
         shell: pwsh
+        run: |
+          Write-Host "runner temp: $env:RUNNER_TEMP"
+          git --version
+          python --version
+          $out = python ports/ci/materialize_target.py win10 "$env:RUNNER_TEMP\porttarget" 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_ }
+          if ($code -ne 0) {
+            $msg = (($out | Select-Object -Last 25) -join ' | ')
+            Write-Host "::error title=MaterializeWin10::$msg"
+            exit $code
+          }
 
       - name: Set up Flutter (stable)
         uses: subosito/flutter-action@v2
