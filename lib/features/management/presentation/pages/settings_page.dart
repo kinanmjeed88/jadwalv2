@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
@@ -7,13 +9,16 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../../../../core/models/app_config.dart';
 import '../../../../core/models/school_stage.dart';
 import '../../../../core/models/settings.dart';
+import '../../../../core/models/weekly_load_policy.dart';
 import '../../../../core/providers/app_backup_provider.dart';
 import '../../../../core/providers/app_config_provider.dart';
 import '../../../../core/services/file_save_service.dart';
 import '../../../setup/presentation/pages/first_run_setup_page.dart';
 import '../../../setup/presentation/widgets/school_stage_selector.dart';
+import '../../../setup/presentation/widgets/weekly_load_mode_selector.dart';
 import '../../../timetable/presentation/providers/timetable_provider.dart';
 import '../providers/management_provider.dart';
 import '../providers/subject_constraint_auto_sync_provider.dart';
@@ -31,7 +36,7 @@ class SettingsPage extends ConsumerWidget {
         data: (settings) => configAsync.when(
           data: (config) => _SettingsForm(
             settings: settings,
-            initialStage: config.schoolStage,
+            initialConfig: config,
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, st) => Center(child: Text('حدث خطأ: $e')),
@@ -45,11 +50,11 @@ class SettingsPage extends ConsumerWidget {
 
 class _SettingsForm extends ConsumerStatefulWidget {
   final AppSettings settings;
-  final SchoolStage initialStage;
+  final AppConfig initialConfig;
 
   const _SettingsForm({
     required this.settings,
-    required this.initialStage,
+    required this.initialConfig,
   });
 
   @override
@@ -66,6 +71,9 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
   late String _schoolName;
   late String _principalName;
   late SchoolStage _schoolStage;
+  late WeeklyLoadMode _weeklyLoadMode;
+  late OfficialWeeklyPlan _officialWeeklyPlan;
+  final Map<String, TextEditingController> _officialPlanControllers = {};
   bool _isSaving = false;
   double? _customPageWidth;
   double? _customPageHeight;
@@ -80,9 +88,49 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     _exportAutoScale = widget.settings.exportAutoScale;
     _schoolName = widget.settings.schoolName;
     _principalName = widget.settings.principalName;
-    _schoolStage = widget.initialStage;
+    _schoolStage = widget.initialConfig.schoolStage;
+    _weeklyLoadMode = widget.initialConfig.weeklyLoadMode;
+    _officialWeeklyPlan = widget.initialConfig.officialWeeklyPlan;
     _customPageWidth = widget.settings.customPageWidth;
     _customPageHeight = widget.settings.customPageHeight;
+    _initOfficialPlanControllers();
+  }
+
+  void _initOfficialPlanControllers() {
+    for (final track in OfficialPlanTrack.values) {
+      for (final grade in track.grades) {
+        final key = _planEntryKey(track, grade);
+        final lessons = _officialWeeklyPlan.lessonsFor(track, grade);
+        _officialPlanControllers[key] =
+            TextEditingController(text: lessons.toString());
+      }
+    }
+  }
+
+  String _planEntryKey(OfficialPlanTrack track, AcademicGrade grade) {
+    return '${track.storageKey}:${grade.storageKey}';
+  }
+
+  void _resetOfficialPlanToDefaults() {
+    const defaults = OfficialWeeklyPlan.standard();
+    setState(() {
+      _officialWeeklyPlan = defaults;
+      for (final track in OfficialPlanTrack.values) {
+        for (final grade in track.grades) {
+          final key = _planEntryKey(track, grade);
+          _officialPlanControllers[key]?.text =
+              defaults.lessonsFor(track, grade).toString();
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _officialPlanControllers.values) {
+      controller.dispose();
+    }
+    super.dispose();
   }
 
   Future<void> _saveSettings() async {
@@ -91,6 +139,24 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     }
 
     _formKey.currentState!.save();
+
+    var updatedOfficialPlan = _officialWeeklyPlan;
+    for (final track in OfficialPlanTrack.values) {
+      for (final grade in track.grades) {
+        final key = _planEntryKey(track, grade);
+        final raw = _officialPlanControllers[key]?.text.trim() ?? '';
+        final parsed = int.tryParse(raw);
+        if (parsed != null && parsed > 0) {
+          updatedOfficialPlan = updatedOfficialPlan.copyWithEntry(
+            track: track,
+            grade: grade,
+            weeklyLessons: parsed,
+          );
+        }
+      }
+    }
+    _officialWeeklyPlan = updatedOfficialPlan;
+
     final newSettings = widget.settings
       ..schoolName = _schoolName
       ..principalName = _principalName
@@ -109,13 +175,11 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
           .read(settingsNotifierProvider.notifier)
           .saveSettings(newSettings);
 
-      // تغيير المرحلة يُعيد ضبط قيود المواد التلقائية وفق السياسة الجديدة.
-      final config = await ref.read(appConfigNotifierProvider.future);
-      if (!config.isSetupCompleted || config.schoolStage != _schoolStage) {
-        await ref
-            .read(appConfigNotifierProvider.notifier)
-            .completeSetup(stage: _schoolStage);
-      }
+      await ref.read(appConfigNotifierProvider.notifier).completeSetup(
+            stage: _schoolStage,
+            weeklyLoadMode: _weeklyLoadMode,
+            officialWeeklyPlan: _officialWeeklyPlan,
+          );
 
       final outcome = await ref.read(subjectConstraintAutoSyncProvider).run();
 
@@ -372,6 +436,82 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
     );
   }
 
+  Widget _buildOfficialPlanSection() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'الخطة الدراسية الرسمية',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+                TextButton.icon(
+                  onPressed: _resetOfficialPlanToDefaults,
+                  icon: const Icon(Icons.restore, size: 18),
+                  label: const Text('استعادة الافتراضي'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'هذه القيم هي القيم الافتراضية ويمكن تعديلها حسب احتياج مدرستك. تعديلها لا يغير الصفوف التي لديها تخصيص مستقل.',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade800),
+            ),
+            const SizedBox(height: 12),
+            for (final track in OfficialPlanTrack.values) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 8),
+                child: Text(
+                  track.label,
+                  style: TextStyle(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal.shade800,
+                  ),
+                ),
+              ),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final grade in track.grades)
+                    SizedBox(
+                      width: 125,
+                      child: TextFormField(
+                        controller:
+                            _officialPlanControllers[_planEntryKey(track, grade)],
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: grade.label,
+                          suffixText: 'حصة',
+                          border: const OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        validator: (val) {
+                          final parsed = int.tryParse(val?.trim() ?? '');
+                          if (parsed == null || parsed < 1 || parsed > 84) {
+                            return 'رقم غير صالح';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(
@@ -469,6 +609,41 @@ class _SettingsFormState extends ConsumerState<_SettingsForm> {
                 ),
               ),
             ),
+            const SizedBox(height: 24),
+            const Text('إعداد الحصص الأسبوعية',
+                style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal)),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'اختر الطريقة الأساسية التي تريد استخدامها لتحديد عدد الحصص للصفوف.',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    WeeklyLoadModeSelector(
+                      value: _weeklyLoadMode,
+                      onChanged: (mode) =>
+                          setState(() => _weeklyLoadMode = mode),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'يمكنك تعديل هذه الإعدادات لاحقًا من الإعدادات أو من تفاصيل الصف. هذا التخصيص اختياري.',
+                      style: TextStyle(
+                          fontSize: 12.5, color: Colors.grey.shade700),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _buildOfficialPlanSection(),
             const SizedBox(height: 24),
             Card(
               child: ListTile(

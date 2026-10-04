@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jadwal_v2/core/models/school_stage.dart';
+import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
 import 'package:jadwal_v2/features/setup/domain/setup_validation.dart';
 
 void main() {
@@ -61,6 +62,20 @@ void main() {
       );
       expect(SetupValidation.schoolStage(SchoolStage.primary), isNull);
       expect(SetupValidation.schoolStage(SchoolStage.middleAndAbove), isNull);
+    });
+  });
+
+  group('SetupValidation.weeklyLoadMode', () {
+    test('يرفض عدم الاختيار ويقبل السياسة المحددة', () {
+      expect(
+        SetupValidation.weeklyLoadMode(null),
+        'يرجى اختيار طريقة تحديد الحصص الأسبوعية',
+      );
+      expect(SetupValidation.weeklyLoadMode(WeeklyLoadMode.uniform30), isNull);
+      expect(
+        SetupValidation.weeklyLoadMode(WeeklyLoadMode.officialPlan),
+        isNull,
+      );
     });
   });
 }
