@@ -16,9 +16,6 @@ on:
     branches:
       - 'arena/01a106af-jadwalv2'
 
-env:
-  TARGET_DIR: ${{ runner.temp }}/porttarget
-
 jobs:
   verify-windows-7:
     name: Verify Windows 7 port
@@ -31,7 +28,7 @@ jobs:
           python-version: '3.x'
 
       - name: Materialize Windows 7 branch with the port
-        run: python ports/ci/materialize_target.py win7 "${{ env.TARGET_DIR }}"
+        run: python ports/ci/materialize_target.py win7 "$env:RUNNER_TEMP\porttarget"
         shell: pwsh
 
       - name: Set up Flutter 3.16.9
@@ -42,20 +39,20 @@ jobs:
           cache: true
 
       - name: Enable Windows Desktop
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         run: flutter config --enable-windows-desktop
 
       - name: Isolate Windows-only dependency resolution
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         shell: pwsh
         run: Remove-Item -Recurse -Force android
 
       - name: Install Dependencies
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         run: flutter pub get
 
       - name: Analyze Dart and Flutter Sources
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         shell: pwsh
         run: |
           $out = flutter analyze --no-fatal-infos 2>&1
@@ -64,7 +61,7 @@ jobs:
           if ($code -ne 0) { exit $code }
 
       - name: Run Flutter Tests
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         shell: pwsh
         run: |
           $testFiles = Get-ChildItem -Path test -Recurse -Filter '*_test.dart' |
@@ -78,11 +75,11 @@ jobs:
           if ($code -ne 0) { exit $code }
 
       - name: Build Windows Release
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         run: flutter build windows --release --target=lib/main_windows.dart
 
       - name: Verify Windows Release Bundle
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         shell: pwsh
         run: |
           $releaseDir = 'build\windows\x64\runner\Release'
@@ -92,7 +89,7 @@ jobs:
           if (-not (Test-Path $dataDir)) { throw "Missing Flutter data directory: $dataDir" }
 
       - name: Run Windows Smoke Test
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         shell: pwsh
         timeout-minutes: 2
         run: >-
@@ -105,8 +102,8 @@ jobs:
         with:
           name: port-verify-windows-7
           path: |
-            ${{ env.TARGET_DIR }}/analyze.log
-            ${{ env.TARGET_DIR }}/test-machine.log
+            ${{ runner.temp }}/porttarget/analyze.log
+            ${{ runner.temp }}/porttarget/test-machine.log
           if-no-files-found: warn
           retention-days: 30
 
@@ -121,7 +118,7 @@ jobs:
           python-version: '3.x'
 
       - name: Materialize Windows 10/11 branch with the port
-        run: python ports/ci/materialize_target.py win10 "${{ env.TARGET_DIR }}"
+        run: python ports/ci/materialize_target.py win10 "$env:RUNNER_TEMP\porttarget"
         shell: pwsh
 
       - name: Set up Flutter (stable)
@@ -131,15 +128,15 @@ jobs:
           cache: true
 
       - name: Enable Windows Desktop
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         run: flutter config --enable-windows-desktop
 
       - name: Install Dependencies
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         run: flutter pub get
 
       - name: Analyze Dart and Flutter Sources
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         shell: pwsh
         run: |
           $out = flutter analyze --no-fatal-infos 2>&1
@@ -148,7 +145,7 @@ jobs:
           if ($code -ne 0) { exit $code }
 
       - name: Run Flutter Tests
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         shell: pwsh
         run: |
           $testFiles = Get-ChildItem -Path test -Recurse -Filter '*_test.dart' |
@@ -162,11 +159,11 @@ jobs:
           if ($code -ne 0) { exit $code }
 
       - name: Build Windows Release
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         run: flutter build windows --release --target=lib/main_windows.dart
 
       - name: Verify Windows Release Bundle
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         shell: pwsh
         run: |
           $releaseDir = 'build\windows\x64\runner\Release'
@@ -176,7 +173,7 @@ jobs:
           if (-not (Test-Path $dataDir)) { throw "Missing Flutter data directory: $dataDir" }
 
       - name: Run Windows Smoke Test
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         shell: pwsh
         timeout-minutes: 2
         run: >-
@@ -189,8 +186,8 @@ jobs:
         with:
           name: port-verify-windows-10-11
           path: |
-            ${{ env.TARGET_DIR }}/analyze.log
-            ${{ env.TARGET_DIR }}/test-machine.log
+            ${{ runner.temp }}/porttarget/analyze.log
+            ${{ runner.temp }}/porttarget/test-machine.log
           if-no-files-found: warn
           retention-days: 30
 
@@ -205,7 +202,7 @@ jobs:
           python-version: '3.x'
 
       - name: Materialize feature head (PR #132)
-        run: python3 ports/ci/materialize_target.py feature "${{ env.TARGET_DIR }}"
+        run: python3 ports/ci/materialize_target.py feature "$RUNNER_TEMP/porttarget"
 
       - name: Set up Flutter (stable)
         uses: subosito/flutter-action@v2
@@ -214,17 +211,17 @@ jobs:
           cache: true
 
       - name: Install Dependencies
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         run: flutter pub get
 
       - name: Analyze Dart and Flutter Sources
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         run: |
           set -o pipefail
           flutter analyze --no-fatal-infos 2>&1 | tee analyze.log
 
       - name: Run Flutter Tests
-        working-directory: ${{ env.TARGET_DIR }}
+        working-directory: ${{ runner.temp }}/porttarget
         run: |
           set +e
           flutter test --machine > test-machine.log 2>&1
@@ -239,7 +236,7 @@ jobs:
         with:
           name: port-verify-main
           path: |
-            ${{ env.TARGET_DIR }}/analyze.log
-            ${{ env.TARGET_DIR }}/test-machine.log
+            ${{ runner.temp }}/porttarget/analyze.log
+            ${{ runner.temp }}/porttarget/test-machine.log
           if-no-files-found: warn
           retention-days: 30
