@@ -24,6 +24,12 @@ import pathlib
 import subprocess
 import sys
 
+# Windows runners default to cp1252 for stdout, which cannot encode the Arabic
+# branch names printed by the diagnostics below.
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 TARGETS = {

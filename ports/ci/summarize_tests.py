@@ -16,6 +16,10 @@ import json
 import pathlib
 import sys
 
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
