@@ -9,6 +9,7 @@ import '../models/lesson.dart';
 import '../models/school_stage.dart';
 import '../models/subject.dart';
 import '../models/teacher.dart';
+import '../models/weekly_load_policy.dart';
 import '../services/app_config_service.dart';
 import 'database_provider.dart';
 
@@ -21,7 +22,7 @@ final appConfigServiceProvider = FutureProvider<AppConfigService>((ref) async {
   return AppConfigService(file: file);
 });
 
-/// حالة إعدادات التطبيق (هل أُكمل الإعداد الأولي؟ وما المرحلة الدراسية؟).
+/// حالة إعدادات التطبيق (هل أُكمل الإعداد الأولي؟ وما المرحلة الدراسية وسياسة الحصص؟).
 final appConfigNotifierProvider =
     AsyncNotifierProvider<AppConfigNotifier, AppConfig>(
   AppConfigNotifier.new,
@@ -75,19 +76,41 @@ class AppConfigNotifier extends AsyncNotifier<AppConfig> {
     return service.load();
   }
 
-  /// يُنهي الإعداد الأولي ويثبّت المرحلة المختارة.
-  Future<void> completeSetup({required SchoolStage stage}) {
+  /// يُنهي الإعداد الأولي ويثبّت المرحلة المختارة وسياسة الحصص الأسبوعية.
+  Future<void> completeSetup({
+    required SchoolStage stage,
+    WeeklyLoadMode? weeklyLoadMode,
+    OfficialWeeklyPlan? officialWeeklyPlan,
+  }) {
     return _update(
       (config) => config.copyWith(
         isSetupCompleted: true,
         schoolStage: stage,
+        weeklyLoadMode: weeklyLoadMode ?? config.weeklyLoadMode,
+        officialWeeklyPlan: officialWeeklyPlan ?? config.officialWeeklyPlan,
       ),
     );
   }
 
-  /// يعتمد إعدادًا صامتًا لمستخدم قائم (ترقية) بمرحلة لا تغيّر سلوك الجدول.
+  /// يحدّث سياسة الحصص الأسبوعية و/أو بيانات الخطة الدراسية الرسمية.
+  Future<void> updateWeeklyLoadSettings({
+    WeeklyLoadMode? weeklyLoadMode,
+    OfficialWeeklyPlan? officialWeeklyPlan,
+  }) {
+    return _update(
+      (config) => config.copyWith(
+        weeklyLoadMode: weeklyLoadMode ?? config.weeklyLoadMode,
+        officialWeeklyPlan: officialWeeklyPlan ?? config.officialWeeklyPlan,
+      ),
+    );
+  }
+
+  /// يعتمد إعدادًا صامتًا لمستخدم قائم (ترقية) بمرحلة وسياسة لا تغيّران سلوك الجدول.
   Future<void> adoptLegacySetup() {
-    return completeSetup(stage: SchoolStage.fallback);
+    return completeSetup(
+      stage: SchoolStage.fallback,
+      weeklyLoadMode: WeeklyLoadMode.fallback,
+    );
   }
 
   /// يستبدل الإعدادات الحالية بالكامل (تستخدمه المزامنة التلقائية).

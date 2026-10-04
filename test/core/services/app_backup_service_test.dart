@@ -11,6 +11,7 @@ import 'package:jadwal_v2/core/models/settings.dart';
 import 'package:jadwal_v2/core/models/subject.dart';
 import 'package:jadwal_v2/core/models/subject_constraint.dart';
 import 'package:jadwal_v2/core/models/teacher.dart';
+import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
 import 'package:jadwal_v2/core/services/app_backup_service.dart';
 import 'package:jadwal_v2/core/services/app_config_service.dart';
 import 'package:jadwal_v2/core/services/backup_service.dart';
@@ -140,5 +141,72 @@ void main() {
     final config = await appConfigService.load();
     expect(config.isSetupCompleted, isTrue);
     expect(config.schoolStage, SchoolStage.primary);
+  });
+
+  test(
+      'يصدّر ويستورد سياسة الحصص الأسبوعية والخطة الرسمية وتخصيص الصفوف',
+      () async {
+    await isar.writeTxn(() async {
+      await isar.classrooms.clear();
+      await isar.classrooms.putAll(<Classroom>[
+        Classroom()
+          ..name = 'السادس أ'
+          ..grade = 'الصف السادس',
+        Classroom()
+          ..name = 'السادس ب'
+          ..grade = 'الصف السادس'
+          ..weeklyOverride = const ClassroomWeeklyOverride(
+            weeklyLessons: 31,
+            dailyPeriods: <int>[6, 6, 7, 6, 6],
+          ),
+      ]);
+    });
+
+    final customPlan = const OfficialWeeklyPlan.standard().copyWithEntry(
+      track: OfficialPlanTrack.primary,
+      grade: AcademicGrade.sixth,
+      weeklyLessons: 32,
+    );
+    await appConfigService.save(
+      AppConfig(
+        isSetupCompleted: true,
+        schoolStage: SchoolStage.primary,
+        weeklyLoadMode: WeeklyLoadMode.officialPlan,
+        officialWeeklyPlan: customPlan,
+        managedAutoConstraints: const <String, int>{},
+        dismissedAutoConstraints: const <String>{},
+      ),
+    );
+
+    final exportedJson = await appBackupService.exportToJson();
+
+    await isar.writeTxn(() async {
+      await isar.classrooms.clear();
+    });
+    await appConfigService.save(AppConfig.initial());
+
+    await appBackupService.importFromJson(exportedJson);
+
+    final restoredConfig = await appConfigService.load();
+    expect(restoredConfig.weeklyLoadMode, WeeklyLoadMode.officialPlan);
+    expect(
+      restoredConfig.officialWeeklyPlan
+          .lessonsFor(OfficialPlanTrack.primary, AcademicGrade.sixth),
+      32,
+    );
+
+    final restoredClassrooms = await isar.classrooms.where().findAll();
+    expect(restoredClassrooms.length, 2);
+
+    final withoutOverride =
+        restoredClassrooms.firstWhere((c) => c.name == 'السادس أ');
+    expect(withoutOverride.hasWeeklyOverride, isFalse);
+    expect(withoutOverride.weeklyOverride, isNull);
+
+    final withOverride =
+        restoredClassrooms.firstWhere((c) => c.name == 'السادس ب');
+    expect(withOverride.hasWeeklyOverride, isTrue);
+    expect(withOverride.weeklyLessonsOverride, 31);
+    expect(withOverride.dailyPeriodsOverride, <int>[6, 6, 7, 6, 6]);
   });
 }

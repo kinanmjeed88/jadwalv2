@@ -1,5 +1,8 @@
+import '../../../../core/models/app_config.dart';
+import '../../../../core/models/classroom.dart';
 import '../../../../core/models/lesson.dart';
 import '../../../../core/models/subject_constraint.dart';
+import '../../../../core/models/weekly_load_policy.dart';
 
 typedef TimetableTeacherSlotKey = ({
   int teacherId,
@@ -43,11 +46,15 @@ class TimetableInteractionIndex {
     required this.subjectLessonsByDay,
     required this.teacherLessonsByDay,
     required this.maxPeriodsBySubject,
+    required this.appConfig,
+    required this.daysPerWeek,
   });
 
   factory TimetableInteractionIndex.build({
     required List<Lesson> lessons,
     required List<SubjectConstraint> subjectConstraints,
+    AppConfig? appConfig,
+    int daysPerWeek = 5,
   }) {
     final lessonsById = <int, Lesson>{};
     final teacherLessonsBySlot = <TimetableTeacherSlotKey, Set<int>>{};
@@ -70,6 +77,8 @@ class TimetableInteractionIndex {
       subjectLessonsByDay: subjectLessonsByDay,
       teacherLessonsByDay: teacherLessonsByDay,
       maxPeriodsBySubject: maxPeriodsBySubject,
+      appConfig: appConfig,
+      daysPerWeek: daysPerWeek < 1 ? 5 : daysPerWeek,
     );
 
     for (final lesson in lessons) {
@@ -86,8 +95,42 @@ class TimetableInteractionIndex {
   final Map<TimetableSubjectDayKey, Set<int>> subjectLessonsByDay;
   final Map<TimetableTeacherDayKey, Set<int>> teacherLessonsByDay;
   final Map<TimetableConstraintKey, int> maxPeriodsBySubject;
+  final AppConfig? appConfig;
+  final int daysPerWeek;
 
   Lesson? lessonById(int id) => lessonsById[id];
+
+  int? allowedPeriodsForClassroomOnDay({
+    required Classroom? classroom,
+    required int dayIndex,
+  }) {
+    if (classroom == null) {
+      return null;
+    }
+    if (classroom.dailyPeriodsOverride != null &&
+        dayIndex >= 0 &&
+        dayIndex < classroom.dailyPeriodsOverride!.length) {
+      return classroom.dailyPeriodsOverride![dayIndex];
+    }
+    if (classroom.weeklyLessonsOverride != null &&
+        classroom.weeklyLessonsOverride! > 0) {
+      final dist = DailyDistribution.buildAutomatic(
+        classroom.weeklyLessonsOverride!,
+        daysPerWeek,
+      );
+      if (dayIndex >= 0 && dayIndex < dist.length) {
+        return dist[dayIndex];
+      }
+    }
+    if (appConfig != null) {
+      final effective = appConfig!.resolveWeeklyConfigForClassroom(
+        classroom,
+        daysPerWeek: daysPerWeek,
+      );
+      return effective.periodsForDay(dayIndex);
+    }
+    return null;
+  }
 
   bool hasTeacherConflict({
     required int? teacherId,

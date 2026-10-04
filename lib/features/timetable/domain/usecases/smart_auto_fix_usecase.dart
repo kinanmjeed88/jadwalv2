@@ -126,6 +126,19 @@ class SmartAutoFixUseCase {
     );
   }
 
+  int _periodsForClassroomOnDay(ClassroomEntity? classroom, int day) {
+    final fallbackPeriods = maxPeriods < 1 ? 1 : maxPeriods;
+    if (classroom == null) {
+      return fallbackPeriods;
+    }
+    final resolved = _generator.classrooms
+            .where((c) => c.id == classroom.id)
+            .firstOrNull
+            ?.periodsForDay(day, _generator.settings) ??
+        classroom.periodsForDay(day, _generator.settings);
+    return resolved;
+  }
+
   List<List<LessonEntity>> _targetedNeighbors(
     List<LessonEntity> schedule,
     List<ConflictDiagnostic> diagnostics,
@@ -151,7 +164,27 @@ class SmartAutoFixUseCase {
 
     for (final target in targetLessons.take(4)) {
       final swapPartners = unpinned
-          .where((lesson) => lesson.id != target.id)
+          .where((lesson) {
+            if (lesson.id == target.id) return false;
+            final tDay = target.dayIndex;
+            final tPeriod = target.periodIndex;
+            final pDay = lesson.dayIndex;
+            final pPeriod = lesson.periodIndex;
+            if (tDay != null &&
+                tPeriod != null &&
+                pDay != null &&
+                pPeriod != null) {
+              if (pPeriod >=
+                  _periodsForClassroomOnDay(target.classroom, pDay)) {
+                return false;
+              }
+              if (tPeriod >=
+                  _periodsForClassroomOnDay(lesson.classroom, tDay)) {
+                return false;
+              }
+            }
+            return true;
+          })
           .toList()
         ..shuffle(random);
       for (final partner in swapPartners.take(12)) {
@@ -170,7 +203,8 @@ class SmartAutoFixUseCase {
       }
 
       for (var day = 0; day < maxDays; day++) {
-        for (var period = 0; period < maxPeriods; period++) {
+        final periodsOnDay = _periodsForClassroomOnDay(target.classroom, day);
+        for (var period = 0; period < periodsOnDay; period++) {
           final occupyingLesson = schedule.where((lesson) {
             return lesson.id != target.id &&
                 lesson.classroom?.id == target.classroom?.id &&
@@ -179,6 +213,14 @@ class SmartAutoFixUseCase {
           }).firstOrNull;
 
           if (occupyingLesson != null && occupyingLesson.isPinned) continue;
+          if (occupyingLesson != null &&
+              target.dayIndex != null &&
+              target.periodIndex != null &&
+              target.periodIndex! >=
+                  _periodsForClassroomOnDay(
+                      occupyingLesson.classroom, target.dayIndex!)) {
+            continue;
+          }
 
           final candidate = _cloneState(schedule);
           final candidateTarget =

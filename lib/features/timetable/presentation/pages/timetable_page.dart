@@ -809,8 +809,23 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       }
     }
 
-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+    final days = [
+      'الأحد',
+      'الإثنين',
+      'الثلاثاء',
+      'الأربعاء',
+      'الخميس',
+      'السبت',
+      'الجمعة',
+    ];
     final displayDays = days.take(settings.daysPerWeek).toList();
+    var effectivePeriodsPerDay = settings.periodsPerDay;
+    for (final lesson in assigned) {
+      final p = lesson.periodIndex;
+      if (p != null && p + 1 > effectivePeriodsPerDay) {
+        effectivePeriodsPerDay = p + 1;
+      }
+    }
 
     List<TableRow> rows = [];
 
@@ -872,7 +887,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         children: headerCells));
 
     for (int d = 0; d < displayDays.length; d++) {
-      for (int p = 0; p < settings.periodsPerDay; p++) {
+      for (int p = 0; p < effectivePeriodsPerDay; p++) {
         List<Widget> cells = [];
 
         if (p == 0) {
@@ -1146,8 +1161,23 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       return const Center(child: Text('لا يوجد بيانات لعرضها.'));
     }
 
-    final days = ['الأحد', 'الإثنين', 'الثلاثاء', 'الأربعاء', 'الخميس'];
+    final days = [
+      'الأحد',
+      'الإثنين',
+      'الثلاثاء',
+      'الأربعاء',
+      'الخميس',
+      'السبت',
+      'الجمعة',
+    ];
     final displayDays = days.take(settings.daysPerWeek).toList();
+    var effectivePeriodsPerDay = settings.periodsPerDay;
+    for (final lesson in assigned) {
+      final p = lesson.periodIndex;
+      if (p != null && p + 1 > effectivePeriodsPerDay) {
+        effectivePeriodsPerDay = p + 1;
+      }
+    }
     final int masterKeyId = 0; // use 0 for the master grid
     if (!_classroomKeys.containsKey(masterKeyId)) {
       _classroomKeys[masterKeyId] = GlobalKey();
@@ -1207,7 +1237,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         children: headerCells));
 
     for (int d = 0; d < displayDays.length; d++) {
-      for (int p = 0; p < settings.periodsPerDay; p++) {
+      for (int p = 0; p < effectivePeriodsPerDay; p++) {
         List<Widget> cells = [];
 
         if (p == 0) {

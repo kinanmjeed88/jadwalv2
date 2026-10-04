@@ -3,6 +3,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:isar/isar.dart';
 import 'dart:async';
 import 'dart:isolate';
+import '../../../../core/providers/app_config_provider.dart';
 import '../../../../core/providers/database_provider.dart';
 import '../../../../core/models/teacher.dart';
 import '../../../../core/models/subject.dart';
@@ -202,9 +203,16 @@ class TimetableNotifier extends _$TimetableNotifier {
     }
 
     final constraints = await _loadSubjectConstraints(isar);
+    final appConfig = await ref.read(appConfigNotifierProvider.future);
+    final settingsList = await isar.appSettings.where().findAll();
+    final settings = settingsList.isNotEmpty
+        ? settingsList.first
+        : (AppSettings()..periodsPerDay = 7);
     final index = TimetableInteractionIndex.build(
       lessons: visibleLessons,
       subjectConstraints: constraints,
+      appConfig: appConfig,
+      daysPerWeek: settings.daysPerWeek,
     );
     _interactionIndex = index;
     return index;
@@ -260,6 +268,14 @@ class TimetableNotifier extends _$TimetableNotifier {
     final teacher = lesson.teacher.value;
     final subject = lesson.subject.value;
     final classroom = lesson.classroom.value;
+
+    final allowedPeriodsOnDay = index.allowedPeriodsForClassroomOnDay(
+      classroom: classroom,
+      dayIndex: newDay,
+    );
+    if (allowedPeriodsOnDay != null && newPeriod >= allowedPeriodsOnDay) {
+      return 'لا يمكن $operationLabel: الحصة (${newPeriod + 1}) خارج التوزيع اليومي المعتمد للصف (${classroom?.name ?? ''}) في اليوم المقترح';
+    }
 
     if (index.hasTeacherConflict(
       teacherId: teacher?.id,
@@ -342,6 +358,7 @@ class TimetableNotifier extends _$TimetableNotifier {
     final settings = settingsList.isNotEmpty
         ? settingsList.first
         : (AppSettings()..periodsPerDay = 7);
+    final appConfig = await ref.read(appConfigNotifierProvider.future);
 
     final plan = LessonAssignmentPlanner.plan(
       teacher: teacher,
@@ -349,6 +366,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       classrooms: [classroom],
       existingLessons: allLessons,
       settings: settings,
+      appConfig: appConfig,
       duplicateBehavior: DuplicateAssignmentBehavior.fail,
     );
     if (!plan.isSuccess) {
@@ -436,6 +454,7 @@ class TimetableNotifier extends _$TimetableNotifier {
       final settings = settingsList.isNotEmpty
           ? settingsList.first
           : (AppSettings()..periodsPerDay = 7);
+      final appConfig = await ref.read(appConfigNotifierProvider.future);
 
       // Clear existing schedule assignments by resetting indexes
       final existingLessons = await isar.lessons.where().findAll();
@@ -448,7 +467,14 @@ class TimetableNotifier extends _$TimetableNotifier {
         for (var s in subjects) s.id: SubjectEntity.fromIsar(s)
       };
       final classroomsMap = {
-        for (var c in classrooms) c.id: ClassroomEntity.fromIsar(c)
+        for (var c in classrooms)
+          c.id: ClassroomEntity.fromIsar(
+            c,
+            effectiveConfig: appConfig.resolveWeeklyConfigForClassroom(
+              c,
+              daysPerWeek: settings.daysPerWeek,
+            ),
+          )
       };
 
       final existingLessonsEntity = existingLessons

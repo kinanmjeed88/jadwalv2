@@ -1,4 +1,5 @@
 import '../../../core/models/school_stage.dart';
+import '../../../core/models/weekly_load_policy.dart';
 
 /// حدود وقواعد التحقق الخاصة ببيانات الإعداد الأولي.
 ///
@@ -43,6 +44,11 @@ class SetupValidation {
   /// المرحلة الدراسية إلزامية.
   static String? schoolStage(SchoolStage? stage) {
     return stage == null ? 'يرجى اختيار المرحلة الدراسية' : null;
+  }
+
+  /// سياسة الحصص الأسبوعية إلزامية.
+  static String? weeklyLoadMode(WeeklyLoadMode? mode) {
+    return mode == null ? 'يرجى اختيار طريقة تحديد الحصص الأسبوعية' : null;
   }
 
   static String? _intInRange(

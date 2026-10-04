@@ -50,6 +50,10 @@ class BackupService {
                 'id': c.id,
                 'name': c.name,
                 'grade': c.grade,
+                if (c.weeklyLessonsOverride != null)
+                  'weeklyLessonsOverride': c.weeklyLessonsOverride,
+                if (c.dailyPeriodsOverride != null)
+                  'dailyPeriodsOverride': c.dailyPeriodsOverride,
               })
           .toList(),
       'settings': settings
@@ -161,12 +165,22 @@ class BackupService {
       final Map<int, Classroom> classroomMap = {};
       if (data.containsKey('classrooms')) {
         final List<dynamic> classroomsList = data['classrooms'];
-        final newClassrooms = classroomsList
-            .map((c) => Classroom()
-              ..id = c['id']
-              ..name = c['name']
-              ..grade = c['grade'])
-            .toList();
+        final newClassrooms = classroomsList.map((c) {
+          final rawWeeklyOverride = c['weeklyLessonsOverride'];
+          final rawDailyOverride = c['dailyPeriodsOverride'];
+          return Classroom()
+            ..id = c['id']
+            ..name = c['name']
+            ..grade = c['grade']
+            ..weeklyLessonsOverride =
+                rawWeeklyOverride is num ? rawWeeklyOverride.toInt() : null
+            ..dailyPeriodsOverride = rawDailyOverride is List
+                ? rawDailyOverride
+                    .whereType<num>()
+                    .map((e) => e.toInt())
+                    .toList()
+                : null;
+        }).toList();
         await _isar.classrooms.putAll(newClassrooms);
         for (final c in newClassrooms) {
           classroomMap[c.id] = c;

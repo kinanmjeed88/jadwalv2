@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jadwal_v2/core/models/app_config.dart';
 import 'package:jadwal_v2/core/models/school_stage.dart';
+import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
 
 void main() {
   group('SchoolStage', () {
@@ -80,6 +81,34 @@ void main() {
     test('AppConfig.initial لا يعتبر الإعداد مكتملًا', () {
       expect(AppConfig.initial().isSetupCompleted, isFalse);
       expect(AppConfig.initial(), AppConfig.initial());
+    });
+
+    test('يحفظ ويستعيد سياسة الحصص الأسبوعية والخطة الرسمية المعدلة', () {
+      final customPlan = const OfficialWeeklyPlan.standard().copyWithEntry(
+        track: OfficialPlanTrack.primary,
+        grade: AcademicGrade.sixth,
+        weeklyLessons: 32,
+      );
+      final config = AppConfig(
+        isSetupCompleted: true,
+        schoolStage: SchoolStage.primary,
+        weeklyLoadMode: WeeklyLoadMode.officialPlan,
+        officialWeeklyPlan: customPlan,
+        managedAutoConstraints: const <String, int>{},
+        dismissedAutoConstraints: const <String>{},
+      );
+
+      final encoded = jsonEncode(config.toJson());
+      final decoded =
+          AppConfig.fromJson(jsonDecode(encoded) as Map<String, dynamic>);
+
+      expect(decoded, config);
+      expect(decoded.weeklyLoadMode, WeeklyLoadMode.officialPlan);
+      expect(
+        decoded.officialWeeklyPlan
+            .lessonsFor(OfficialPlanTrack.primary, AcademicGrade.sixth),
+        32,
+      );
     });
   });
 }

@@ -2,17 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/models/school_stage.dart';
+import '../../../../core/models/weekly_load_policy.dart';
 import '../../../../core/providers/app_config_provider.dart';
 import '../../../management/presentation/providers/management_provider.dart';
 import '../../../management/presentation/providers/subject_constraint_auto_sync_provider.dart';
 import '../../domain/setup_validation.dart';
 import '../widgets/school_stage_selector.dart';
+import '../widgets/weekly_load_mode_selector.dart';
 
 /// شاشة الإعداد الأولي الإلزامية.
 ///
 /// تُعرض كواجهة إقلاع للتطبيق عند أول تشغيل، فلا يمكن استخدام التطبيق قبل
 /// إدخال: اسم المدرسة، اسم المدير، عدد الدروس في اليوم، عدد أيام الأسبوع،
-/// والمرحلة الدراسية.
+/// المرحلة الدراسية، وطريقة تحديد الحصص الأسبوعية.
 ///
 /// عند اختيار المرحلة الابتدائية تُشغَّل سياسة تخطي قيود المواد تلقائيًا
 /// (انظر `PrimaryStageConstraintPolicy`).
@@ -37,6 +39,7 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
   final _daysPerWeekController = TextEditingController(text: '5');
 
   SchoolStage? _selectedStage;
+  WeeklyLoadMode _selectedWeeklyLoadMode = WeeklyLoadMode.fallback;
   bool _isPreparing = true;
   bool _isSaving = false;
   bool _showStageError = false;
@@ -77,6 +80,7 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
         _periodsPerDayController.text = settings.periodsPerDay.toString();
         _daysPerWeekController.text = settings.daysPerWeek.toString();
         _selectedStage = config.isSetupCompleted ? config.schoolStage : null;
+        _selectedWeeklyLoadMode = config.weeklyLoadMode;
         _isPreparing = false;
       });
     } catch (error) {
@@ -123,9 +127,10 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
           .read(settingsNotifierProvider.notifier)
           .saveSettings(updatedSettings);
 
-      await ref
-          .read(appConfigNotifierProvider.notifier)
-          .completeSetup(stage: stage);
+      await ref.read(appConfigNotifierProvider.notifier).completeSetup(
+            stage: stage,
+            weeklyLoadMode: _selectedWeeklyLoadMode,
+          );
 
       // تُنشأ قيود المواد التلقائية للمرحلة الابتدائية بعد حفظ المرحلة.
       final outcome =
@@ -240,6 +245,8 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
                   const SizedBox(height: 16),
                   _buildPrimaryPolicyNotice(),
                 ],
+                const SizedBox(height: 20),
+                _buildWeeklyLoadCard(),
                 const SizedBox(height: 28),
                 ElevatedButton(
                   onPressed: _isSaving ? null : _submit,
@@ -414,6 +421,42 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
     );
   }
 
+  Widget _buildWeeklyLoadCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'إعداد الحصص الأسبوعية',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'اختر الطريقة الأساسية التي تريد استخدامها لتحديد عدد الحصص للصفوف.',
+              style: TextStyle(fontSize: 13.5, color: Colors.grey.shade800),
+            ),
+            const SizedBox(height: 8),
+            WeeklyLoadModeSelector(
+              value: _selectedWeeklyLoadMode,
+              onChanged: (mode) {
+                setState(() {
+                  _selectedWeeklyLoadMode = mode;
+                });
+              },
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'يمكنك تعديل هذه الإعدادات لاحقًا من الإعدادات أو من تفاصيل الصف. هذا التخصيص اختياري.',
+              style: TextStyle(fontSize: 12.5, color: Colors.grey.shade700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPrimaryPolicyNotice() {
     return Container(
       decoration: BoxDecoration(
@@ -443,7 +486,7 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
             '٦ حصص (اللغة العربية والرياضيات غالبًا)، بحيث يُسمح بتكرار '
             'حصتين في اليوم للشعبة الواحدة بدل حصة واحدة. '
             'تُضاف هذه القيود إلى صفحة «قيود المواد» ويمكنك تعديل قيمتها '
-            'أو حذفها في أي وقت، ولا تُعاد إن حذفتها.',
+            'أو حذفه في أي وقت، ولا تُعاد إن حذفتها.',
             style: TextStyle(fontSize: 13, color: Colors.teal.shade900),
           ),
         ],
