@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/models/school_stage.dart';
+import '../../../../core/models/settings.dart';
 import '../../../../core/models/weekly_load_policy.dart';
 import '../../../../core/providers/app_config_provider.dart';
 import '../../../management/presentation/providers/management_provider.dart';
@@ -40,6 +41,7 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
 
   SchoolStage? _selectedStage;
   WeeklyLoadMode _selectedWeeklyLoadMode = WeeklyLoadMode.fallback;
+  ProviderSubscription<AsyncValue<AppSettings>>? _settingsSubscription;
   bool _isPreparing = true;
   bool _isSaving = false;
   bool _showStageError = false;
@@ -48,11 +50,14 @@ class _FirstRunSetupPageState extends ConsumerState<FirstRunSetupPage> {
   @override
   void initState() {
     super.initState();
+    _settingsSubscription =
+        ref.listenManual(settingsNotifierProvider, (_, __) {});
     _prepareForm();
   }
 
   @override
   void dispose() {
+    _settingsSubscription?.close();
     _schoolNameController.dispose();
     _principalNameController.dispose();
     _periodsPerDayController.dispose();

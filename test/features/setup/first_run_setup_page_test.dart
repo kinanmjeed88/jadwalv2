@@ -92,7 +92,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('إعداد الحصص الأسبوعية'), findsOneWidget);
+    final visibleTexts =
+        tester.widgetList<Text>(find.byType(Text)).map((t) => t.data).toList();
+    expect(
+      find.text('إعداد الحصص الأسبوعية'),
+      findsOneWidget,
+      reason: 'Visible texts: $visibleTexts',
+    );
     expect(find.text('30 حصة لجميع الصفوف'), findsOneWidget);
     expect(find.text('الخطة الدراسية الرسمية'), findsOneWidget);
     expect(
