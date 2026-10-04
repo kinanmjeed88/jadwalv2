@@ -32,11 +32,12 @@ EXPECTED_SUITES = [
     "test/features/setup/domain/setup_validation_test.dart",
     "test/features/timetable/domain/usecases/weekday_excel_export_test.dart",
     "test/features/timetable/domain/usecases/weekly_load_timetable_integration_test.dart",
-    "test/fixtures/legacy_classroom.dart",
 ]
 
-# Test suites that must have executed at least one reported test result.
-SUITES_THAT_MUST_RUN = [s for s in EXPECTED_SUITES if not s.endswith("legacy_classroom.dart")]
+# Files that must be present in the ported tree (no test suite of their own).
+REQUIRED_FIXTURES = [
+    "test/fixtures/legacy_classroom.dart",
+]
 
 
 def normalize(path: str) -> str:
@@ -73,7 +74,18 @@ def main() -> int:
         )
         return 1
 
-    ran = sorted(s for s in SUITES_THAT_MUST_RUN)
+    tree_root = args.log.resolve().parent
+    missing_fixtures = [
+        rel for rel in REQUIRED_FIXTURES if (tree_root / "test").exists() and not (tree_root / rel).exists()
+    ]
+    if missing_fixtures:
+        print(
+            f"::error title={args.label}::weekly-load fixtures missing: " + ", ".join(missing_fixtures),
+            file=sys.stderr,
+        )
+        return 1
+
+    ran = sorted(EXPECTED_SUITES)
     print(f"::notice title={args.label}::weekly-load suites executed ({len(ran)}): " + ", ".join(ran))
     return 0
 
