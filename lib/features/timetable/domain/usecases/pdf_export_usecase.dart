@@ -88,16 +88,7 @@ class PdfExportUseCase {
 
   pw.Widget _buildTeacherTable(Teacher teacher, Map<String, Lesson> lessonMap,
       AppSettings settings, pw.Font font, double availableHeight) {
-    final days = [
-      'الأحد',
-      'الإثنين',
-      'الثلاثاء',
-      'الأربعاء',
-      'الخميس',
-      'السبت',
-      'الجمعة',
-    ];
-    final displayDays = days.take(settings.daysPerWeek).toList();
+    final displayDays = timetableDayLabels(settings.daysPerWeek);
     var periodsPerDay = settings.periodsPerDay;
     for (final lesson in lessonMap.values) {
       final p = lesson.periodIndex;
@@ -423,16 +414,7 @@ class PdfExportUseCase {
       AppSettings settings,
       pw.Font font,
       double availableHeight) {
-    final days = [
-      'الأحد',
-      'الإثنين',
-      'الثلاثاء',
-      'الأربعاء',
-      'الخميس',
-      'السبت',
-      'الجمعة',
-    ];
-    final displayDays = days.take(settings.daysPerWeek).toList();
+    final displayDays = timetableDayLabels(settings.daysPerWeek);
     var periodsPerDay = settings.periodsPerDay;
     for (final lesson in lessonMap.values) {
       final p = lesson.periodIndex;

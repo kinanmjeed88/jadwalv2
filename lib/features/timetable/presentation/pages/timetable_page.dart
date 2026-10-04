@@ -809,16 +809,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       }
     }
 
-    final days = [
-      'الأحد',
-      'الإثنين',
-      'الثلاثاء',
-      'الأربعاء',
-      'الخميس',
-      'السبت',
-      'الجمعة',
-    ];
-    final displayDays = days.take(settings.daysPerWeek).toList();
+    final displayDays = timetableDayLabels(settings.daysPerWeek);
     var effectivePeriodsPerDay = settings.periodsPerDay;
     for (final lesson in assigned) {
       final p = lesson.periodIndex;
@@ -1161,16 +1152,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       return const Center(child: Text('لا يوجد بيانات لعرضها.'));
     }
 
-    final days = [
-      'الأحد',
-      'الإثنين',
-      'الثلاثاء',
-      'الأربعاء',
-      'الخميس',
-      'السبت',
-      'الجمعة',
-    ];
-    final displayDays = days.take(settings.daysPerWeek).toList();
+    final displayDays = timetableDayLabels(settings.daysPerWeek);
     var effectivePeriodsPerDay = settings.periodsPerDay;
     for (final lesson in assigned) {
       final p = lesson.periodIndex;

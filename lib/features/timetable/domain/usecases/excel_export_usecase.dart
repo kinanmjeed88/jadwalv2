@@ -137,16 +137,7 @@ class ExcelExportUseCase {
       );
     }
 
-    final days = [
-      'الأحد',
-      'الإثنين',
-      'الثلاثاء',
-      'الأربعاء',
-      'الخميس',
-      'السبت',
-      'الجمعة',
-    ];
-    final displayDays = days.take(settings.daysPerWeek).toList();
+    final displayDays = timetableDayLabels(settings.daysPerWeek);
     var periodsPerDay = settings.periodsPerDay;
     for (final l in lessons) {
       final p = l.periodIndex;

@@ -97,4 +97,3 @@ List<IsarLinkBase<dynamic>> _classroomGetLinks(LegacyClassroom object) {
 void _classroomAttach(IsarCollection<dynamic> col, Id id, LegacyClassroom object) {
   object.id = id;
 }
-
