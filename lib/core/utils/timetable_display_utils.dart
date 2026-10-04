@@ -1,7 +1,14 @@
+import '../models/weekly_load_policy.dart';
 import 'string_utils.dart';
 
 /// Fallback used when a lesson's display value is missing.
 const String timetableDisplayFallback = '-';
+
+/// Canonical day-index labels shared by timetable UI, PDF and Excel.
+/// Keep the persisted Sunday-first indices defined by [Weekday].
+List<String> timetableDayLabels(int daysPerWeek) => List<String>.unmodifiable(
+      Weekday.workingDays(daysPerWeek).map((day) => day.arabicLabel),
+    );
 
 /// Returns a safe, trimmed display value for a timetable cell segment.
 String normalizeTimetableDisplayValue(

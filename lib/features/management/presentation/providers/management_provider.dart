@@ -1,5 +1,6 @@
 import 'package:isar/isar.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../../../core/providers/app_config_provider.dart';
 import '../../../../core/providers/database_provider.dart';
 import '../../../../core/providers/repository_provider.dart';
 import '../../../../core/models/teacher.dart';
@@ -51,6 +52,7 @@ class TeachersNotifier extends _$TeachersNotifier {
 
     final storedSettings = await isar.appSettings.where().findFirst();
     final settings = storedSettings ?? (AppSettings()..periodsPerDay = 7);
+    final appConfig = await ref.read(appConfigNotifierProvider.future);
 
     final plan = LessonAssignmentPlanner.plan(
       teacher: teacher,
@@ -58,6 +60,7 @@ class TeachersNotifier extends _$TeachersNotifier {
       classrooms: classrooms,
       existingLessons: existingLessons,
       settings: settings,
+      appConfig: appConfig,
       duplicateBehavior: DuplicateAssignmentBehavior.skip,
     );
     if (!plan.isSuccess) {
@@ -185,12 +188,14 @@ class SettingsNotifier extends _$SettingsNotifier {
   Future<AppSettings> build() async {
     final repo = await ref.watch(managementRepositoryProvider.future);
     final settings = await repo.getSettings();
-    return settings ?? AppSettings();
+    return settings ?? (AppSettings()..periodsPerDay = 7);
   }
 
   Future<void> saveSettings(AppSettings settings) async {
     final repo = await ref.read(managementRepositoryProvider.future);
     await repo.saveSettings(settings);
-    state = AsyncValue.data(await repo.getSettings() ?? AppSettings());
+    state = AsyncValue.data(
+      await repo.getSettings() ?? (AppSettings()..periodsPerDay = 7),
+    );
   }
 }
