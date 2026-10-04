@@ -353,6 +353,59 @@ void main() {
     });
   });
 
+  test('uniform30 repair rejects the extra rectangular slot and repairs via moves',
+      () {
+    final model = Classroom()
+      ..id = 1
+      ..name = 'أ'
+      ..grade = 'الصف الأول';
+    final effective = AppConfig.initial()
+        .resolveWeeklyConfigForClassroom(model, daysPerWeek: 5);
+    final classroom = ClassroomEntity.fromIsar(model, effectiveConfig: effective);
+    expect(effective.dailyPeriods, [6, 6, 6, 6, 6]);
+    expect(defaultSettings.periodsPerDay, 7);
+    final teachers = buildTeachers(6);
+    final (subjects, lessons) = buildLessonsForClassroom(
+      classroom: classroom,
+      teachers: teachers,
+      subjectWeeklyCounts: [5, 5, 5, 5, 5, 5],
+    );
+    // Deterministic complete Latin-free grid: each subject and its teacher
+    // occurs once per day. Only the deliberately displaced lesson is invalid.
+    for (var i = 0; i < lessons.length; i++) {
+      lessons[i].dayIndex = i % 5;
+      lessons[i].periodIndex = i ~/ 5;
+    }
+    final generator = TimetableGenerator(
+      teachers: teachers, subjects: subjects, classrooms: [classroom],
+      settings: defaultSettings, existingLessons: lessons,
+    );
+    expect(generator.diagnose(lessons).where((d) => d.isHard), isEmpty);
+    lessons.first.periodIndex = 6;
+    final diagnostics = generator.diagnose(lessons);
+    expect(diagnostics.where((d) => d.isHard), isNotEmpty,
+        reason: 'Period 6 must not become legal just because settings allow 7');
+    var attempts = 0;
+    final result = SmartAutoFixUseCase(
+      teachers: teachers, subjects: subjects, classrooms: [classroom],
+      settings: defaultSettings, subjectLessons: lessons,
+    ).execute(
+      initialSchedule: lessons, initialDiagnostics: diagnostics,
+      onProgress: (attempt, total) => attempts++,
+    );
+    expect(attempts, greaterThan(0), reason: 'Must actually search move/swap repairs');
+    expect(result.isResolved, isTrue);
+    expect(result.schedule.map((l) => l.id).toSet(),
+        lessons.map((l) => l.id).toSet());
+    expect(result.schedule, hasLength(30));
+    for (final lesson in result.schedule) {
+      expect(lesson.dayIndex, inInclusiveRange(0, 4));
+      expect(lesson.periodIndex,
+          inInclusiveRange(0, effective.dailyPeriods[lesson.dayIndex!] - 1));
+    }
+    expect(result.schedule.where((l) => l.periodIndex == 6), isEmpty);
+  });
+
   group('LessonAssignmentPlanner with WeeklyLoadPolicy', () {
     test('respects officialPlan and classroom weeklyOverride capacities', () {
       final settings = AppSettings()

@@ -53,11 +53,22 @@ jobs:
       - name: Run Flutter Tests
         shell: pwsh
         run: |
-          $out = flutter test 2>&1
+          $out = flutter test --machine 2>&1
           $code = $LASTEXITCODE
           $out | ForEach-Object { Write-Host $_ }
-          $summary = ($out | Where-Object { $_ -match 'All tests passed|Some tests failed' }) -join " "
-          Write-Host "::notice title=FlutterTestSummary::$summary"
+          $events = @($out | ForEach-Object {
+            try { $_.ToString() | ConvertFrom-Json -ErrorAction Stop } catch { }
+          })
+          $completed = @($events | Where-Object {
+            $_.type -eq 'testDone' -and -not $_.hidden -and -not $_.skipped
+          })
+          $passed = @($completed | Where-Object { $_.result -eq 'success' }).Count
+          $failed = @($completed | Where-Object { $_.result -ne 'success' }).Count
+          $skipped = @($events | Where-Object {
+            $_.type -eq 'testDone' -and $_.skipped -and -not $_.hidden
+          }).Count
+          Write-Host ('::warning title=Executed test results::Passed={0}; Failed={1}; Skipped={2}' -f $passed, $failed, $skipped)
+          if ($passed -eq 0) { throw 'No completed tests recorded' }
           if ($code -ne 0) {
             $failLines = ($out | Where-Object { $_ -match 'Exception|Error|Expected|Actual|failed|══' } | Select-Object -First 25) -join " | "
             Write-Host "::error title=FlutterTest::$failLines"
