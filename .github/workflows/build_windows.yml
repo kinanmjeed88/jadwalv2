@@ -12,6 +12,7 @@ on:
       - main
       - master
       - 'release/**'
+      - 'arena/**'
 
 jobs:
   build:
