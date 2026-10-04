@@ -36,7 +36,16 @@ jobs:
         run: flutter pub get
 
       - name: Analyze Dart and Flutter Sources
-        run: flutter analyze --no-fatal-infos
+        shell: pwsh
+        run: |
+          $out = flutter analyze --no-fatal-infos 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_ }
+          if ($code -ne 0) {
+            $joined = ($out | Select-Object -Last 25) -join " | "
+            Write-Host "::error title=FlutterAnalyze::$joined"
+            exit $code
+          }
 
       - name: Run Flutter Tests
         shell: pwsh
@@ -44,7 +53,14 @@ jobs:
           $testFiles = Get-ChildItem -Path test -Recurse -Filter '*_test.dart' |
             Where-Object { $_.Name -ne 'backup_service_benchmark_test.dart' } |
             ForEach-Object { $_.FullName }
-          flutter test @testFiles
+          $out = flutter test @testFiles 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_ }
+          if ($code -ne 0) {
+            $joined = ($out | Select-Object -Last 25) -join " | "
+            Write-Host "::error title=FlutterTest::$joined"
+            exit $code
+          }
 
       - name: Build Windows Release
         run: flutter build windows --release

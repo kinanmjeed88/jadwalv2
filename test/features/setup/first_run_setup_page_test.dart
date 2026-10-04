@@ -3,64 +3,74 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:isar/isar.dart';
-import 'package:jadwal_v2/core/models/classroom.dart';
-import 'package:jadwal_v2/core/models/lesson.dart';
+import 'package:jadwal_v2/core/models/app_config.dart';
 import 'package:jadwal_v2/core/models/school_stage.dart';
 import 'package:jadwal_v2/core/models/settings.dart';
-import 'package:jadwal_v2/core/models/subject.dart';
-import 'package:jadwal_v2/core/models/subject_constraint.dart';
-import 'package:jadwal_v2/core/models/teacher.dart';
 import 'package:jadwal_v2/core/models/weekly_load_policy.dart';
 import 'package:jadwal_v2/core/providers/app_config_provider.dart';
-import 'package:jadwal_v2/core/providers/database_provider.dart';
 import 'package:jadwal_v2/core/services/app_config_service.dart';
+import 'package:jadwal_v2/features/management/data/services/subject_constraint_auto_sync_service.dart';
+import 'package:jadwal_v2/features/management/presentation/providers/management_provider.dart';
+import 'package:jadwal_v2/features/management/presentation/providers/subject_constraint_auto_sync_provider.dart';
 import 'package:jadwal_v2/features/setup/presentation/pages/first_run_setup_page.dart';
 
+class _InMemoryAppConfigService extends AppConfigService {
+  _InMemoryAppConfigService([AppConfig? initial])
+      : _config = initial ?? AppConfig.initial(),
+        super(file: File('in_memory_config.json'));
+
+  AppConfig _config;
+
+  @override
+  Future<AppConfig> load() async => _config;
+
+  @override
+  Future<void> save(AppConfig config) async {
+    _config = config;
+  }
+}
+
+class _FakeSettingsNotifier extends SettingsNotifier {
+  _FakeSettingsNotifier(this._settings);
+
+  AppSettings _settings;
+
+  @override
+  Future<AppSettings> build() async => _settings;
+
+  @override
+  Future<void> saveSettings(AppSettings newSettings) async {
+    _settings = newSettings;
+    state = AsyncData(_settings);
+  }
+}
+
+class _NoOpSyncController extends SubjectConstraintAutoSyncController {
+  _NoOpSyncController()
+      : super(
+          readIsar: () => throw UnimplementedError(),
+          readConfig: () async => AppConfig.initial(),
+          replaceConfig: (_) async {},
+        );
+
+  @override
+  Future<SubjectConstraintSyncOutcome?> run() async => null;
+}
+
 void main() {
-  late Isar isar;
-  late Directory tempDirectory;
-  late AppConfigService appConfigService;
-
-  setUpAll(() async {
-    await Isar.initializeIsarCore(download: true);
-    tempDirectory =
-        await Directory.systemTemp.createTemp('jadwal_first_run_setup_test');
-    isar = await Isar.open(
-      [
-        TeacherSchema,
-        SubjectSchema,
-        ClassroomSchema,
-        LessonSchema,
-        AppSettingsSchema,
-        SubjectConstraintSchema,
-      ],
-      directory: tempDirectory.path,
-      name: 'first_run_setup_test',
-    );
-    appConfigService = AppConfigService(
-      file: File(
-        '${tempDirectory.path}${Platform.pathSeparator}${AppConfigService.fileName}',
-      ),
-    );
-  });
-
-  tearDownAll(() async {
-    await isar.close(deleteFromDisk: true);
-    if (await tempDirectory.exists()) {
-      await tempDirectory.delete(recursive: true);
-    }
-  });
-
   testWidgets(
       'FirstRunSetupPage displays weekly load options and persists officialPlan',
       (tester) async {
+    final configService = _InMemoryAppConfigService();
+    final fakeSettings = _FakeSettingsNotifier(AppSettings());
+    final syncController = _NoOpSyncController();
+
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          isarDatabaseProvider.overrideWith((ref) async => isar),
-          appConfigServiceProvider
-              .overrideWith((ref) async => appConfigService),
+          appConfigServiceProvider.overrideWith((ref) async => configService),
+          settingsNotifierProvider.overrideWith(() => fakeSettings),
+          subjectConstraintAutoSyncProvider.overrideWithValue(syncController),
         ],
         child: const MaterialApp(
           home: Directionality(
@@ -106,7 +116,7 @@ void main() {
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
 
-    final savedConfig = await appConfigService.load();
+    final savedConfig = await configService.load();
     expect(savedConfig.isSetupCompleted, isTrue);
     expect(savedConfig.schoolStage, SchoolStage.middleAndAbove);
     expect(savedConfig.weeklyLoadMode, WeeklyLoadMode.officialPlan);
