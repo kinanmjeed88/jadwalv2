@@ -31,7 +31,7 @@ class _InMemoryAppConfigService extends AppConfigService {
 }
 
 class _SettingsHolder {
-  AppSettings current = AppSettings();
+  AppSettings current = AppSettings()..periodsPerDay = 7;
 }
 
 class _FakeSettingsNotifier extends SettingsNotifier {

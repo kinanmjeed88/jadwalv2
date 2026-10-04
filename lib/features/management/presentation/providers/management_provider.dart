@@ -188,12 +188,14 @@ class SettingsNotifier extends _$SettingsNotifier {
   Future<AppSettings> build() async {
     final repo = await ref.watch(managementRepositoryProvider.future);
     final settings = await repo.getSettings();
-    return settings ?? AppSettings();
+    return settings ?? (AppSettings()..periodsPerDay = 7);
   }
 
   Future<void> saveSettings(AppSettings settings) async {
     final repo = await ref.read(managementRepositoryProvider.future);
     await repo.saveSettings(settings);
-    state = AsyncValue.data(await repo.getSettings() ?? AppSettings());
+    state = AsyncValue.data(
+      await repo.getSettings() ?? (AppSettings()..periodsPerDay = 7),
+    );
   }
 }
