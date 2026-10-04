@@ -271,6 +271,24 @@ void main() {
       final saved = (await isar.lessons.get(lesson.id))!;
       expect(saved.dayIndex, 0);
       expect(saved.periodIndex, 0);
+      // Remove override, rebuild the index once under uniform30, then switch
+      // global policy without touching Isar. The cached index must be discarded.
+      classroom.weeklyOverride = null;
+      await isar.writeTxn(() async {
+        await isar.classrooms.put(classroom);
+      });
+      await Future<void>.delayed(Duration.zero);
+      final before = await notifier.moveLessonToEmpty(lesson, 0, 6);
+      expect(before.$1, isFalse);
+      await container.read(appConfigNotifierProvider.notifier).replace(
+        AppConfig.initial().copyWith(
+          schoolStage: SchoolStage.primary,
+          weeklyLoadMode: WeeklyLoadMode.officialPlan,
+        ),
+      );
+      final after = await notifier.moveLessonToEmpty(lesson, 0, 6);
+      expect(after.$1, isTrue);
+      expect((await isar.lessons.get(lesson.id))!.periodIndex, 6);
     } finally {
       subscription.close();
       container.dispose();

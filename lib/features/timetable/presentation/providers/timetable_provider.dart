@@ -89,6 +89,9 @@ class TimetableNotifier extends _$TimetableNotifier {
 
   @override
   Future<List<Lesson>> build() async {
+    ref.listen(appConfigNotifierProvider, (previous, next) {
+      _interactionIndex = null;
+    });
     final isar = await ref.watch(isarDatabaseProvider.future);
     _startReferenceWatchers(isar);
     return _loadPersistedLessons(isar, force: true);
