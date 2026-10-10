@@ -17,6 +17,58 @@ permissions:
 
 env:
   BASE_SHA: 65126e2ea878290bcde7df06d5b6f971f2009e08
+  FORMAT_CHANGED_LINES_PY: |
+    """Formats only the lines changed since BASE (like git clang-format).
+
+    New files are formatted entirely. For modified files the formatter's
+    edits are kept only where they touch lines changed since BASE, so
+    pre-existing unformatted code on main is left as it is.
+    """
+    import difflib, os, re, shutil, subprocess, sys
+
+    base = sys.argv[1]
+    fmt = os.environ.get("FMT", "dart format --language-version=3.3").split()
+    check_only = os.environ.get("CHECK_ONLY") == "1"
+    shell = os.name == "nt"
+    for path in sys.argv[2:]:
+        status, path = path.split(":", 1)
+        if status == "A":
+            if check_only:
+                continue
+            subprocess.run(fmt + [path], check=True, capture_output=True, shell=shell)
+            continue
+        diff = subprocess.run(["git", "diff", "-U0", base, "--", path],
+                              check=True, capture_output=True, text=True).stdout
+        changed = set()
+        for m in re.finditer(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@", diff, re.M):
+            start, count = int(m.group(1)), int(m.group(2) or 1)
+            changed.update(range(start, start + count) if count else (start, start + 1))
+        original = open(path, encoding="utf-8").read().splitlines(keepends=True)
+        shutil.copy(path, path + ".orig-fmt")
+        subprocess.run(fmt + [path], check=True, capture_output=True, shell=shell)
+        formatted = open(path, encoding="utf-8").read().splitlines(keepends=True)
+        shutil.move(path + ".orig-fmt", path)
+        result, kept, skipped = [], 0, 0
+        ops = difflib.SequenceMatcher(None, original, formatted, autojunk=False).get_opcodes()
+        for tag, i1, i2, j1, j2 in ops:
+            if tag == "equal":
+                result.extend(original[i1:i2])
+                continue
+            if tag == "replace" and i2 - i1 == j2 - j1:
+                for offset in range(i2 - i1):
+                    if i1 + offset + 1 in changed:
+                        result.append(formatted[j1 + offset]); kept += 1
+                    else:
+                        result.append(original[i1 + offset]); skipped += 1
+                continue
+            touched = set(range(i1 + 1, i2 + 1)) if i2 > i1 else {i1, i1 + 1}
+            if touched & changed:
+                result.extend(formatted[j1:j2]); kept += 1
+            else:
+                result.extend(original[i1:i2]); skipped += 1
+        if not check_only:
+            open(path, "w", encoding="utf-8", newline="").write("".join(result))
+        print(f"{path}: kept {kept} formatter edits, left {skipped} pre-existing")
 
 jobs:
   format:
@@ -37,54 +89,7 @@ jobs:
         run: |
           set -euo pipefail
           echo "::notice title=Formatter::$(dart --version 2>&1)"
-          cat > "$RUNNER_TEMP/format_changed_lines.py" <<'PY'
-          """Formats only the lines changed since BASE (like git clang-format).
-
-          New files are formatted entirely. For modified files the formatter's
-          edits are kept only where they touch lines changed since BASE, so
-          pre-existing unformatted code on main is left as it is.
-          """
-          import difflib, re, shutil, subprocess, sys
-
-          base = sys.argv[1]
-          fmt = ["dart", "format", "--language-version=3.3"]
-          for path in sys.argv[2:]:
-              status, path = path.split(":", 1)
-              if status == "A":
-                  subprocess.run(fmt + [path], check=True, capture_output=True)
-                  continue
-              diff = subprocess.run(["git", "diff", "-U0", base, "--", path],
-                                    check=True, capture_output=True, text=True).stdout
-              changed = set()
-              for m in re.finditer(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@", diff, re.M):
-                  start, count = int(m.group(1)), int(m.group(2) or 1)
-                  changed.update(range(start, start + count) if count else (start, start + 1))
-              original = open(path, encoding="utf-8").read().splitlines(keepends=True)
-              shutil.copy(path, path + ".orig-fmt")
-              subprocess.run(fmt + [path], check=True, capture_output=True)
-              formatted = open(path, encoding="utf-8").read().splitlines(keepends=True)
-              shutil.move(path + ".orig-fmt", path)
-              result, kept, skipped = [], 0, 0
-              ops = difflib.SequenceMatcher(None, original, formatted, autojunk=False).get_opcodes()
-              for tag, i1, i2, j1, j2 in ops:
-                  if tag == "equal":
-                      result.extend(original[i1:i2])
-                      continue
-                  if tag == "replace" and i2 - i1 == j2 - j1:
-                      for offset in range(i2 - i1):
-                          if i1 + offset + 1 in changed:
-                              result.append(formatted[j1 + offset]); kept += 1
-                          else:
-                              result.append(original[i1 + offset]); skipped += 1
-                      continue
-                  touched = set(range(i1 + 1, i2 + 1)) if i2 > i1 else {i1, i1 + 1}
-                  if touched & changed:
-                      result.extend(formatted[j1:j2]); kept += 1
-                  else:
-                      result.extend(original[i1:i2]); skipped += 1
-              open(path, "w", encoding="utf-8", newline="").write("".join(result))
-              print(f"{path}: kept {kept} formatter edits, left {skipped} pre-existing")
-          PY
+          printf '%s\n' "$FORMAT_CHANGED_LINES_PY" > "$RUNNER_TEMP/format_changed_lines.py"
           args=()
           while IFS=$'\t' read -r status file; do
             case "$file" in *.g.dart|'') continue ;; esac
@@ -122,6 +127,25 @@ jobs:
               echo "::notice title=Unformatted diff lines left in $file::now:$head_n base:$base_n"
             fi
           done
+      - name: Analyzer baseline (main 65126e2 vs this branch, stable)
+        shell: bash
+        env:
+          LABEL: main
+        run: |
+          set -uo pipefail
+          git worktree add --detach "$RUNNER_TEMP/baseline" "$BASE_SHA"
+          (cd "$RUNNER_TEMP/baseline" && flutter pub get > /dev/null)
+          base_out="$RUNNER_TEMP/base_analyze.txt"; head_out="$RUNNER_TEMP/head_analyze.txt"
+          (cd "$RUNNER_TEMP/baseline" && flutter analyze --no-fatal-infos > "$base_out" 2>&1) || true
+          flutter analyze --no-fatal-infos > "$head_out" 2>&1 || true
+          normalize() { grep -E '^\s*(info|warning|error) ' "$1" | sed -E 's/:[0-9]+:[0-9]+//; s/^\s+//' | sort; }
+          normalize "$head_out" > "$RUNNER_TEMP/head.norm"
+          normalize "$base_out" > "$RUNNER_TEMP/base.norm"
+          new_issues=$(comm -13 "$RUNNER_TEMP/base.norm" "$RUNNER_TEMP/head.norm" | head -15 | tr '\n' ' ')
+          echo "::notice title=${LABEL} analyzer issues (base vs patched)::base=$(wc -l < "$RUNNER_TEMP/base.norm") patched=$(wc -l < "$RUNNER_TEMP/head.norm") new=$(comm -13 "$RUNNER_TEMP/base.norm" "$RUNNER_TEMP/head.norm" | wc -l) resolved=$(comm -23 "$RUNNER_TEMP/base.norm" "$RUNNER_TEMP/head.norm" | wc -l)"
+          if [ -n "$new_issues" ]; then
+            echo "::warning title=${LABEL} new analyzer issues::$new_issues"
+          fi
       - name: git diff --check
         shell: bash
         run: |
@@ -196,16 +220,30 @@ jobs:
       - name: Install Dependencies
         working-directory: ${{ runner.temp }}/target
         run: flutter pub get
-      - name: dart format check (target toolchain)
+      - name: dart format check of changed lines (target toolchain)
         shell: bash
         working-directory: ${{ runner.temp }}/target
+        env:
+          FMT: dart format
+          CHECK_ONLY: '1'
         run: |
-          mapfile -t files < <(git diff --cached --name-only --diff-filter=AMR -- '*.dart' | grep -v '\.g\.dart$' || true)
-          if out=$(dart format --output=none --set-exit-if-changed "${files[@]}" 2>&1); then
-            echo "::notice title=${{ matrix.target }} dart format::clean (${#files[@]} files)"
-          else
-            echo "::warning title=${{ matrix.target }} dart format::$(echo "$out" | grep -i 'formatted' | tr '\n' ' ')"
-          fi
+          set -uo pipefail
+          args=()
+          while IFS=$'\t' read -r status file; do
+            case "$file" in *.g.dart|'') continue ;; esac
+            args+=("$status:$file")
+          done < <(git diff --cached --name-status --diff-filter=AM -- '*.dart')
+          printf '%s\n' "$FORMAT_CHANGED_LINES_PY" > "$RUNNER_TEMP/format_changed_lines.py"
+          report=$(python "$RUNNER_TEMP/format_changed_lines.py" HEAD "${args[@]}" 2>&1)
+          echo "$report"
+          new_unformatted=()
+          for entry in "${args[@]}"; do
+            [ "${entry%%:*}" = "A" ] || continue
+            file="${entry#*:}"
+            dart format --output=none --set-exit-if-changed "$file" > /dev/null 2>&1 || new_unformatted+=("$file")
+          done
+          echo "::notice title=${{ matrix.target }} format of changed lines::$(echo "$report" | grep -v 'kept 0 formatter edits' | tr '\n' ' ')"
+          echo "::notice title=${{ matrix.target }} new files not formatted::${new_unformatted[*]:-none}"
       - name: Analyze
         shell: pwsh
         working-directory: ${{ runner.temp }}/target
@@ -220,6 +258,31 @@ jobs:
             exit $code
           }
           Write-Host "::notice title=${{ matrix.target }} analyze::$summary"
+      - name: Analyzer baseline (unpatched tip vs patched)
+        shell: bash
+        env:
+          LABEL: ${{ matrix.target }}
+          REMOVE_ANDROID: ${{ matrix.remove_android }}
+        run: |
+          set -uo pipefail
+          tmp="$(cygpath -u "$RUNNER_TEMP")"
+          git worktree add --detach "$tmp/baseline" refs/remotes/origin/target
+          cd "$tmp/baseline"
+          if [ "$REMOVE_ANDROID" = "true" ]; then rm -rf android; fi
+          flutter pub get > /dev/null
+          base_out="$tmp/base_analyze.txt"; head_out="$tmp/head_analyze.txt"
+          flutter analyze --no-fatal-infos > "$base_out" 2>&1 || true
+          cd "$tmp/target"
+          flutter analyze --no-fatal-infos > "$head_out" 2>&1 || true
+          RUNNER_TEMP="$tmp"
+          normalize() { grep -E '^\s*(info|warning|error) ' "$1" | sed -E 's/:[0-9]+:[0-9]+//; s/^\s+//' | sort; }
+          normalize "$head_out" > "$RUNNER_TEMP/head.norm"
+          normalize "$base_out" > "$RUNNER_TEMP/base.norm"
+          new_issues=$(comm -13 "$RUNNER_TEMP/base.norm" "$RUNNER_TEMP/head.norm" | head -15 | tr '\n' ' ')
+          echo "::notice title=${LABEL} analyzer issues (base vs patched)::base=$(wc -l < "$RUNNER_TEMP/base.norm") patched=$(wc -l < "$RUNNER_TEMP/head.norm") new=$(comm -13 "$RUNNER_TEMP/base.norm" "$RUNNER_TEMP/head.norm" | wc -l) resolved=$(comm -23 "$RUNNER_TEMP/base.norm" "$RUNNER_TEMP/head.norm" | wc -l)"
+          if [ -n "$new_issues" ]; then
+            echo "::warning title=${LABEL} new analyzer issues::$new_issues"
+          fi
       - name: Test
         shell: pwsh
         working-directory: ${{ runner.temp }}/target
@@ -261,5 +324,7 @@ jobs:
             Write-Host "::error title=${{ matrix.target }} build::flutter build windows failed"
             exit $LASTEXITCODE
           }
-          $exe = Get-ChildItem -Path build/windows -Recurse -Filter '*.exe' | Select-Object -First 1
+          $exe = Get-ChildItem -Path build/windows -Recurse -Filter '*.exe' |
+            Where-Object { $_.FullName -match '\\runner\\Release\\' } | Select-Object -First 1
+          if ($null -eq $exe) { throw 'Release executable not found under runner/Release' }
           Write-Host "::notice title=${{ matrix.target }} build::OK $($exe.FullName) $($exe.Length) bytes"
