@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/app_config.dart';
+import '../../../../core/models/classroom.dart';
 import '../../../../core/models/subject.dart';
+import '../../../../core/providers/app_config_provider.dart';
 import '../../../../core/utils/period_mapper.dart';
+import '../../../../core/utils/period_options.dart';
 import '../providers/management_provider.dart';
 
 class SubjectsPage extends ConsumerWidget {
@@ -111,6 +115,13 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(settingsNotifierProvider);
+    final config = ref.watch(appConfigNotifierProvider).when(
+          data: (c) => c,
+          loading: AppConfig.initial,
+          error: (_, __) => AppConfig.initial(),
+        );
+    final classrooms =
+        ref.watch(classroomsNotifierProvider).valueOrNull ?? const <Classroom>[];
 
     return AlertDialog(
       title: Text(widget.existingSubject == null ? 'إضافة مادة' : 'تعديل مادة'),
@@ -145,6 +156,9 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
               const SizedBox(height: 10),
               CheckboxListTile(
                 title: const Text('تفضيل الدروس المبكرة'),
+                subtitle: const Text(
+                  'تفضيل غير إجباري: يحاول النظام وضع حصص المادة في بداية اليوم ما دامت القيود الإجبارية متحققة.',
+                ),
                 value: _preferEarlyPeriods,
                 onChanged: (val) =>
                     setState(() => _preferEarlyPeriods = val ?? false),
@@ -158,12 +172,23 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
               ),
               settingsAsync.when(
                 data: (settings) {
+                  final periodCount = PeriodOptions.resolveSchoolPeriodCount(
+                    periodsPerDay: settings.periodsPerDay,
+                    daysPerWeek: settings.daysPerWeek,
+                    config: config,
+                    classrooms: classrooms,
+                  );
                   return Wrap(
                     spacing: 8,
-                    children: List.generate(settings.periodsPerDay, (index) {
+                    children: PeriodOptions.choices(
+                      periodCount,
+                      _allowedPeriods,
+                    ).map((index) {
                       final isSelected = _allowedPeriods.contains(index);
                       return FilterChip(
-                        label: Text(PeriodMapper.toArabicName(index)),
+                        label: Text(index < periodCount
+                            ? PeriodMapper.toArabicName(index)
+                            : '${PeriodMapper.toArabicName(index)} (خارج حصص المدرسة)'),
                         selected: isSelected,
                         onSelected: (selected) {
                           setState(() {
@@ -175,7 +200,7 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                           });
                         },
                       );
-                    }),
+                    }).toList(),
                   );
                 },
                 loading: () => const CircularProgressIndicator(),

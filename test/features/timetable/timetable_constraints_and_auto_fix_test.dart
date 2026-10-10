@@ -53,7 +53,10 @@ void main() {
         subjectConstraints: [constraint],
       );
 
-      expect(consecutiveGenerator.calculateCost(consecutiveLessons), 50);
+      // «متتالي» أصبح قيدًا إجباريًا (قرار المواصفات المعتمد): الفجوة بين حصتين
+      // للمادة في اليوم نفسه مخالفة كاملة (1000) وتشخيصها إجباري، فلا يحفظ
+      // الإصلاح التلقائي جدولًا يخالفها. كانت سابقًا 50 وغير إجبارية.
+      expect(consecutiveGenerator.calculateCost(consecutiveLessons), 1000);
       final consecutiveDiagnostics = consecutiveGenerator.diagnose(
         consecutiveLessons,
       );
@@ -62,7 +65,7 @@ void main() {
             diagnostic.reason is NonConsecutiveSubjectPeriodsConflict,
       );
       expect(spreadDiagnostic.lessonIds, containsAll(<int>[1, 2]));
-      expect(spreadDiagnostic.isHard, isFalse);
+      expect(spreadDiagnostic.isHard, isTrue);
 
       final anyLessons = [
         _lesson(1, teacher, anySubject, classroom, 0, 0),
