@@ -132,7 +132,7 @@ jobs:
         env:
           LABEL: main
         run: |
-          set -uo pipefail
+          set +e
           git worktree add --detach "$RUNNER_TEMP/baseline" "$BASE_SHA"
           (cd "$RUNNER_TEMP/baseline" && flutter pub get > /dev/null)
           base_out="$RUNNER_TEMP/base_analyze.txt"; head_out="$RUNNER_TEMP/head_analyze.txt"
@@ -227,15 +227,21 @@ jobs:
           FMT: dart format
           CHECK_ONLY: '1'
         run: |
-          set -uo pipefail
+          set +e
           args=()
           while IFS=$'\t' read -r status file; do
             case "$file" in *.g.dart|'') continue ;; esac
             args+=("$status:$file")
           done < <(git diff --cached --name-status --diff-filter=AM -- '*.dart')
-          printf '%s\n' "$FORMAT_CHANGED_LINES_PY" > "$RUNNER_TEMP/format_changed_lines.py"
-          report=$(python "$RUNNER_TEMP/format_changed_lines.py" HEAD "${args[@]}" 2>&1)
+          set +e
+          script="$(cygpath -u "$RUNNER_TEMP")/format_changed_lines.py"
+          printf '%s\n' "$FORMAT_CHANGED_LINES_PY" > "$script"
+          report=$(python "$(cygpath -w "$script")" HEAD "${args[@]}" 2>&1)
+          code=$?
           echo "$report"
+          if [ "$code" -ne 0 ]; then
+            echo "::error title=${{ matrix.target }} format script failed::$(echo "$report" | tail -8 | tr '\n' ' ')"
+          fi
           new_unformatted=()
           for entry in "${args[@]}"; do
             [ "${entry%%:*}" = "A" ] || continue
@@ -264,7 +270,7 @@ jobs:
           LABEL: ${{ matrix.target }}
           REMOVE_ANDROID: ${{ matrix.remove_android }}
         run: |
-          set -uo pipefail
+          set +e
           tmp="$(cygpath -u "$RUNNER_TEMP")"
           git worktree add --detach "$tmp/baseline" refs/remotes/origin/target
           cd "$tmp/baseline"
