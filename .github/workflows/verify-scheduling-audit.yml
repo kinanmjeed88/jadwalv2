@@ -38,7 +38,7 @@ env:
             subprocess.run(fmt + [path], check=True, capture_output=True, shell=shell)
             continue
         diff = subprocess.run(["git", "diff", "-U0", base, "--", path],
-                              check=True, capture_output=True, text=True).stdout
+                              check=True, capture_output=True, encoding="utf-8").stdout
         changed = set()
         for m in re.finditer(r"^@@ -\S+ \+(\d+)(?:,(\d+))? @@", diff, re.M):
             start, count = int(m.group(1)), int(m.group(2) or 1)
@@ -226,6 +226,7 @@ jobs:
         env:
           FMT: dart format
           CHECK_ONLY: '1'
+          PYTHONUTF8: '1'
         run: |
           set +e
           args=()
