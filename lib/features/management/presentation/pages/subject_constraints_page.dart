@@ -74,8 +74,7 @@ class _SubjectConstraintsPageState
     SubjectConstraintKey? originalKey,
   }) async {
     final newKey = SubjectConstraintKey(grade: grade, subjectName: subjectName);
-    if (originalKey != null &&
-        originalKey.storageKey != newKey.storageKey) {
+    if (originalKey != null && originalKey.storageKey != newKey.storageKey) {
       // نقل القيد إلى صف/مادة أخرى يعني أن المستخدم أزاله عن الزوج القديم؛
       // نسجّل ذلك حتى لا تعيد المزامنة التلقائية إنشاءه هناك.
       await ref

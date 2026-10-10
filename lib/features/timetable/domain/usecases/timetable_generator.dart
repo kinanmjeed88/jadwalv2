@@ -189,8 +189,8 @@ class TimetableGenerator {
         fallbackLessons ??
         const <LessonEntity>[];
     final maxDays = settings.daysPerWeek;
-    final dailyPeriods =
-        _dailyPeriodsForClassroom(classroom.id, maxDays, settings.periodsPerDay);
+    final dailyPeriods = _dailyPeriodsForClassroom(
+        classroom.id, maxDays, settings.periodsPerDay);
     final profiles = [
       for (final lesson in lessons) _profileFor(lesson),
     ];
@@ -207,8 +207,8 @@ class TimetableGenerator {
         eligibleDays: eligibleDays,
       ),
     );
-    _groupCache.putIfAbsent(classroom.id, () => <int, _SubjectGroup>{})[
-        subject.id] = group;
+    _groupCache.putIfAbsent(
+        classroom.id, () => <int, _SubjectGroup>{})[subject.id] = group;
     return group;
   }
 
@@ -233,7 +233,8 @@ class TimetableGenerator {
       resolved = classroom.resolveDailyPeriods(settings);
     } else {
       final safeDays = maxDays < 1 ? 5 : maxDays;
-      resolved = List<int>.filled(safeDays, fallbackMaxPeriods, growable: false);
+      resolved =
+          List<int>.filled(safeDays, fallbackMaxPeriods, growable: false);
     }
     _dailyPeriodsCache[classroomId] = resolved;
     return resolved;
@@ -551,10 +552,10 @@ class TimetableGenerator {
       final candidateEval = _evaluate(candidate, maxDays, maxPeriods);
       if (candidateEval.isFeasible &&
           candidateEval.preferenceCost <= currentEval.preferenceCost) {
-        sinceImprovement = candidateEval.preferenceCost <
-                currentEval.preferenceCost
-            ? 0
-            : sinceImprovement + 1;
+        sinceImprovement =
+            candidateEval.preferenceCost < currentEval.preferenceCost
+                ? 0
+                : sinceImprovement + 1;
         current = candidate;
         currentEval = candidateEval;
       } else {
@@ -587,7 +588,8 @@ class TimetableGenerator {
       final subject = lesson.subject;
       if (day == null || period == null || subject == null) continue;
       groupDays
-          .putIfAbsent(classroom.id, () => <int, Map<int, List<LessonEntity>>>{})
+          .putIfAbsent(
+              classroom.id, () => <int, Map<int, List<LessonEntity>>>{})
           .putIfAbsent(subject.id, () => <int, List<LessonEntity>>{})
           .putIfAbsent(day, () => <LessonEntity>[])
           .add(lesson);
@@ -630,8 +632,8 @@ class TimetableGenerator {
       final move = extraMoves[random.nextInt(extraMoves.length)];
       final lesson = move.key;
       final classroomId = lesson.classroom!.id;
-      final periodsOnDay =
-          _periodsForClassroomOnDay(classroomId, move.value, maxDays, maxPeriods);
+      final periodsOnDay = _periodsForClassroomOnDay(
+          classroomId, move.value, maxDays, maxPeriods);
       if (periodsOnDay <= 0) return false;
       return _moveOrSwapWithinClassroom(
         byClassroom[classroomId]!,
@@ -1070,7 +1072,8 @@ class TimetableGenerator {
       if (classroom == null || subject == null) continue;
       // Groups whose lessons are all unassigned still carry a distribution.
       final dayMap = result
-          .putIfAbsent(classroom.id, () => <int, Map<int, List<LessonEntity>>>{})
+          .putIfAbsent(
+              classroom.id, () => <int, Map<int, List<LessonEntity>>>{})
           .putIfAbsent(subject.id, () => <int, List<LessonEntity>>{});
       final day = lesson.dayIndex;
       if (day == null || lesson.periodIndex == null) continue;
@@ -1479,8 +1482,8 @@ class TimetableGenerator {
         for (final entry in dayMap.entries) entry.key: entry.value.length,
       };
       // Hard: daily maximum (user constraint, tightened by balance).
-      violations += group.distribution.excess(counts, group.userMax) *
-          _hardPenalty;
+      violations +=
+          group.distribution.excess(counts, group.userMax) * _hardPenalty;
       // Hard: balanced weekly distribution (base share on each eligible day).
       violations += group.distribution.shortfall(counts) * _hardPenalty;
       // Hard: consecutiveness policy.
