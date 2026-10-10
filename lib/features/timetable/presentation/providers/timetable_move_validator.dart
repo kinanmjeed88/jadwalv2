@@ -12,8 +12,10 @@ typedef TimetableProposedSlot = ({int dayIndex, int periodIndex});
 ///   اليومي، أيام عدم التدريس، الدروس المسموحة للمادة **وللمعلم**).
 /// * [validateGroupRules]: قواعد مجموعة (صف × مادة) على الحالة **بعد** الحركة:
 ///   سياسة التتابع والتوزيع الأسبوعي. للتبديل تُطبَّق الحركتان معًا.
-///   تُرفض الحركة إذا زادت المخالفة؛ فلا تُقفل الجداول القديمة المحفوظة قبل
-///   تطبيق هذه القواعد، ويبقى تحسينها يدويًا ممكنًا.
+///   تُرفض الحركة إذا زادت المخالفة في **أي يوم** (لا يكفي ثبات المجموع
+///   الأسبوعي، فلا تُنقل مخالفة قديمة من يوم إلى آخر)؛ ولا تُقفل الجداول
+///   القديمة المحفوظة قبل تطبيق هذه القواعد، فيبقى إصلاحها أو تقليلها يدويًا
+///   ممكنًا.
 class TimetableMoveValidator {
   const TimetableMoveValidator(this.index);
 
@@ -138,8 +140,7 @@ class TimetableMoveValidator {
       }
 
       final policy = subject.consecutiveness;
-      if (_consecutivenessViolations(policy, after) >
-          _consecutivenessViolations(policy, before)) {
+      if (_consecutivenessWorsensOnAnyDay(policy, before, after)) {
         if (policy == SubjectConsecutiveness.consecutive) {
           return 'لا يمكن $operationLabel: مادة (${subject.name}) مضبوطة على «متتالي»، فيجب أن تكون حصصها في اليوم نفسه متصلة بلا فراغ بينها';
         }
@@ -172,8 +173,7 @@ class TimetableMoveValidator {
         grade: classroom.grade,
         subjectName: subject.name,
       );
-      if (_distributionViolations(distribution, after, userMax) >
-          _distributionViolations(distribution, before, userMax)) {
+      if (_distributionWorsensOnAnyDay(distribution, before, after, userMax)) {
         final range = distribution.maxPerDay == distribution.minPerDay
             ? '${distribution.minPerDay}'
             : '${distribution.minPerDay}–${distribution.effectiveMax(userMax)}';
@@ -183,26 +183,52 @@ class TimetableMoveValidator {
     return null;
   }
 
-  static int _consecutivenessViolations(
+  /// تُقارن المخالفات **لكل يوم على حدة**: تُرفض الحركة إذا زادت مخالفات
+  /// التتابع في أي يوم، ولو نقصت في يوم آخر بالقدر نفسه. فلا تُنقل مخالفة
+  /// قديمة من يوم إلى آخر، ويبقى إصلاحها أو تقليلها مسموحًا.
+  static bool _consecutivenessWorsensOnAnyDay(
     SubjectConsecutiveness policy,
-    Map<int, List<int>> periodsByDay,
+    Map<int, List<int>> before,
+    Map<int, List<int>> after,
   ) {
-    var total = 0;
-    for (final periods in periodsByDay.values) {
-      total += SchedulingRules.consecutivenessViolations(policy, periods);
+    for (final entry in after.entries) {
+      final beforePeriods = before[entry.key] ?? const <int>[];
+      if (SchedulingRules.consecutivenessViolations(policy, entry.value) >
+          SchedulingRules.consecutivenessViolations(policy, beforePeriods)) {
+        return true;
+      }
     }
-    return total;
+    return false;
   }
 
-  static int _distributionViolations(
+  /// مثل [_consecutivenessWorsensOnAnyDay] للتوزيع الأسبوعي: يُقارن النقص عن
+  /// الحد الأدنى والزيادة على الحد الأقصى الفعلي في كل يوم على حدة.
+  static bool _distributionWorsensOnAnyDay(
     SubjectWeeklyDistribution distribution,
-    Map<int, List<int>> periodsByDay,
+    Map<int, List<int>> before,
+    Map<int, List<int>> after,
     int userMax,
   ) {
-    final counts = <int, int>{
-      for (final entry in periodsByDay.entries) entry.key: entry.value.length,
+    final limit = distribution.effectiveMax(userMax);
+    final days = <int>{
+      ...before.keys,
+      ...after.keys,
+      ...distribution.eligibleDays,
     };
-    return distribution.shortfall(counts) +
-        distribution.excess(counts, userMax);
+    for (final day in days) {
+      final countBefore = before[day]?.length ?? 0;
+      final countAfter = after[day]?.length ?? 0;
+      final minimum = distribution.minFor(day);
+      final shortfallBefore = _positivePart(minimum - countBefore);
+      final shortfallAfter = _positivePart(minimum - countAfter);
+      final excessBefore = _positivePart(countBefore - limit);
+      final excessAfter = _positivePart(countAfter - limit);
+      if (shortfallAfter > shortfallBefore || excessAfter > excessBefore) {
+        return true;
+      }
+    }
+    return false;
   }
+
+  static int _positivePart(int value) => value > 0 ? value : 0;
 }
