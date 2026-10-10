@@ -1,9 +1,13 @@
 import 'package:path_provider/path_provider.dart';
+
 import 'dart:async';
 
 import 'package:share_plus/share_plus.dart';
+
 import 'dart:io';
+
 import 'package:path/path.dart' as path;
+
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 
@@ -96,10 +100,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     final currentScale = _transformationController.value.getMaxScaleOnAxis();
     if (!currentScale.isFinite || currentScale <= 0) return;
 
-    final viewportObject =
-        _timetableViewportKey.currentContext?.findRenderObject();
-    final contentObject =
-        _visibleTimetableKey.currentContext?.findRenderObject();
+    final viewportObject = _timetableViewportKey.currentContext
+        ?.findRenderObject();
+    final contentObject = _visibleTimetableKey.currentContext
+        ?.findRenderObject();
 
     if (viewportObject is! RenderBox ||
         contentObject is! RenderBox ||
@@ -110,10 +114,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
     final viewportOrigin = viewportObject.localToGlobal(Offset.zero);
     final contentOrigin = contentObject.localToGlobal(Offset.zero);
-    final contentBottomRight = contentObject
-        .localToGlobal(contentObject.size.bottomRight(Offset.zero));
+    final contentBottomRight = contentObject.localToGlobal(
+      contentObject.size.bottomRight(Offset.zero),
+    );
     final contentRect = Rect.fromPoints(contentOrigin, contentBottomRight);
-    final viewportCenter = viewportOrigin +
+    final viewportCenter =
+        viewportOrigin +
         Offset(viewportObject.size.width / 2, viewportObject.size.height / 2);
     final translationDelta = viewportCenter - contentRect.center;
 
@@ -148,7 +154,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
       final pdfUsecase = PdfExportUseCase();
       final pdfBytes = await pdfUsecase.generateTeacherTimetablePdf(
-          lessons, teachers, settings);
+        lessons,
+        teachers,
+        settings,
+      );
 
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'حفظ ملف PDF',
@@ -200,8 +209,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           : (AppSettings()..periodsPerDay = 7);
 
       final pdfUsecase = PdfExportUseCase();
-      final pdfBytes =
-          await pdfUsecase.generateTimetablePdf(lessons, classRooms, settings);
+      final pdfBytes = await pdfUsecase.generateTimetablePdf(
+        lessons,
+        classRooms,
+        settings,
+      );
 
       String? outputFile = await FilePicker.platform.saveFile(
         dialogTitle: 'حفظ ملف PDF',
@@ -248,8 +260,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         : (AppSettings()..periodsPerDay = 7);
 
     final usecase = ExcelExportUseCase();
-    final excelBytes =
-        await usecase.generateTimetableExcel(lessons, classrooms, settings);
+    final excelBytes = await usecase.generateTimetableExcel(
+      lessons,
+      classrooms,
+      settings,
+    );
 
     if (Platform.isWindows) {
       final outputFile = await FilePicker.platform.saveFile(
@@ -279,25 +294,24 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         const SnackBar(content: Text('تم تصدير الجدول إلى Excel بنجاح')),
       );
       await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(file.path)],
-          text: 'جدول الفصول الأسبوعي',
-        ),
+        ShareParams(files: [XFile(file.path)], text: 'جدول الفصول الأسبوعي'),
       );
     }
   }
 
   Future<void> _exportToImage() async {
     try {
-      final boundary = _exportKey.currentContext?.findRenderObject()
-          as RenderRepaintBoundary?;
+      final boundary =
+          _exportKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
 
       if (boundary == null) throw 'تعذر العثور على منطقة الجدول لالتقاطها';
 
       // Build the image with high pixel ratio for 300DPI-like quality
       final ui.Image image = await boundary.toImage(pixelRatio: 2.0);
-      final ByteData? byteData =
-          await image.toByteData(format: ui.ImageByteFormat.png);
+      final ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
 
       if (byteData == null) throw 'فشل في تحويل الجدول إلى بيانات صورة';
 
@@ -334,10 +348,7 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           ),
         );
         await SharePlus.instance.share(
-          ShareParams(
-            files: [XFile(file.path)],
-            text: 'جدول الدروس (صورة)',
-          ),
+          ShareParams(files: [XFile(file.path)], text: 'جدول الدروس (صورة)'),
         );
       }
     } catch (e) {
@@ -356,11 +367,14 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('القيود تتعارض مع بعضها',
-            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'القيود تتعارض مع بعضها',
+          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+        ),
         content: ConstrainedBox(
           constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(context).size.height * 0.6),
+            maxHeight: MediaQuery.of(context).size.height * 0.6,
+          ),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -372,12 +386,18 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('• ',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.bold)),
+                      const Text(
+                        '• ',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                       Expanded(
-                        child:
-                            Text(message, style: const TextStyle(fontSize: 14)),
+                        child: Text(
+                          message,
+                          style: const TextStyle(fontSize: 14),
+                        ),
                       ),
                     ],
                   ),
@@ -398,8 +418,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<AsyncValue<List<Lesson>>>(timetableNotifierProvider,
-        (previous, next) {
+    ref.listen<AsyncValue<List<Lesson>>>(timetableNotifierProvider, (
+      previous,
+      next,
+    ) {
       next.whenOrNull(
         error: (error, stackTrace) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -467,11 +489,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                         snapshot.data?[0] as List<AppSettings>?;
                     final settings =
                         (settingsList != null && settingsList.isNotEmpty)
-                            ? settingsList.first
-                            : (AppSettings()..periodsPerDay = 7);
-                    final classrooms = (snapshot.data?[1] as List<Classroom>? ??
-                        [])
-                      ..sort((a, b) => a.id.compareTo(b.id));
+                        ? settingsList.first
+                        : (AppSettings()..periodsPerDay = 7);
+                    final classrooms =
+                        (snapshot.data?[1] as List<Classroom>? ?? [])
+                          ..sort((a, b) => a.id.compareTo(b.id));
 
                     return _buildTimetableGrid(
                       context,
@@ -489,10 +511,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                       CircularProgressIndicator(),
                       SizedBox(height: 16),
                       Text(
-                          'جاري تحليل ملايين الاحتمالات لإيجاد أفضل جدول... يرجى الانتظار (قد يستغرق دقيقة)',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 16),
-                          textAlign: TextAlign.center),
+                        'جاري تحليل ملايين الاحتمالات لإيجاد أفضل جدول... يرجى الانتظار (قد يستغرق دقيقة)',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
                     ],
                   ),
                 ),
@@ -507,10 +532,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                   CircularProgressIndicator(),
                   SizedBox(height: 16),
                   Text(
-                      'جاري تحليل ملايين الاحتمالات لإيجاد أفضل جدول... يرجى الانتظار (قد يستغرق دقيقة)',
-                      style:
-                          TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      textAlign: TextAlign.center),
+                    'جاري تحليل ملايين الاحتمالات لإيجاد أفضل جدول... يرجى الانتظار (قد يستغرق دقيقة)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    textAlign: TextAlign.center,
+                  ),
                 ],
               ),
             ),
@@ -532,11 +557,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                   final settingsList = snapshot.data?[0] as List<AppSettings>?;
                   final settings =
                       (settingsList != null && settingsList.isNotEmpty)
-                          ? settingsList.first
-                          : (AppSettings()..periodsPerDay = 7);
-                  final classrooms = (snapshot.data?[1] as List<Classroom>? ??
-                      [])
-                    ..sort((a, b) => a.id.compareTo(b.id));
+                      ? settingsList.first
+                      : (AppSettings()..periodsPerDay = 7);
+                  final classrooms =
+                      (snapshot.data?[1] as List<Classroom>? ?? [])
+                        ..sort((a, b) => a.id.compareTo(b.id));
 
                   return Positioned(
                     top: -10000,
@@ -545,8 +570,11 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                       child: UnconstrainedBox(
                         clipBehavior: Clip.hardEdge,
                         child: IntrinsicHeight(
-                          child:
-                              _buildExportGrid(lessons, classrooms, settings),
+                          child: _buildExportGrid(
+                            lessons,
+                            classrooms,
+                            settings,
+                          ),
                         ),
                       ),
                     ),
@@ -633,8 +661,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                         );
                         return;
                       }
-                      final failedState =
-                          ref.read(timetableAutoFixStateProvider);
+                      final failedState = ref.read(
+                        timetableAutoFixStateProvider,
+                      );
                       _showAutoFixFailureDialog(failedState.diagnostics);
                     }
                   : null,
@@ -642,8 +671,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 autoFixState.isFixing
                     ? 'جاري الحل...'
                     : autoFixState.status == TimetableAutoFixStatus.failed
-                        ? 'إعادة حل القيود'
-                        : 'حل القيود تلقائياً',
+                    ? 'إعادة حل القيود'
+                    : 'حل القيود تلقائياً',
               ),
               icon: autoFixState.isFixing
                   ? const SizedBox(
@@ -662,8 +691,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Padding(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     child: Text(
                       'جاري تنفيذ المحاولة ${autoFixState.currentAttempt} من ${autoFixState.totalAttempts}...',
                       style: const TextStyle(
@@ -691,12 +722,17 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('القيود تتعارض مع بعضها',
-                        style: TextStyle(
-                            color: Colors.red, fontWeight: FontWeight.bold)),
+                    title: const Text(
+                      'القيود تتعارض مع بعضها',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     content: ConstrainedBox(
                       constraints: BoxConstraints(
-                          maxHeight: MediaQuery.of(context).size.height * 0.6),
+                        maxHeight: MediaQuery.of(context).size.height * 0.6,
+                      ),
                       child: SingleChildScrollView(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -704,19 +740,25 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                           children: e.reasons.map((reason) {
                             final message = ConflictMessageMapper.map(reason);
                             return Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 4.0),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 4.0,
+                              ),
                               child: Row(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('• ',
-                                      style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold)),
+                                  const Text(
+                                    '• ',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
                                   Expanded(
-                                      child: Text(message,
-                                          style:
-                                              const TextStyle(fontSize: 14))),
+                                    child: Text(
+                                      message,
+                                      style: const TextStyle(fontSize: 14),
+                                    ),
+                                  ),
                                 ],
                               ),
                             );
@@ -727,29 +769,41 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child:
-                            const Text('حسناً', style: TextStyle(fontSize: 18)),
+                        child: const Text(
+                          'حسناً',
+                          style: TextStyle(fontSize: 18),
+                        ),
                       ),
                     ],
                   ),
                 );
               } catch (e) {
                 if (!mounted) return;
-                String errorMessage =
-                    e.toString().replaceAll('Exception:', '').trim();
+                String errorMessage = e
+                    .toString()
+                    .replaceAll('Exception:', '')
+                    .trim();
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('عذراً، تعذر توليد الجدول',
-                        style: TextStyle(
-                            color: Colors.red, fontWeight: FontWeight.bold)),
-                    content: Text(errorMessage,
-                        style: const TextStyle(fontSize: 16, height: 1.5)),
+                    title: const Text(
+                      'عذراً، تعذر توليد الجدول',
+                      style: TextStyle(
+                        color: Colors.red,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    content: Text(
+                      errorMessage,
+                      style: const TextStyle(fontSize: 16, height: 1.5),
+                    ),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child:
-                            const Text('حسناً', style: TextStyle(fontSize: 18)),
+                        child: const Text(
+                          'حسناً',
+                          style: TextStyle(fontSize: 18),
+                        ),
                       ),
                     ],
                   ),
@@ -769,14 +823,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
     return Shortcuts(
       shortcuts: <LogicalKeySet, Intent>{
-        LogicalKeySet(
-          LogicalKeyboardKey.control,
-          LogicalKeyboardKey.keyE,
-        ): const _ExportExcelIntent(),
-        LogicalKeySet(
-          LogicalKeyboardKey.control,
-          LogicalKeyboardKey.keyP,
-        ): const _ExportPdfIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyE):
+            const _ExportExcelIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyP):
+            const _ExportPdfIntent(),
       },
       child: Actions(
         actions: <Type, Action<Intent>>{
@@ -793,16 +843,16 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             },
           ),
         },
-        child: Focus(
-          autofocus: true,
-          child: scaffold,
-        ),
+        child: Focus(autofocus: true, child: scaffold),
       ),
     );
   }
 
   Widget _buildExportGrid(
-      List<Lesson> lessons, List<Classroom> classrooms, AppSettings settings) {
+    List<Lesson> lessons,
+    List<Classroom> classrooms,
+    AppSettings settings,
+  ) {
     final assigned = lessons.where((l) => !l.isUnassigned).toList();
 
     final Map<String, Lesson> lessonMap = {};
@@ -827,19 +877,25 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
     // Header Row
     List<Widget> headerCells = [
       const Center(
-          child: Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text('اليوم',
-                  textAlign: TextAlign.center,
-                  style:
-                      TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+        child: Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Text(
+            'اليوم',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
+      ),
       const Center(
-          child: Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text('الدرس',
-                  textAlign: TextAlign.center,
-                  style:
-                      TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))),
+        child: Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Text(
+            'الدرس',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+          ),
+        ),
+      ),
     ];
 
     for (int c = 0; c < classrooms.length; c++) {
@@ -856,54 +912,72 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               ((classroom.grade as String?) ?? '')) {
         isLastInGrade = true;
       }
-      headerCells.add(Container(
-        padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
-        decoration: BoxDecoration(
-          border: Border(
-            right: isFirstInGrade
-                ? const BorderSide(color: Colors.black, width: 3.0)
-                : BorderSide.none,
-            left: isLastInGrade
-                ? const BorderSide(color: Colors.black, width: 3.0)
-                : BorderSide.none,
+      headerCells.add(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+          decoration: BoxDecoration(
+            border: Border(
+              right: isFirstInGrade
+                  ? const BorderSide(color: Colors.black, width: 3.0)
+                  : BorderSide.none,
+              left: isLastInGrade
+                  ? const BorderSide(color: Colors.black, width: 3.0)
+                  : BorderSide.none,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              (classroom.name as String?) ?? 'فصل',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
           ),
         ),
-        child: Center(
-          child: Text((classroom.name as String?) ?? 'فصل',
-              textAlign: TextAlign.center,
-              style:
-                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        ),
-      ));
+      );
     }
 
-    rows.add(TableRow(
+    rows.add(
+      TableRow(
         decoration: BoxDecoration(color: Colors.grey.shade200),
-        children: headerCells));
+        children: headerCells,
+      ),
+    );
 
     for (int d = 0; d < displayDays.length; d++) {
       for (int p = 0; p < effectivePeriodsPerDay; p++) {
         List<Widget> cells = [];
 
         if (p == 0) {
-          cells.add(Container(
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
-            child: Text(displayDays[d],
-                style:
-                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          ));
+          cells.add(
+            Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 4.0,
+                vertical: 4.0,
+              ),
+              child: Text(
+                displayDays[d],
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                ),
+              ),
+            ),
+          );
         } else {
           cells.add(const SizedBox.shrink());
         }
 
-        cells.add(Container(
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
-          child: Text((p + 1).toString(),
-              style:
-                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        ));
+        cells.add(
+          Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+            child: Text(
+              (p + 1).toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ),
+        );
 
         for (int c = 0; c < classrooms.length; c++) {
           var classroom = classrooms[c];
@@ -929,8 +1003,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             cells.add(
               Container(
                 alignment: Alignment.center,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 4.0,
+                  vertical: 2.0,
+                ),
                 decoration: BoxDecoration(
                   border: Border(
                     right: isFirstInGrade
@@ -948,34 +1024,41 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                     maxLines: 1,
                     softWrap: false,
                     style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 9),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 9,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
               ),
             );
           } else {
-            cells.add(Container(
-              decoration: BoxDecoration(
-                border: Border(
-                  right: isFirstInGrade
-                      ? const BorderSide(color: Colors.black, width: 3.0)
-                      : BorderSide.none,
-                  left: isLastInGrade
-                      ? const BorderSide(color: Colors.black, width: 3.0)
-                      : BorderSide.none,
+            cells.add(
+              Container(
+                decoration: BoxDecoration(
+                  border: Border(
+                    right: isFirstInGrade
+                        ? const BorderSide(color: Colors.black, width: 3.0)
+                        : BorderSide.none,
+                    left: isLastInGrade
+                        ? const BorderSide(color: Colors.black, width: 3.0)
+                        : BorderSide.none,
+                  ),
                 ),
+                child: const SizedBox(height: 32),
               ),
-              child: const SizedBox(height: 32),
-            ));
+            );
           }
         }
 
-        rows.add(TableRow(
-          decoration: BoxDecoration(
-              color: p % 2 == 0 ? Colors.grey.shade50 : Colors.white),
-          children: cells,
-        ));
+        rows.add(
+          TableRow(
+            decoration: BoxDecoration(
+              color: p % 2 == 0 ? Colors.grey.shade50 : Colors.white,
+            ),
+            children: cells,
+          ),
+        );
       }
     }
 
@@ -1004,40 +1087,47 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                         child: Text(
                           settings.schoolName,
                           style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black),
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                           textAlign: TextAlign.right,
                         ),
                       ),
                       Expanded(
                         flex: 2,
-                        child: Column(children: [
-                          const Text(
-                            'جدول الدروس الأسبوعي',
-                            style: TextStyle(
+                        child: Column(
+                          children: [
+                            const Text(
+                              'جدول الدروس الأسبوعي',
+                              style: TextStyle(
                                 fontSize: 24,
                                 fontWeight: FontWeight.bold,
-                                color: Colors.black),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'العام الدراسي: $academicYear',
-                            style: const TextStyle(
-                                fontSize: 16, color: Colors.black87),
-                            textAlign: TextAlign.center,
-                          ),
-                        ]),
+                                color: Colors.black,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'العام الدراسي: $academicYear',
+                              style: const TextStyle(
+                                fontSize: 16,
+                                color: Colors.black87,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
                       Expanded(
                         flex: 1,
                         child: Text(
                           'المدير : ${settings.principalName}',
                           style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black),
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
                           textAlign: TextAlign.left,
                         ),
                       ),
@@ -1098,11 +1188,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           const Center(
-              child:
-                  Text('جميع الدروس المضافة لم يتم جدولتها بعد. اضغط توليد.')),
+            child: Text('جميع الدروس المضافة لم يتم جدولتها بعد. اضغط توليد.'),
+          ),
           const SizedBox(height: 16),
-          Text('(${unassigned.length} حصة بانتظار التوزيع)',
-              style: const TextStyle(color: Colors.red)),
+          Text(
+            '(${unassigned.length} حصة بانتظار التوزيع)',
+            style: const TextStyle(color: Colors.red),
+          ),
         ],
       );
     }
@@ -1116,9 +1208,10 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             child: Text(
               settings.schoolName,
               style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.teal),
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.teal,
+              ),
               textAlign: TextAlign.center,
             ),
           ),
@@ -1127,10 +1220,13 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             color: Colors.red.shade100,
             padding: const EdgeInsets.all(8.0),
             child: Text(
-                'يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
-                style: const TextStyle(
-                    color: Colors.red, fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center),
+              'يوجد ${unassigned.length} دروس بانتظار التوزيع (تضارب أو لم يتم التوليد)',
+              style: const TextStyle(
+                color: Colors.red,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
           ),
         Expanded(
           child: _buildMasterGrid(
@@ -1174,15 +1270,17 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
 
     List<Widget> headerCells = [
       const Center(
-          child: Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text('اليوم',
-                  style: TextStyle(fontWeight: FontWeight.bold)))),
+        child: Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Text('اليوم', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ),
       const Center(
-          child: Padding(
-              padding: EdgeInsets.all(8.0),
-              child: Text('الدرس',
-                  style: TextStyle(fontWeight: FontWeight.bold)))),
+        child: Padding(
+          padding: EdgeInsets.all(8.0),
+          child: Text('الدرس', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ),
     ];
 
     for (int c = 0; c < classrooms.length; c++) {
@@ -1199,51 +1297,69 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               ((classroom.grade as String?) ?? '')) {
         isLastInGrade = true;
       }
-      headerCells.add(Container(
-        decoration: BoxDecoration(
-          border: Border(
-            right: isFirstInGrade
-                ? const BorderSide(color: Colors.black, width: 3.0)
-                : BorderSide.none,
-            left: isLastInGrade
-                ? const BorderSide(color: Colors.black, width: 3.0)
-                : BorderSide.none,
+      headerCells.add(
+        Container(
+          decoration: BoxDecoration(
+            border: Border(
+              right: isFirstInGrade
+                  ? const BorderSide(color: Colors.black, width: 3.0)
+                  : BorderSide.none,
+              left: isLastInGrade
+                  ? const BorderSide(color: Colors.black, width: 3.0)
+                  : BorderSide.none,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+          child: Center(
+            child: Text(
+              (classroom.name as String?) ?? 'فصل',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
-        child: Center(
-          child: Text((classroom.name as String?) ?? 'فصل',
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-        ),
-      ));
+      );
     }
 
-    rows.add(TableRow(
+    rows.add(
+      TableRow(
         decoration: BoxDecoration(color: Colors.teal.shade100),
-        children: headerCells));
+        children: headerCells,
+      ),
+    );
 
     for (int d = 0; d < displayDays.length; d++) {
       for (int p = 0; p < effectivePeriodsPerDay; p++) {
         List<Widget> cells = [];
 
         if (p == 0) {
-          cells.add(Container(
-            alignment: Alignment.center,
-            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
-            child: Text(displayDays[d],
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-          ));
+          cells.add(
+            Container(
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 4.0,
+                vertical: 4.0,
+              ),
+              child: Text(
+                displayDays[d],
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          );
         } else {
           cells.add(const SizedBox.shrink());
         }
 
         // Sequence column
-        cells.add(Container(
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
-          child: Text((p + 1).toString(),
-              style: const TextStyle(fontWeight: FontWeight.bold)),
-        ));
+        cells.add(
+          Container(
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 4.0, vertical: 4.0),
+            child: Text(
+              (p + 1).toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        );
 
         // Classrooms columns
         for (int c = 0; c < classrooms.length; c++) {
@@ -1261,22 +1377,27 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             isLastInGrade = true;
           }
           final lesson = lessonMap['${classroom.id}_${d}_${p}'];
-          cells.add(_buildCell(
-            lesson,
-            classroom,
-            d,
-            p,
-            isFirstInGrade,
-            isLastInGrade,
-            lesson != null && conflictingLessonIds.contains(lesson.id),
-          ));
+          cells.add(
+            _buildCell(
+              lesson,
+              classroom,
+              d,
+              p,
+              isFirstInGrade,
+              isLastInGrade,
+              lesson != null && conflictingLessonIds.contains(lesson.id),
+            ),
+          );
         }
 
-        rows.add(TableRow(
-          decoration: BoxDecoration(
-              color: p % 2 == 0 ? Colors.grey.shade50 : Colors.white),
-          children: cells,
-        ));
+        rows.add(
+          TableRow(
+            decoration: BoxDecoration(
+              color: p % 2 == 0 ? Colors.grey.shade50 : Colors.white,
+            ),
+            children: cells,
+          ),
+        );
       }
     }
 
@@ -1363,8 +1484,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
       return DragTarget<Lesson>(
         onWillAcceptWithDetails: (details) {
           final incoming = details.data;
-          final timetableNotifier =
-              ref.read(timetableNotifierProvider.notifier);
+          final timetableNotifier = ref.read(
+            timetableNotifierProvider.notifier,
+          );
 
           if (timetableNotifier.isDragDropOperationInProgress) {
             return false;
@@ -1376,10 +1498,12 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
           if (incoming.subject.value != null &&
               (incoming.subject.value?.allowedPeriods.isNotEmpty ?? false) &&
               !(incoming.subject.value?.allowedPeriods.contains(periodIndex) ??
-                  false)) return false;
+                  false))
+            return false;
           if (incoming.teacher.value != null &&
               (incoming.teacher.value?.unavailableDays.contains(dayIndex) ??
-                  false)) return false;
+                  false))
+            return false;
 
           return true;
         },
@@ -1405,8 +1529,8 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
               color: candidateData.isNotEmpty
                   ? Colors.green.withValues(alpha: 0.3)
                   : (rejectedData.isNotEmpty
-                      ? Colors.red.withValues(alpha: 0.3)
-                      : Colors.transparent),
+                        ? Colors.red.withValues(alpha: 0.3)
+                        : Colors.transparent),
               border: Border(
                 right: isFirstInGrade
                     ? const BorderSide(color: Colors.black, width: 3.0)
@@ -1475,27 +1599,29 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
             },
             child: Container(
               height: 36,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 4.0, vertical: 2.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 4.0,
+                vertical: 2.0,
+              ),
               decoration: BoxDecoration(
                 color: isConflicting
                     ? Colors.red.shade100
                     : (lesson.isPinned
-                        ? Colors.orange.shade100
-                        : (candidateData.isNotEmpty
-                            ? Colors.red.shade100
-                            : Colors.transparent)),
+                          ? Colors.orange.shade100
+                          : (candidateData.isNotEmpty
+                                ? Colors.red.shade100
+                                : Colors.transparent)),
                 border: Border(
                   right: isFirstInGrade
                       ? const BorderSide(color: Colors.black, width: 3.0)
                       : (lesson.isPinned
-                          ? const BorderSide(color: Colors.orange, width: 2)
-                          : BorderSide.none),
+                            ? const BorderSide(color: Colors.orange, width: 2)
+                            : BorderSide.none),
                   left: isLastInGrade
                       ? const BorderSide(color: Colors.black, width: 3.0)
                       : (lesson.isPinned
-                          ? const BorderSide(color: Colors.orange, width: 2)
-                          : BorderSide.none),
+                            ? const BorderSide(color: Colors.orange, width: 2)
+                            : BorderSide.none),
                   top: lesson.isPinned
                       ? const BorderSide(color: Colors.orange, width: 2)
                       : BorderSide.none,
@@ -1514,7 +1640,9 @@ class _TimetablePageState extends ConsumerState<TimetablePage> {
                         maxLines: 1,
                         softWrap: false,
                         style: const TextStyle(
-                            fontWeight: FontWeight.bold, fontSize: 9),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 9,
+                        ),
                         textAlign: TextAlign.center,
                       ),
                     ),

@@ -116,9 +116,11 @@ class TimetableMoveValidator {
       if (!checkedGroups.add('${classroom.id}:${subject.id}')) continue;
 
       final groupLessons = index.lessonsById.values
-          .where((candidate) =>
-              candidate.classroom.value?.id == classroom.id &&
-              candidate.subject.value?.id == subject.id)
+          .where(
+            (candidate) =>
+                candidate.classroom.value?.id == classroom.id &&
+                candidate.subject.value?.id == subject.id,
+          )
           .toList(growable: false);
 
       final before = <int, List<int>>{};

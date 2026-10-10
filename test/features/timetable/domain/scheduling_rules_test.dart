@@ -214,8 +214,7 @@ void main() {
       expect(profile.allowedPeriodsOnDay(0, null), [1, 2, 6]);
     });
 
-    test('eligibleDays excludes days off and days without allowed periods',
-        () {
+    test('eligibleDays excludes days off and days without allowed periods', () {
       const profile = LessonPlacementProfile(
         teacherUnavailableDays: [4],
         subjectAllowedPeriods: [6],

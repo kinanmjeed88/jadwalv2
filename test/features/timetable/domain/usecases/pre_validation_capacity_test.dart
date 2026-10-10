@@ -10,8 +10,7 @@ import 'package:jadwal_v2/features/timetable/domain/usecases/pre_validation_engi
 
 /// الفحص المسبق يرفض فقط الاستحالات المثبتة رياضيًا.
 void main() {
-  test('subject allowed periods smaller than the weekly load are rejected',
-      () {
+  test('subject allowed periods smaller than the weekly load are rejected', () {
     final errors = _validate(
       lessonCount: 6,
       maxPerDay: 2,
@@ -32,8 +31,10 @@ void main() {
       policy: SubjectConsecutiveness.consecutive,
     );
 
-    expect(errors.any((e) => e.contains('متتالي') && e.contains('تسمح بـ 5')),
-        isTrue);
+    expect(
+      errors.any((e) => e.contains('متتالي') && e.contains('تسمح بـ 5')),
+      isTrue,
+    );
 
     // The same allowed periods are fine for nonConsecutive and any.
     expect(
@@ -55,26 +56,28 @@ void main() {
     );
   });
 
-  test('nonConsecutive with only adjacent allowed periods caps one per day',
-      () {
-    final errors = _validate(
-      lessonCount: 10,
-      maxPerDay: 2,
-      subjectAllowedPeriods: const [0, 1],
-      policy: SubjectConsecutiveness.nonConsecutive,
-    );
-
-    expect(errors.any((e) => e.contains('غير متتالي')), isTrue);
-    expect(
-      _validate(
+  test(
+    'nonConsecutive with only adjacent allowed periods caps one per day',
+    () {
+      final errors = _validate(
         lessonCount: 10,
         maxPerDay: 2,
         subjectAllowedPeriods: const [0, 1],
-        policy: SubjectConsecutiveness.consecutive,
-      ),
-      isEmpty,
-    );
-  });
+        policy: SubjectConsecutiveness.nonConsecutive,
+      );
+
+      expect(errors.any((e) => e.contains('غير متتالي')), isTrue);
+      expect(
+        _validate(
+          lessonCount: 10,
+          maxPerDay: 2,
+          subjectAllowedPeriods: const [0, 1],
+          policy: SubjectConsecutiveness.consecutive,
+        ),
+        isEmpty,
+      );
+    },
+  );
 
   test('teacher days off reduce the eligible days for the subject', () {
     // 5 lessons, max 1 per day, teacher off on Sunday: only 4 days remain.
@@ -84,8 +87,10 @@ void main() {
       teacherUnavailableDays: const [0],
     );
 
-    expect(errors.any((e) => e.contains('"Arabic"') && e.contains('(4)')),
-        isTrue);
+    expect(
+      errors.any((e) => e.contains('"Arabic"') && e.contains('(4)')),
+      isTrue,
+    );
   });
 
   test('balanced minimum per day must fit on every eligible day', () {

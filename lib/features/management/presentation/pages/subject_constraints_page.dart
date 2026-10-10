@@ -37,8 +37,10 @@ class _SubjectConstraintsPageState
     final constraints = await isar.subjectConstraints.where().findAll();
     final subjects = await isar.subjects.where().findAll();
     final classrooms = await isar.classrooms.where().findAll();
-    final grades =
-        classrooms.map((classroom) => classroom.grade).toSet().toList();
+    final grades = classrooms
+        .map((classroom) => classroom.grade)
+        .toSet()
+        .toList();
 
     if (!mounted) {
       return;
@@ -74,8 +76,7 @@ class _SubjectConstraintsPageState
     SubjectConstraintKey? originalKey,
   }) async {
     final newKey = SubjectConstraintKey(grade: grade, subjectName: subjectName);
-    if (originalKey != null &&
-        originalKey.storageKey != newKey.storageKey) {
+    if (originalKey != null && originalKey.storageKey != newKey.storageKey) {
       // نقل القيد إلى صف/مادة أخرى يعني أن المستخدم أزاله عن الزوج القديم؛
       // نسجّل ذلك حتى لا تعيد المزامنة التلقائية إنشاءه هناك.
       await ref
@@ -83,7 +84,9 @@ class _SubjectConstraintsPageState
           .recordManualDeletion(originalKey);
     }
 
-    await ref.read(subjectsNotifierProvider.notifier).saveSubjectConstraint(
+    await ref
+        .read(subjectsNotifierProvider.notifier)
+        .saveSubjectConstraint(
           constraintId: constraintId,
           grade: grade,
           subjectName: subjectName,
@@ -93,17 +96,17 @@ class _SubjectConstraintsPageState
 
     // القيد الذي يكتبه المستخدم يدويًا يصبح ملكًا له، فتتوقف المزامنة التلقائية
     // عن إدارته ولا تعيد إنشاءه إن حذفه لاحقًا.
-    await ref.read(subjectConstraintAutoSyncProvider).recordManualDefinition(
-          newKey,
-        );
+    await ref
+        .read(subjectConstraintAutoSyncProvider)
+        .recordManualDefinition(newKey);
 
     await _loadData();
   }
 
   Future<void> _deleteConstraint(SubjectConstraint constraint) async {
-    await ref.read(subjectConstraintAutoSyncProvider).recordManualDeletion(
-          SubjectConstraintKey.fromConstraint(constraint),
-        );
+    await ref
+        .read(subjectConstraintAutoSyncProvider)
+        .recordManualDeletion(SubjectConstraintKey.fromConstraint(constraint));
 
     final isar = await ref.read(isarDatabaseProvider.future);
     await isar.writeTxn(() async {
@@ -113,14 +116,16 @@ class _SubjectConstraintsPageState
   }
 
   void _showConstraintDialog({SubjectConstraint? existingConstraint}) {
-    String? selectedGrade = existingConstraint?.grade ??
+    String? selectedGrade =
+        existingConstraint?.grade ??
         (_grades.isNotEmpty ? _grades.first : null);
-    String? selectedSubject = existingConstraint?.subjectName ??
+    String? selectedSubject =
+        existingConstraint?.subjectName ??
         (_subjects.isNotEmpty ? _subjects.first.name : null);
     int maxPeriods = existingConstraint?.maxPeriodsPerDay ?? 2;
     SubjectConsecutiveness selectedConsecutiveness =
         _subjectByName(selectedSubject)?.consecutiveness ??
-            SubjectConsecutiveness.any;
+        SubjectConsecutiveness.any;
     bool isSaving = false;
 
     showDialog(
@@ -176,7 +181,7 @@ class _SubjectConstraintsPageState
                         selectedSubject = value;
                         selectedConsecutiveness =
                             _subjectByName(value)?.consecutiveness ??
-                                SubjectConsecutiveness.any;
+                            SubjectConsecutiveness.any;
                       });
                     },
                   ),
@@ -203,18 +208,19 @@ class _SubjectConstraintsPageState
                         'تُحفظ مع المادة وتُطبَّق على كل الصفوف التي تدرسها',
                     helperMaxLines: 2,
                   ),
-                  items: const [
-                    SubjectConsecutiveness.consecutive,
-                    SubjectConsecutiveness.nonConsecutive,
-                    SubjectConsecutiveness.any,
-                  ]
-                      .map(
-                        (option) => DropdownMenuItem(
-                          value: option,
-                          child: Text(option.label),
-                        ),
-                      )
-                      .toList(),
+                  items:
+                      const [
+                            SubjectConsecutiveness.consecutive,
+                            SubjectConsecutiveness.nonConsecutive,
+                            SubjectConsecutiveness.any,
+                          ]
+                          .map(
+                            (option) => DropdownMenuItem(
+                              value: option,
+                              child: Text(option.label),
+                            ),
+                          )
+                          .toList(),
                   onChanged: (value) {
                     if (value != null) {
                       setStateDialog(() => selectedConsecutiveness = value);
@@ -244,38 +250,38 @@ class _SubjectConstraintsPageState
             ElevatedButton(
               onPressed:
                   isSaving || selectedGrade == null || selectedSubject == null
-                      ? null
-                      : () async {
-                          setStateDialog(() => isSaving = true);
-                          try {
-                            await _saveConstraint(
-                              constraintId: existingConstraint?.id,
-                              grade: selectedGrade!,
-                              subjectName: selectedSubject!,
-                              maxPeriods: maxPeriods,
-                              consecutiveness: selectedConsecutiveness,
-                              originalKey: existingConstraint == null
-                                  ? null
-                                  : SubjectConstraintKey.fromConstraint(
-                                      existingConstraint,
-                                    ),
-                            );
-                            if (dialogContext.mounted) {
-                              Navigator.pop(dialogContext);
-                            }
-                          } catch (_) {
-                            if (context.mounted) {
-                              setStateDialog(() => isSaving = false);
-                            }
-                            if (mounted) {
-                              ScaffoldMessenger.of(this.context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('تعذر حفظ قيد المادة'),
+                  ? null
+                  : () async {
+                      setStateDialog(() => isSaving = true);
+                      try {
+                        await _saveConstraint(
+                          constraintId: existingConstraint?.id,
+                          grade: selectedGrade!,
+                          subjectName: selectedSubject!,
+                          maxPeriods: maxPeriods,
+                          consecutiveness: selectedConsecutiveness,
+                          originalKey: existingConstraint == null
+                              ? null
+                              : SubjectConstraintKey.fromConstraint(
+                                  existingConstraint,
                                 ),
-                              );
-                            }
-                          }
-                        },
+                        );
+                        if (dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                        }
+                      } catch (_) {
+                        if (context.mounted) {
+                          setStateDialog(() => isSaving = false);
+                        }
+                        if (mounted) {
+                          ScaffoldMessenger.of(this.context).showSnackBar(
+                            const SnackBar(
+                              content: Text('تعذر حفظ قيد المادة'),
+                            ),
+                          );
+                        }
+                      }
+                    },
               child: isSaving
                   ? const SizedBox(
                       width: 18,
@@ -307,20 +313,22 @@ class _SubjectConstraintsPageState
             child: _constraints.isEmpty
                 ? const Center(
                     child: Text(
-                        'لا توجد قيود مخصصة. كل المواد حدها حصة واحدة يومياً.'),
+                      'لا توجد قيود مخصصة. كل المواد حدها حصة واحدة يومياً.',
+                    ),
                   )
                 : ListView.builder(
                     itemCount: _constraints.length,
                     itemBuilder: (context, index) {
                       final constraint = _constraints[index];
-                      final key =
-                          SubjectConstraintKey.fromConstraint(constraint);
+                      final key = SubjectConstraintKey.fromConstraint(
+                        constraint,
+                      );
                       final isAutoManaged =
                           managedAutoConstraints[key.storageKey] ==
-                              constraint.maxPeriodsPerDay;
-                      final subject =
-                          _subjectByName(constraint.subjectName);
-                      final consecutiveness = subject?.consecutiveness ??
+                          constraint.maxPeriodsPerDay;
+                      final subject = _subjectByName(constraint.subjectName);
+                      final consecutiveness =
+                          subject?.consecutiveness ??
                           SubjectConsecutiveness.any;
 
                       return ListTile(

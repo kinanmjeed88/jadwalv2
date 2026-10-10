@@ -28,7 +28,10 @@ class InsufficientDaysForSubject extends ConflictReason {
   final int availableDays;
 
   const InsufficientDaysForSubject(
-      this.subjectName, this.requiredLessons, this.availableDays);
+    this.subjectName,
+    this.requiredLessons,
+    this.availableDays,
+  );
 
   @override
   List<Object?> get props => [subjectName, requiredLessons, availableDays];
@@ -109,12 +112,22 @@ class SubjectMaxPerDayExceeded extends ConflictReason {
   final int maxAllowed;
   final int currentCount;
 
-  const SubjectMaxPerDayExceeded(this.subjectName, this.classroomName, this.day,
-      this.maxAllowed, this.currentCount);
+  const SubjectMaxPerDayExceeded(
+    this.subjectName,
+    this.classroomName,
+    this.day,
+    this.maxAllowed,
+    this.currentCount,
+  );
 
   @override
-  List<Object?> get props =>
-      [subjectName, classroomName, day, maxAllowed, currentCount];
+  List<Object?> get props => [
+    subjectName,
+    classroomName,
+    day,
+    maxAllowed,
+    currentCount,
+  ];
 }
 
 @immutable
@@ -135,7 +148,10 @@ class NonConsecutiveSubjectPeriodsConflict extends ConflictReason {
   final int day;
 
   const NonConsecutiveSubjectPeriodsConflict(
-      this.subjectName, this.classroomName, this.day);
+    this.subjectName,
+    this.classroomName,
+    this.day,
+  );
 
   @override
   List<Object?> get props => [subjectName, classroomName, day];
@@ -149,7 +165,10 @@ class AdjacentSubjectPeriodsConflict extends ConflictReason {
   final int day;
 
   const AdjacentSubjectPeriodsConflict(
-      this.subjectName, this.classroomName, this.day);
+    this.subjectName,
+    this.classroomName,
+    this.day,
+  );
 
   @override
   List<Object?> get props => [subjectName, classroomName, day];
@@ -174,8 +193,13 @@ class SubjectDailyDistributionConflict extends ConflictReason {
   );
 
   @override
-  List<Object?> get props =>
-      [subjectName, classroomName, day, currentCount, minRequired];
+  List<Object?> get props => [
+    subjectName,
+    classroomName,
+    day,
+    currentCount,
+    minRequired,
+  ];
 }
 
 @immutable

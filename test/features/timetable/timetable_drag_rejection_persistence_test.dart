@@ -45,8 +45,9 @@ void main() {
 
   setUp(() async {
     await _seed(isar);
-    configDirectory =
-        await Directory.systemTemp.createTemp('jadwal_drag_config_');
+    configDirectory = await Directory.systemTemp.createTemp(
+      'jadwal_drag_config_',
+    );
     container = ProviderContainer(
       overrides: [
         isarDatabaseProvider.overrideWith((ref) async => isar),
@@ -98,26 +99,33 @@ void main() {
 
   const initialPositions = ['1@0:0', '2@0:2', '3@1:0', '4@1:3'];
 
-  test('a move that carries a legacy gap to another day changes nothing',
-      () async {
-    expect(await persistedPositions(), initialPositions);
-    expect(visiblePositions(), initialPositions);
+  test(
+    'a move that carries a legacy gap to another day changes nothing',
+    () async {
+      expect(await persistedPositions(), initialPositions);
+      expect(visiblePositions(), initialPositions);
 
-    final notifier = container.read(timetableNotifierProvider.notifier);
-    final (moved, error) =
-        await notifier.moveLessonToEmpty(visibleLesson(2), 1, 2);
+      final notifier = container.read(timetableNotifierProvider.notifier);
+      final (moved, error) = await notifier.moveLessonToEmpty(
+        visibleLesson(2),
+        1,
+        2,
+      );
 
-    expect(moved, isFalse);
-    expect(error, contains('«متتالي»'));
-    expect(await persistedPositions(), initialPositions);
-    expect(visiblePositions(), initialPositions);
-    expect(notifier.isDragDropOperationInProgress, isFalse);
-  });
+      expect(moved, isFalse);
+      expect(error, contains('«متتالي»'));
+      expect(await persistedPositions(), initialPositions);
+      expect(visiblePositions(), initialPositions);
+      expect(notifier.isDragDropOperationInProgress, isFalse);
+    },
+  );
 
   test('a swap rejected by the group rules changes neither lesson', () async {
     final notifier = container.read(timetableNotifierProvider.notifier);
-    final (swapped, error) =
-        await notifier.swapLessons(visibleLesson(2), visibleLesson(4));
+    final (swapped, error) = await notifier.swapLessons(
+      visibleLesson(2),
+      visibleLesson(4),
+    );
 
     expect(swapped, isFalse);
     expect(error, contains('«متتالي»'));
@@ -128,8 +136,11 @@ void main() {
   test('a move rejected by a placement check changes nothing', () async {
     final notifier = container.read(timetableNotifierProvider.notifier);
     // الحصة الرابعة في اليوم الثاني يشغلها درس الرياضيات.
-    final (moved, error) =
-        await notifier.moveLessonToEmpty(visibleLesson(1), 1, 3);
+    final (moved, error) = await notifier.moveLessonToEmpty(
+      visibleLesson(1),
+      1,
+      3,
+    );
 
     expect(moved, isFalse);
     expect(error, isNotNull);
@@ -137,23 +148,31 @@ void main() {
     expect(visiblePositions(), initialPositions);
   });
 
-  test('after a rejection, a repairing move is applied and persisted',
-      () async {
-    final notifier = container.read(timetableNotifierProvider.notifier);
-    final (rejected, _) =
-        await notifier.moveLessonToEmpty(visibleLesson(2), 1, 2);
-    expect(rejected, isFalse);
+  test(
+    'after a rejection, a repairing move is applied and persisted',
+    () async {
+      final notifier = container.read(timetableNotifierProvider.notifier);
+      final (rejected, _) = await notifier.moveLessonToEmpty(
+        visibleLesson(2),
+        1,
+        2,
+      );
+      expect(rejected, isFalse);
 
-    // الحصة تلتصق بحصة العربي في اليوم الثاني فيزول الفراغ القديم.
-    final (moved, error) =
-        await notifier.moveLessonToEmpty(visibleLesson(2), 1, 1);
+      // الحصة تلتصق بحصة العربي في اليوم الثاني فيزول الفراغ القديم.
+      final (moved, error) = await notifier.moveLessonToEmpty(
+        visibleLesson(2),
+        1,
+        1,
+      );
 
-    expect(error, isNull);
-    expect(moved, isTrue);
-    const expected = ['1@0:0', '2@1:1', '3@1:0', '4@1:3'];
-    expect(await persistedPositions(), expected);
-    expect(visiblePositions(), expected);
-  });
+      expect(error, isNull);
+      expect(moved, isTrue);
+      const expected = ['1@0:0', '2@1:1', '3@1:0', '4@1:3'];
+      expect(await persistedPositions(), expected);
+      expect(visiblePositions(), expected);
+    },
+  );
 }
 
 /// العربي «متتالي» بحد يومي 2: اليوم 0 [1، 3] (فراغ قديم)، اليوم 1 [1].

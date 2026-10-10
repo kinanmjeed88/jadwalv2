@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:isar/isar.dart';
+
 import 'dart:async';
 import 'dart:isolate';
+
 import '../../../../core/providers/app_config_provider.dart';
 import '../../../../core/providers/database_provider.dart';
 import '../../../../core/models/teacher.dart';
@@ -73,7 +75,8 @@ class TimetableAutoFixState {
 }
 
 final timetableAutoFixStateProvider = StateProvider<TimetableAutoFixState>(
-    (ref) => const TimetableAutoFixState());
+  (ref) => const TimetableAutoFixState(),
+);
 
 @riverpod
 class TimetableNotifier extends _$TimetableNotifier {
@@ -108,9 +111,9 @@ class TimetableNotifier extends _$TimetableNotifier {
       isar.teachers.watchLazy().listen((_) => _markReferenceDataDirty()),
       isar.subjects.watchLazy().listen((_) => _markReferenceDataDirty()),
       isar.classrooms.watchLazy().listen((_) => _markReferenceDataDirty()),
-      isar.subjectConstraints
-          .watchLazy()
-          .listen((_) => _markReferenceDataDirty()),
+      isar.subjectConstraints.watchLazy().listen(
+        (_) => _markReferenceDataDirty(),
+      ),
     ];
     ref.onDispose(() {
       for (final subscription in subscriptions) {
@@ -238,8 +241,9 @@ class TimetableNotifier extends _$TimetableNotifier {
       return;
     }
 
-    final entityIndex =
-        previewEntities.indexWhere((entity) => entity.id == lessonId);
+    final entityIndex = previewEntities.indexWhere(
+      (entity) => entity.id == lessonId,
+    );
     if (entityIndex == -1) {
       return;
     }
@@ -293,7 +297,10 @@ class TimetableNotifier extends _$TimetableNotifier {
   }
 
   Future<(bool, String?)> assignLessonsToPool(
-      Classroom classroom, Subject subject, Teacher teacher) async {
+    Classroom classroom,
+    Subject subject,
+    Teacher teacher,
+  ) async {
     final isar = await ref.read(isarDatabaseProvider.future);
 
     final allLessons = await isar.lessons.where().findAll();
@@ -340,9 +347,11 @@ class TimetableNotifier extends _$TimetableNotifier {
     final isar = await ref.read(isarDatabaseProvider.future);
     final allLessons = await isar.lessons.where().findAll();
     final toDelete = allLessons
-        .where((l) =>
-            l.classroom.value?.id == classroomId &&
-            l.subject.value?.id == subjectId)
+        .where(
+          (l) =>
+              l.classroom.value?.id == classroomId &&
+              l.subject.value?.id == subjectId,
+        )
         .toList();
 
     isar.writeTxnSync(() {
@@ -354,13 +363,18 @@ class TimetableNotifier extends _$TimetableNotifier {
   }
 
   Future<void> updateAssignment(
-      int classroomId, int subjectId, Teacher newTeacher) async {
+    int classroomId,
+    int subjectId,
+    Teacher newTeacher,
+  ) async {
     final isar = await ref.read(isarDatabaseProvider.future);
     final allLessons = await isar.lessons.where().findAll();
     final toUpdate = allLessons
-        .where((l) =>
-            l.classroom.value?.id == classroomId &&
-            l.subject.value?.id == subjectId)
+        .where(
+          (l) =>
+              l.classroom.value?.id == classroomId &&
+              l.subject.value?.id == subjectId,
+        )
         .toList();
 
     isar.writeTxnSync(() {
@@ -404,10 +418,10 @@ class TimetableNotifier extends _$TimetableNotifier {
 
       // Map Isar to DTOs
       final teachersMap = {
-        for (var t in teachers) t.id: TeacherEntity.fromIsar(t)
+        for (var t in teachers) t.id: TeacherEntity.fromIsar(t),
       };
       final subjectsMap = {
-        for (var s in subjects) s.id: SubjectEntity.fromIsar(s)
+        for (var s in subjects) s.id: SubjectEntity.fromIsar(s),
       };
       final classroomsMap = {
         for (var c in classrooms)
@@ -417,12 +431,18 @@ class TimetableNotifier extends _$TimetableNotifier {
               c,
               daysPerWeek: settings.daysPerWeek,
             ),
-          )
+          ),
       };
 
       final existingLessonsEntity = existingLessons
-          .map((l) =>
-              LessonEntity.fromIsar(l, teachersMap, subjectsMap, classroomsMap))
+          .map(
+            (l) => LessonEntity.fromIsar(
+              l,
+              teachersMap,
+              subjectsMap,
+              classroomsMap,
+            ),
+          )
           .toList();
 
       final settingsEntity = AppSettingsEntity.fromIsar(settings);
@@ -430,8 +450,9 @@ class TimetableNotifier extends _$TimetableNotifier {
       final teachersEntityList = teachersMap.values.toList();
       final subjectsEntityList = subjectsMap.values.toList();
       final classroomsEntityList = classroomsMap.values.toList();
-      final constraintsEntityList =
-          constraints.map((c) => SubjectConstraintEntity.fromIsar(c)).toList();
+      final constraintsEntityList = constraints
+          .map((c) => SubjectConstraintEntity.fromIsar(c))
+          .toList();
 
       // Create payload to avoid capturing anything from lexical scope
       final payload = GenerationPayload(
@@ -492,8 +513,9 @@ class TimetableNotifier extends _$TimetableNotifier {
             .toList();
         _setVisibleLessons(previewLessons);
         state = AsyncValue.data(previewLessons);
-        ref.read(timetableAutoFixStateProvider.notifier).state =
-            TimetableAutoFixState(
+        ref
+            .read(timetableAutoFixStateProvider.notifier)
+            .state = TimetableAutoFixState(
           status: TimetableAutoFixStatus.ready,
           bestCost: exception.bestCost,
           diagnostics: exception.diagnostics,
@@ -518,12 +540,12 @@ class TimetableNotifier extends _$TimetableNotifier {
       return false;
     }
 
-    ref.read(timetableAutoFixStateProvider.notifier).state =
-        autoFixState.copyWith(
-      status: TimetableAutoFixStatus.fixing,
-      currentAttempt: 1,
-      totalAttempts: SmartAutoFixUseCase.maxAttempts,
-    );
+    ref.read(timetableAutoFixStateProvider.notifier).state = autoFixState
+        .copyWith(
+          status: TimetableAutoFixStatus.fixing,
+          currentAttempt: 1,
+          totalAttempts: SmartAutoFixUseCase.maxAttempts,
+        );
 
     try {
       final result = await _spawnIsolateAndAutoFix(
@@ -539,11 +561,8 @@ class TimetableNotifier extends _$TimetableNotifier {
         (attempt, total) {
           final current = ref.read(timetableAutoFixStateProvider);
           if (!current.isFixing) return;
-          ref.read(timetableAutoFixStateProvider.notifier).state =
-              current.copyWith(
-            currentAttempt: attempt,
-            totalAttempts: total,
-          );
+          ref.read(timetableAutoFixStateProvider.notifier).state = current
+              .copyWith(currentAttempt: attempt, totalAttempts: total);
         },
       );
 
@@ -585,8 +604,9 @@ class TimetableNotifier extends _$TimetableNotifier {
           .toList();
       _setVisibleLessons(previewLessons);
       state = AsyncValue.data(previewLessons);
-      ref.read(timetableAutoFixStateProvider.notifier).state =
-          TimetableAutoFixState(
+      ref
+          .read(timetableAutoFixStateProvider.notifier)
+          .state = TimetableAutoFixState(
         status: TimetableAutoFixStatus.failed,
         bestCost: result.bestCost,
         // Keep the original diagnostics so a failed retry restores the
@@ -595,12 +615,12 @@ class TimetableNotifier extends _$TimetableNotifier {
       );
       return false;
     } catch (error, stackTrace) {
-      ref.read(timetableAutoFixStateProvider.notifier).state =
-          autoFixState.copyWith(
-        status: TimetableAutoFixStatus.failed,
-        currentAttempt: 0,
-        totalAttempts: SmartAutoFixUseCase.maxAttempts,
-      );
+      ref.read(timetableAutoFixStateProvider.notifier).state = autoFixState
+          .copyWith(
+            status: TimetableAutoFixStatus.failed,
+            currentAttempt: 0,
+            totalAttempts: SmartAutoFixUseCase.maxAttempts,
+          );
 
       // Keep the best failed preview visible so the user can inspect it or retry
       // after a transient isolate/database failure. Never persist this preview.
@@ -632,24 +652,23 @@ class TimetableNotifier extends _$TimetableNotifier {
       for (final placement in snapshot.placements)
         placement.lessonId: placement,
     };
-    return source.map(
-      (lesson) {
-        final placement = placements[lesson.id];
-        return LessonEntity(
-          id: lesson.id,
-          teacher: lesson.teacher,
-          subject: lesson.subject,
-          classroom: lesson.classroom,
-          dayIndex: placement?.dayIndex ?? lesson.dayIndex,
-          periodIndex: placement?.periodIndex ?? lesson.periodIndex,
-          isPinned: lesson.isPinned,
-        );
-      },
-    ).toList();
+    return source.map((lesson) {
+      final placement = placements[lesson.id];
+      return LessonEntity(
+        id: lesson.id,
+        teacher: lesson.teacher,
+        subject: lesson.subject,
+        classroom: lesson.classroom,
+        dayIndex: placement?.dayIndex ?? lesson.dayIndex,
+        periodIndex: placement?.periodIndex ?? lesson.periodIndex,
+        isPinned: lesson.isPinned,
+      );
+    }).toList();
   }
 
   Lesson _toPreviewLesson(LessonEntity entity, List<Lesson> persistedLessons) {
-    final source = _persistedLessonsById?[entity.id] ??
+    final source =
+        _persistedLessonsById?[entity.id] ??
         persistedLessons.firstWhere((lesson) => lesson.id == entity.id);
     return Lesson()
       ..id = source.id
@@ -663,7 +682,8 @@ class TimetableNotifier extends _$TimetableNotifier {
 
   Future<void> togglePin(Lesson lesson) async {
     final isar = await ref.read(isarDatabaseProvider.future);
-    final currentLesson = _visibleLessonsCache
+    final currentLesson =
+        _visibleLessonsCache
             ?.where((item) => item.id == lesson.id)
             .firstOrNull ??
         _persistedLessonsCache
@@ -681,7 +701,10 @@ class TimetableNotifier extends _$TimetableNotifier {
   }
 
   Future<(bool, String?)> moveLessonToEmpty(
-      Lesson lesson, int newDay, int newPeriod) async {
+    Lesson lesson,
+    int newDay,
+    int newPeriod,
+  ) async {
     if (!_beginDragDropOperation()) {
       return (false, "يرجى الانتظار حتى تكتمل عملية السحب الحالية");
     }
@@ -694,7 +717,10 @@ class TimetableNotifier extends _$TimetableNotifier {
   }
 
   Future<(bool, String?)> _moveLessonToEmptyInternal(
-      Lesson lesson, int newDay, int newPeriod) async {
+    Lesson lesson,
+    int newDay,
+    int newPeriod,
+  ) async {
     if (lesson.isPinned) return (false, "لا يمكن تحريك درس مقفل");
 
     final isar = await ref.read(isarDatabaseProvider.future);
@@ -716,9 +742,7 @@ class TimetableNotifier extends _$TimetableNotifier {
     }
 
     final groupError = TimetableMoveValidator(index).validateGroupRules(
-      moves: {
-        currentLesson.id: (dayIndex: newDay, periodIndex: newPeriod),
-      },
+      moves: {currentLesson.id: (dayIndex: newDay, periodIndex: newPeriod)},
       operationLabel: 'النقل',
     );
     if (groupError != null) {
@@ -742,7 +766,7 @@ class TimetableNotifier extends _$TimetableNotifier {
     });
     _persistedLessonsCache = persistedLessons;
     _persistedLessonsById = {
-      for (final item in persistedLessons) item.id: item
+      for (final item in persistedLessons) item.id: item,
     };
     _publishVisibleLessons();
     return (true, null);
@@ -761,7 +785,9 @@ class TimetableNotifier extends _$TimetableNotifier {
   }
 
   Future<(bool, String?)> _swapLessonsInternal(
-      Lesson lesson1, Lesson lesson2) async {
+    Lesson lesson1,
+    Lesson lesson2,
+  ) async {
     if (lesson1.dayIndex == null ||
         lesson1.periodIndex == null ||
         lesson2.dayIndex == null ||
@@ -845,7 +871,7 @@ class TimetableNotifier extends _$TimetableNotifier {
     });
     _persistedLessonsCache = persistedLessons;
     _persistedLessonsById = {
-      for (final item in persistedLessons) item.id: item
+      for (final item in persistedLessons) item.id: item,
     };
     _publishVisibleLessons();
     return (true, null);
@@ -871,7 +897,8 @@ class GenerationPayload {
 }
 
 Future<List<LessonEntity>> _spawnIsolateAndGenerate(
-    GenerationPayload payload) async {
+  GenerationPayload payload,
+) async {
   // هذه الدالة موجودة في Top-Level، لذا لا يوجد هنا 'this' ولا 'isar' ليلتقطه الـ Closure!
   return await Isolate.run(() => _generateInIsolate(payload));
 }
@@ -958,9 +985,7 @@ Future<SmartAutoFixResult> _spawnIsolateAndAutoFix(
       }),
       Future<SmartAutoFixResult>.delayed(
         _smartAutoFixTimeout,
-        () => throw TimeoutException(
-          'انتهت مهلة Smart Auto-Fix بعد 30 ثانية.',
-        ),
+        () => throw TimeoutException('انتهت مهلة Smart Auto-Fix بعد 30 ثانية.'),
       ),
     ]);
   } finally {

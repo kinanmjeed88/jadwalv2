@@ -32,7 +32,8 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
             return ListTile(
               title: Text(teacher.name),
               subtitle: Text(
-                  '${teacher.specialization} - مفرغ في: ${_getDaysString(teacher.unavailableDays)}'),
+                '${teacher.specialization} - مفرغ في: ${_getDaysString(teacher.unavailableDays)}',
+              ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -76,8 +77,11 @@ class _TeachersPageState extends ConsumerState<TeachersPage> {
         .join('، ');
   }
 
-  void _showAddTeacherDialog(BuildContext context, WidgetRef ref,
-      {Teacher? teacher}) {
+  void _showAddTeacherDialog(
+    BuildContext context,
+    WidgetRef ref, {
+    Teacher? teacher,
+  }) {
     showDialog(
       context: context,
       builder: (context) {
@@ -113,12 +117,15 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
   void initState() {
     super.initState();
     nameCtrl = TextEditingController(text: widget.teacher?.name ?? '');
-    specCtrl =
-        TextEditingController(text: widget.teacher?.specialization ?? '');
+    specCtrl = TextEditingController(
+      text: widget.teacher?.specialization ?? '',
+    );
     maxDailyCtrl = TextEditingController(
-        text: widget.teacher?.maxLessonsPerDay.toString() ?? '5');
+      text: widget.teacher?.maxLessonsPerDay.toString() ?? '5',
+    );
     maxWeeklyCtrl = TextEditingController(
-        text: widget.teacher?.maxLessonsPerWeek.toString() ?? '20');
+      text: widget.teacher?.maxLessonsPerWeek.toString() ?? '20',
+    );
     selectedDays = <int>[...widget.teacher?.unavailableDays ?? []];
     allowedPeriods = <int>[...widget.teacher?.allowedPeriods ?? []];
   }
@@ -134,17 +141,23 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final daysPerWeek = ref.watch(settingsNotifierProvider).when(
+    final daysPerWeek = ref
+        .watch(settingsNotifierProvider)
+        .when(
           data: (settings) => settings.daysPerWeek,
           loading: () => 5,
           error: (_, __) => 5,
         );
-    final periodsPerDay = ref.watch(settingsNotifierProvider).when(
+    final periodsPerDay = ref
+        .watch(settingsNotifierProvider)
+        .when(
           data: (settings) => settings.periodsPerDay,
           loading: () => 7,
           error: (_, __) => 7,
         );
-    final config = ref.watch(appConfigNotifierProvider).when(
+    final config = ref
+        .watch(appConfigNotifierProvider)
+        .when(
           data: (c) => c,
           loading: AppConfig.initial,
           error: (_, __) => AppConfig.initial(),
@@ -174,34 +187,44 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
                 validator: (val) =>
                     val == null || val.trim().isEmpty ? 'مطلوب' : null,
                 decoration: const InputDecoration(
-                    labelText: 'الاسم', helperText: 'مثال: أ. أحمد محمد'),
+                  labelText: 'الاسم',
+                  helperText: 'مثال: أ. أحمد محمد',
+                ),
               ),
               TextFormField(
                 controller: specCtrl,
                 validator: (val) =>
                     val == null || val.trim().isEmpty ? 'مطلوب' : null,
                 decoration: const InputDecoration(
-                    labelText: 'الاختصاص', helperText: 'مثال: رياضيات'),
+                  labelText: 'الاختصاص',
+                  helperText: 'مثال: رياضيات',
+                ),
               ),
               TextFormField(
-                  controller: maxDailyCtrl,
-                  validator: (val) =>
-                      val == null || val.trim().isEmpty ? 'مطلوب' : null,
-                  decoration: const InputDecoration(
-                      labelText: 'الحد الأقصى يومياً',
-                      helperText: 'عدد الدروس القصوى باليوم الواحد'),
-                  keyboardType: TextInputType.number),
+                controller: maxDailyCtrl,
+                validator: (val) =>
+                    val == null || val.trim().isEmpty ? 'مطلوب' : null,
+                decoration: const InputDecoration(
+                  labelText: 'الحد الأقصى يومياً',
+                  helperText: 'عدد الدروس القصوى باليوم الواحد',
+                ),
+                keyboardType: TextInputType.number,
+              ),
               TextFormField(
-                  controller: maxWeeklyCtrl,
-                  validator: (val) =>
-                      val == null || val.trim().isEmpty ? 'مطلوب' : null,
-                  decoration: const InputDecoration(
-                      labelText: 'الحد الأقصى أسبوعياً',
-                      helperText: 'عدد الدروس القصوى بالأسبوع'),
-                  keyboardType: TextInputType.number),
+                controller: maxWeeklyCtrl,
+                validator: (val) =>
+                    val == null || val.trim().isEmpty ? 'مطلوب' : null,
+                decoration: const InputDecoration(
+                  labelText: 'الحد الأقصى أسبوعياً',
+                  helperText: 'عدد الدروس القصوى بالأسبوع',
+                ),
+                keyboardType: TextInputType.number,
+              ),
               const SizedBox(height: 16),
-              const Text('أيام التفرغ:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'أيام التفرغ:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const Text(
                 'الأيام المختارة لا يُجدول فيها أي درس لهذا المعلم.',
                 style: TextStyle(fontSize: 12, color: Colors.black54),
@@ -226,17 +249,21 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
                 }).toList(),
               ),
               const SizedBox(height: 16),
-              const Text('الدروس المسموحة (اتركه فارغاً للسماح بالكل):',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'الدروس المسموحة (اتركه فارغاً للسماح بالكل):',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Wrap(
                   spacing: 8.0,
                   children: periodChoices.map((index) {
                     return FilterChip(
-                      label: Text(index < maxPeriods
-                          ? 'الدرس ${index + 1}'
-                          : 'الدرس ${index + 1} (خارج حصص المدرسة)'),
+                      label: Text(
+                        index < maxPeriods
+                            ? 'الدرس ${index + 1}'
+                            : 'الدرس ${index + 1} (خارج حصص المدرسة)',
+                      ),
                       selected: allowedPeriods.contains(index),
                       onSelected: (bool selected) {
                         setState(() {
@@ -253,8 +280,10 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
               ),
               if (!_isEditing) ...[
                 const SizedBox(height: 20),
-                const Text('الإسناد الأولي',
-                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const Text(
+                  'الإسناد الأولي',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 4),
                 const Text(
                   'اختياري: اختر مادة أو أكثر وصفًا أو أكثر. يُنشأ إسناد لكل تركيب (مادة × صف) بنموذج الحصص الحالي.',
@@ -267,7 +296,9 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
                     if (subjects.isEmpty) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('لا توجد مواد بعد. يمكن الإسناد لاحقًا من تبويب المهام.'),
+                        child: Text(
+                          'لا توجد مواد بعد. يمكن الإسناد لاحقًا من تبويب المهام.',
+                        ),
                       );
                     }
                     return Wrap(
@@ -302,7 +333,9 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
                     if (classrooms.isEmpty) {
                       return const Padding(
                         padding: EdgeInsets.symmetric(vertical: 8),
-                        child: Text('لا توجد صفوف بعد. يمكن الإسناد لاحقًا من تبويب المهام.'),
+                        child: Text(
+                          'لا توجد صفوف بعد. يمكن الإسناد لاحقًا من تبويب المهام.',
+                        ),
                       );
                     }
                     return Wrap(
@@ -310,7 +343,9 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
                       children: classrooms.map((classroom) {
                         return FilterChip(
                           label: Text(classroom.name),
-                          selected: _selectedClassroomIds.contains(classroom.id),
+                          selected: _selectedClassroomIds.contains(
+                            classroom.id,
+                          ),
                           onSelected: (selected) {
                             setState(() {
                               if (selected) {
@@ -346,23 +381,24 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
       ),
       actions: [
         TextButton(
-            onPressed: _isSaving ? null : () => Navigator.pop(context),
-            child: const Text('إلغاء')),
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
+          child: const Text('إلغاء'),
+        ),
         ElevatedButton(
           onPressed: _isSaving
               ? null
               : () => _save(
-                    subjectsAsync.when(
-                      data: (subjects) => subjects,
-                      loading: () => const <Subject>[],
-                      error: (err, stackTrace) => const <Subject>[],
-                    ),
-                    classroomsAsync.when(
-                      data: (classrooms) => classrooms,
-                      loading: () => const <Classroom>[],
-                      error: (err, stackTrace) => const <Classroom>[],
-                    ),
+                  subjectsAsync.when(
+                    data: (subjects) => subjects,
+                    loading: () => const <Subject>[],
+                    error: (err, stackTrace) => const <Subject>[],
                   ),
+                  classroomsAsync.when(
+                    data: (classrooms) => classrooms,
+                    loading: () => const <Classroom>[],
+                    error: (err, stackTrace) => const <Classroom>[],
+                  ),
+                ),
           child: _isSaving
               ? const SizedBox(
                   width: 18,
@@ -397,7 +433,9 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
 
     try {
       if (_isEditing) {
-        await ref.read(teachersNotifierProvider.notifier).addTeacher(newTeacher);
+        await ref
+            .read(teachersNotifierProvider.notifier)
+            .addTeacher(newTeacher);
       } else {
         final selectedSubjects = allSubjects
             .where((subject) => _selectedSubjectIds.contains(subject.id))

@@ -52,16 +52,19 @@ class PreValidationEngine {
           .length;
       if (assignedLessons > maxClassroomCapacity) {
         errors.add(
-            'استحالة رياضية: الصف "${classroom.name}" مُسند إليه $assignedLessons حصة، بينما سعة الجدول الأسبوعي هي $maxClassroomCapacity حصة فقط (أيام الدوام × الحصص اليومية). الحل: تقليل حصص الصف أو زيادة أيام/حصص الدوام.');
+          'استحالة رياضية: الصف "${classroom.name}" مُسند إليه $assignedLessons حصة، بينما سعة الجدول الأسبوعي هي $maxClassroomCapacity حصة فقط (أيام الدوام × الحصص اليومية). الحل: تقليل حصص الصف أو زيادة أيام/حصص الدوام.',
+        );
       } else if (assignedLessons < maxClassroomCapacity) {
         errors.add(
-            'نقص في بيانات الإسناد: الصف "${classroom.name}" مسند إليه $assignedLessons حصة فقط، بينما المطلوب لملء جدوله الأسبوعي هو $maxClassroomCapacity حصة. يرجى إسناد المواد الناقصة لهذا الصف قبل توليد الجدول.');
+          'نقص في بيانات الإسناد: الصف "${classroom.name}" مسند إليه $assignedLessons حصة فقط، بينما المطلوب لملء جدوله الأسبوعي هو $maxClassroomCapacity حصة. يرجى إسناد المواد الناقصة لهذا الصف قبل توليد الجدول.',
+        );
       }
 
       // Check subject max constraints
       Map<int, int> subjectLessonCounts = {};
-      for (var lesson in existingLessons
-          .where((l) => l.classroom?.id == classroom.id && l.subject != null)) {
+      for (var lesson in existingLessons.where(
+        (l) => l.classroom?.id == classroom.id && l.subject != null,
+      )) {
         int sId = lesson.subject!.id;
         subjectLessonCounts[sId] = (subjectLessonCounts[sId] ?? 0) + 1;
       }
@@ -70,8 +73,10 @@ class PreValidationEngine {
         int sId = entry.key;
         int count = entry.value;
 
-        var subject = subjects.firstWhere((s) => s.id == sId,
-            orElse: () => subjects.first);
+        var subject = subjects.firstWhere(
+          (s) => s.id == sId,
+          orElse: () => subjects.first,
+        );
 
         int maxPerDay = 1; // Default
         for (var constraint in subjectConstraints) {
@@ -85,7 +90,8 @@ class PreValidationEngine {
         int maxPerWeek = maxPerDay * settings.daysPerWeek;
         if (count > maxPerWeek) {
           errors.add(
-              'استحالة رياضية: الصف "${classroom.name}" مطلوب له $count حصص لمادة "${subject.name}" أسبوعياً، ولكن الحد الأقصى المسموح يومياً هو $maxPerDay حصة، مما يجعل الحد الأقصى الأسبوعي $maxPerWeek حصة فقط (في ${settings.daysPerWeek} أيام).');
+            'استحالة رياضية: الصف "${classroom.name}" مطلوب له $count حصص لمادة "${subject.name}" أسبوعياً، ولكن الحد الأقصى المسموح يومياً هو $maxPerDay حصة، مما يجعل الحد الأقصى الأسبوعي $maxPerWeek حصة فقط (في ${settings.daysPerWeek} أيام).',
+          );
           continue;
         }
 
@@ -103,8 +109,9 @@ class PreValidationEngine {
 
     // 2. Teacher Capacity Validation
     for (var teacher in teachers) {
-      int assignedLessons =
-          existingLessons.where((l) => l.teacher?.id == teacher.id).length;
+      int assignedLessons = existingLessons
+          .where((l) => l.teacher?.id == teacher.id)
+          .length;
 
       int activeUnavailableDays = teacher.unavailableDays
           .where((day) => day < settings.daysPerWeek)
@@ -118,12 +125,15 @@ class PreValidationEngine {
 
       if (assignedLessons > absoluteMaxCapacity) {
         errors.add(
-            'استحالة رياضية: المعلم "${teacher.name}" مطلوب منه $assignedLessons حصة. لكن حده الأقصى أو أيام تفرغه تسمح له بتدريس $absoluteMaxCapacity حصة فقط كحد أقصى. الحل: رفع الحد الأقصى للمعلم، تقليل إجازاته، أو نقل بعض حصصه لمعلم آخر.');
+          'استحالة رياضية: المعلم "${teacher.name}" مطلوب منه $assignedLessons حصة. لكن حده الأقصى أو أيام تفرغه تسمح له بتدريس $absoluteMaxCapacity حصة فقط كحد أقصى. الحل: رفع الحد الأقصى للمعلم، تقليل إجازاته، أو نقل بعض حصصه لمعلم آخر.',
+        );
         continue;
       }
 
-      final allowedPeriodsError =
-          _validateTeacherAllowedPeriodsCapacity(teacher, assignedLessons);
+      final allowedPeriodsError = _validateTeacherAllowedPeriodsCapacity(
+        teacher,
+        assignedLessons,
+      );
       if (allowedPeriodsError != null) {
         errors.add(allowedPeriodsError);
       }
@@ -162,9 +172,11 @@ class PreValidationEngine {
     required int maxPerDay,
   }) {
     final groupLessons = existingLessons
-        .where((lesson) =>
-            lesson.classroom?.id == classroom.id &&
-            lesson.subject?.id == subjectId)
+        .where(
+          (lesson) =>
+              lesson.classroom?.id == classroom.id &&
+              lesson.subject?.id == subjectId,
+        )
         .toList();
     if (groupLessons.isEmpty) return null;
     final subjectEntity = groupLessons.first.subject!;
@@ -213,8 +225,10 @@ class PreValidationEngine {
         ),
     };
 
-    final totalCapacity =
-        capacityByDay.values.fold<int>(0, (sum, value) => sum + value);
+    final totalCapacity = capacityByDay.values.fold<int>(
+      0,
+      (sum, value) => sum + value,
+    );
     if (totalCapacity < count) {
       return 'استحالة رياضية: مادة "$subjectLabel" للصف "${classroom.name}" مطلوب لها $count حصص أسبوعياً، لكن الأيام المتاحة (${eligibleDays.length}) مع الدروس المسموحة والحد اليومي ($effectiveMax) وقيد التتابع (${_policyLabel(policy)}) تسمح بـ $totalCapacity حصة فقط. الحل: توسيع الدروس المسموحة، رفع الحد اليومي، أو تغيير قيد التتابع.';
     }
