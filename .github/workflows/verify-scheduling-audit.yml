@@ -1,0 +1,196 @@
+name: Verify scheduling audit (temporary)
+
+# Temporary verification for PR #137. Runs only on the session branch:
+# * format: dart format (stable) on the changed Dart files, commits the result.
+# * windows: applies the branch diff (65126e2..HEAD, without .github) onto the
+#   untouched tips of the Windows 7 and Windows 10/11 branches and runs each
+#   branch's own toolchain: pub get, analyze, test, release build.
+
+on:
+  push:
+    branches:
+      - 'arena/e25ae26d-jadwalv2'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  BASE_SHA: 65126e2ea878290bcde7df06d5b6f971f2009e08
+
+jobs:
+  format:
+    name: dart format (stable) + diff check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Format changed Dart files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t files < <(git diff --name-only --diff-filter=AMR "$BASE_SHA" HEAD -- '*.dart' | grep -v '\.g\.dart$' || true)
+          echo "::notice title=Formatter::$(dart --version 2>&1)"
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::notice title=dart format::No changed Dart files"
+            exit 0
+          fi
+          dart format "${files[@]}"
+          if git diff --quiet; then
+            echo "::notice title=dart format::Already formatted (${#files[@]} files)"
+          else
+            changed=$(git diff --name-only | tr '\n' ' ')
+            echo "::warning title=dart format applied::$changed"
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git commit -am 'style: dart format changed files'
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+            echo "::notice title=dart format commit::$(git rev-parse HEAD)"
+          fi
+          dart format --output=none --set-exit-if-changed "${files[@]}"
+      - name: git diff --check
+        shell: bash
+        run: |
+          if out=$(git diff --check "$BASE_SHA" HEAD 2>&1); then
+            echo "::notice title=git diff --check::clean"
+          else
+            echo "::error title=git diff --check::$(echo "$out" | head -20 | tr '\n' ' ')"
+            exit 1
+          fi
+
+  windows:
+    name: ${{ matrix.target }} (Flutter ${{ matrix.flutter }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: win7
+            os: windows-2022
+            flutter: '3.16.9'
+            flutter_version: '3.16.9'
+            branch: 'برنامج-مخصص-لوندوز-٧'
+            audited_sha: a6fbb258a6bba4e5dc679d74ad1af9872c5a540a
+            remove_android: 'true'
+          - target: win10
+            os: windows-latest
+            flutter: 'stable'
+            flutter_version: ''
+            branch: 'برنامج-مخصص-لوندوز-١٠-و-١١'
+            audited_sha: 085a499bc8b4d1e41f1a842f148ef6bb0c56bba2
+            remove_android: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply the change set to the Windows branch tip
+        shell: bash
+        env:
+          BRANCH: ${{ matrix.branch }}
+          AUDITED_SHA: ${{ matrix.audited_sha }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          git config --global core.autocrlf false
+          git fetch --no-tags origin "+refs/heads/${BRANCH}:refs/remotes/origin/target"
+          tip=$(git rev-parse refs/remotes/origin/target)
+          if [ "$tip" != "$AUDITED_SHA" ]; then
+            echo "::warning title=${TARGET} tip moved::expected ${AUDITED_SHA}, found ${tip}"
+          fi
+          git diff --binary "$BASE_SHA" HEAD -- . ':(exclude).github' > "$(cygpath -u "$RUNNER_TEMP")/change.patch"
+          target_dir="$(cygpath -u "$RUNNER_TEMP")/target"
+          git worktree add --detach "$target_dir" "$tip"
+          cd "$target_dir"
+          git -c user.name=ci -c user.email=ci@example.invalid apply --3way --index "$(cygpath -u "$RUNNER_TEMP")/change.patch"
+          files=$(git diff --cached --name-only | wc -l)
+          echo "::notice title=${TARGET} patch::applied on ${tip} (source $(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD)); ${files} files"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ matrix.flutter_version }}
+          cache: true
+      - name: Toolchain
+        shell: bash
+        run: echo "::notice title=${{ matrix.target }} toolchain::$(flutter --version 2>&1 | head -1) / $(dart --version 2>&1)"
+      - name: dart format check (target toolchain)
+        shell: bash
+        working-directory: ${{ runner.temp }}/target
+        run: |
+          mapfile -t files < <(git diff --cached --name-only --diff-filter=AMR -- '*.dart' | grep -v '\.g\.dart$' || true)
+          if out=$(dart format --output=none --set-exit-if-changed "${files[@]}" 2>&1); then
+            echo "::notice title=${{ matrix.target }} dart format::clean (${#files[@]} files)"
+          else
+            echo "::warning title=${{ matrix.target }} dart format::$(echo "$out" | grep -i 'formatted' | tr '\n' ' ')"
+          fi
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+      - name: Isolate Windows-only dependency resolution
+        if: matrix.remove_android == 'true'
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/target
+        run: Remove-Item -Recurse -Force android
+      - name: Install Dependencies
+        working-directory: ${{ runner.temp }}/target
+        run: flutter pub get
+      - name: Analyze
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/target
+        run: |
+          $out = flutter analyze --no-fatal-infos 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_ }
+          $summary = ($out | Select-Object -Last 1)
+          if ($code -ne 0) {
+            $errors = ($out | Where-Object { $_ -match 'error -|warning -' } | Select-Object -First 20) -join " | "
+            Write-Host "::error title=${{ matrix.target }} analyze::$errors"
+            exit $code
+          }
+          Write-Host "::notice title=${{ matrix.target }} analyze::$summary"
+      - name: Test
+        shell: pwsh
+        working-directory: ${{ runner.temp }}/target
+        run: |
+          $testFiles = Get-ChildItem -Path test -Recurse -Filter '*_test.dart' |
+            Where-Object { $_.Name -ne 'backup_service_benchmark_test.dart' } |
+            ForEach-Object { $_.FullName }
+          $out = flutter test --machine @testFiles 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_ }
+          $events = @($out | ForEach-Object {
+            try { $_.ToString() | ConvertFrom-Json -ErrorAction Stop } catch { }
+          })
+          $names = @{}
+          $events | Where-Object { $_.type -eq 'testStart' } | ForEach-Object { $names[$_.test.id] = $_.test.name }
+          $completed = @($events | Where-Object {
+            $_.type -eq 'testDone' -and -not $_.hidden -and -not $_.skipped
+          })
+          $passed = @($completed | Where-Object { $_.result -eq 'success' }).Count
+          $failedEvents = @($completed | Where-Object { $_.result -ne 'success' })
+          $skipped = @($events | Where-Object {
+            $_.type -eq 'testDone' -and $_.skipped -and -not $_.hidden
+          }).Count
+          Write-Host ('::warning title=${{ matrix.target }} test results::Passed={0}; Failed={1}; Skipped={2}; Files={3}' -f $passed, $failedEvents.Count, $skipped, $testFiles.Count)
+          if ($failedEvents.Count -gt 0) {
+            $failedNames = ($failedEvents | ForEach-Object { $names[$_.testID] } | Select-Object -First 15) -join ' || '
+            Write-Host "::error title=${{ matrix.target }} failed tests::$failedNames"
+            $errorsText = ($events | Where-Object { $_.type -eq 'error' } | ForEach-Object { ($_.error -split "`n")[0..3] -join ' ' } | Select-Object -First 8) -join ' || '
+            Write-Host "::error title=${{ matrix.target }} failure details::$errorsText"
+          }
+          if ($passed -eq 0) { throw 'No completed tests recorded' }
+          if ($code -ne 0) { exit $code }
+      - name: Build Windows Release
+        working-directory: ${{ runner.temp }}/target
+        shell: pwsh
+        run: |
+          flutter build windows --release --target=lib/main_windows.dart
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error title=${{ matrix.target }} build::flutter build windows failed"
+            exit $LASTEXITCODE
+          }
+          $exe = Get-ChildItem -Path build/windows -Recurse -Filter '*.exe' | Select-Object -First 1
+          Write-Host "::notice title=${{ matrix.target }} build::OK $($exe.FullName) $($exe.Length) bytes"
