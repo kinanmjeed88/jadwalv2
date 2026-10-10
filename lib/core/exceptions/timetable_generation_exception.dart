@@ -141,6 +141,43 @@ class NonConsecutiveSubjectPeriodsConflict extends ConflictReason {
   List<Object?> get props => [subjectName, classroomName, day];
 }
 
+/// مادة سياستها «غير متتالي» وقعت لها حصتان متجاورتان في اليوم نفسه للصف نفسه.
+@immutable
+class AdjacentSubjectPeriodsConflict extends ConflictReason {
+  final String subjectName;
+  final String classroomName;
+  final int day;
+
+  const AdjacentSubjectPeriodsConflict(
+      this.subjectName, this.classroomName, this.day);
+
+  @override
+  List<Object?> get props => [subjectName, classroomName, day];
+}
+
+/// يوم متاح للمادة أخذ أقل من حصتها الأساسية في التوزيع الأسبوعي المتوازن
+/// (مثال: العربي ٦ حصص على ٥ أيام يجب أن يظهر يوميًا).
+@immutable
+class SubjectDailyDistributionConflict extends ConflictReason {
+  final String subjectName;
+  final String classroomName;
+  final int day;
+  final int currentCount;
+  final int minRequired;
+
+  const SubjectDailyDistributionConflict(
+    this.subjectName,
+    this.classroomName,
+    this.day,
+    this.currentCount,
+    this.minRequired,
+  );
+
+  @override
+  List<Object?> get props =>
+      [subjectName, classroomName, day, currentCount, minRequired];
+}
+
 @immutable
 class ConflictDiagnostic extends Equatable {
   final ConflictReason reason;

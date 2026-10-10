@@ -71,7 +71,17 @@ class _SubjectConstraintsPageState
     required String subjectName,
     required int maxPeriods,
     required SubjectConsecutiveness consecutiveness,
+    SubjectConstraintKey? originalKey,
   }) async {
+    final newKey = SubjectConstraintKey(grade: grade, subjectName: subjectName);
+    if (originalKey != null && originalKey.storageKey != newKey.storageKey) {
+      // نقل القيد إلى صف/مادة أخرى يعني أن المستخدم أزاله عن الزوج القديم؛
+      // نسجّل ذلك حتى لا تعيد المزامنة التلقائية إنشاءه هناك.
+      await ref
+          .read(subjectConstraintAutoSyncProvider)
+          .recordManualDeletion(originalKey);
+    }
+
     await ref.read(subjectsNotifierProvider.notifier).saveSubjectConstraint(
           constraintId: constraintId,
           grade: grade,
@@ -83,7 +93,7 @@ class _SubjectConstraintsPageState
     // القيد الذي يكتبه المستخدم يدويًا يصبح ملكًا له، فتتوقف المزامنة التلقائية
     // عن إدارته ولا تعيد إنشاءه إن حذفه لاحقًا.
     await ref.read(subjectConstraintAutoSyncProvider).recordManualDefinition(
-          SubjectConstraintKey(grade: grade, subjectName: subjectName),
+          newKey,
         );
 
     await _loadData();
@@ -177,7 +187,9 @@ class _SubjectConstraintsPageState
                   ),
                   keyboardType: TextInputType.number,
                   onChanged: (value) {
-                    maxPeriods = int.tryParse(value) ?? 1;
+                    setStateDialog(() {
+                      maxPeriods = int.tryParse(value) ?? 1;
+                    });
                   },
                 ),
                 const SizedBox(height: 16),
@@ -187,7 +199,8 @@ class _SubjectConstraintsPageState
                   decoration: const InputDecoration(
                     labelText: 'سياسة تتابع الحصص',
                     helperText:
-                        'تُحفظ هذه السياسة مع المادة وتطبق على توليد الجدول',
+                        'تُحفظ مع المادة وتُطبَّق على كل الصفوف التي تدرسها',
+                    helperMaxLines: 2,
                   ),
                   items: const [
                     SubjectConsecutiveness.consecutive,
@@ -207,6 +220,18 @@ class _SubjectConstraintsPageState
                     }
                   },
                 ),
+                if (maxPeriods <= 1 &&
+                    selectedConsecutiveness != SubjectConsecutiveness.any)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      'تنبيه: الحد اليومي حصة واحدة يمنع اجتماع حصتين للمادة في يوم واحد، فلن يكون لسياسة التتابع أثر.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -228,6 +253,11 @@ class _SubjectConstraintsPageState
                               subjectName: selectedSubject!,
                               maxPeriods: maxPeriods,
                               consecutiveness: selectedConsecutiveness,
+                              originalKey: existingConstraint == null
+                                  ? null
+                                  : SubjectConstraintKey.fromConstraint(
+                                      existingConstraint,
+                                    ),
                             );
                             if (dialogContext.mounted) {
                               Navigator.pop(dialogContext);
