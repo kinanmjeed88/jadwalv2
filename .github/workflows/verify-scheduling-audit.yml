@@ -249,7 +249,9 @@ jobs:
             file="${entry#*:}"
             dart format --output=none --set-exit-if-changed "$file" > /dev/null 2>&1 || new_unformatted+=("$file")
           done
-          echo "::notice title=${{ matrix.target }} format of changed lines::$(echo "$report" | grep -v 'kept 0 formatter edits' | tr '\n' ' ')"
+          checked=$(echo "$report" | grep -c 'formatter edits' || true)
+          needed=$(echo "$report" | sed -nE 's/.*kept ([0-9]+) formatter edits.*/\1/p' | awk '{s+=$1} END {print s+0}')
+          echo "::notice title=${{ matrix.target }} format of changed lines::modified files checked=${checked} (of ${#args[@]} changed); formatter edits needed on changed lines=${needed}; $(echo "$report" | grep -v 'kept 0 formatter edits' | tr '\n' ' ')"
           echo "::notice title=${{ matrix.target }} new files not formatted::${new_unformatted[*]:-none}"
       - name: Analyze
         shell: pwsh
