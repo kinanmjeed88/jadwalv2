@@ -80,10 +80,7 @@ class SubjectsPage extends ConsumerWidget {
   }
 
   void _showAddOrEditDialog(
-    BuildContext context,
-    WidgetRef ref,
-    Subject? existingSubject,
-  ) {
+      BuildContext context, WidgetRef ref, Subject? existingSubject) {
     showDialog(
       context: context,
       builder: (context) => _SubjectDialog(existingSubject: existingSubject),
@@ -118,16 +115,13 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
   @override
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(settingsNotifierProvider);
-    final config = ref
-        .watch(appConfigNotifierProvider)
-        .when(
+    final config = ref.watch(appConfigNotifierProvider).when(
           data: (c) => c,
           loading: AppConfig.initial,
           error: (_, __) => AppConfig.initial(),
         );
     final classrooms =
-        ref.watch(classroomsNotifierProvider).valueOrNull ??
-        const <Classroom>[];
+        ref.watch(classroomsNotifierProvider).valueOrNull ?? const <Classroom>[];
 
     return AlertDialog(
       title: Text(widget.existingSubject == null ? 'إضافة مادة' : 'تعديل مادة'),
@@ -140,9 +134,7 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
               TextFormField(
                 initialValue: _name,
                 decoration: const InputDecoration(
-                  labelText: 'اسم المادة',
-                  helperText: 'مثال: رياضيات, علوم',
-                ),
+                    labelText: 'اسم المادة', helperText: 'مثال: رياضيات, علوم'),
                 validator: (val) =>
                     val == null || val.trim().isEmpty ? 'مطلوب' : null,
                 onSaved: (val) => _name = val!,
@@ -151,12 +143,10 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
               TextFormField(
                 initialValue: _lessonsPerWeek.toString(),
                 decoration: const InputDecoration(
-                  labelText: 'الدروس الأسبوعية',
-                  helperText: 'عدد الدروس المطلوبة خلال الأسبوع',
-                ),
+                    labelText: 'الدروس الأسبوعية',
+                    helperText: 'عدد الدروس المطلوبة خلال الأسبوع'),
                 keyboardType: TextInputType.number,
-                validator: (val) =>
-                    val == null ||
+                validator: (val) => val == null ||
                         val.trim().isEmpty ||
                         int.tryParse(val.trim()) == null
                     ? 'أدخل رقماً صحيحاً'
@@ -177,8 +167,7 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
               const ListTile(
                 title: Text('القيود الزمنية (الدروس المسموحة للمادة)'),
                 subtitle: Text(
-                  'تحديد درس معين هنا يجبر النظام على جدولة هذه المادة في هذا الوقت حصراً (مثلاً: إجبار مادة الرياضة لتكون دائماً في الدرس الأخير)',
-                ),
+                    'تحديد درس معين هنا يجبر النظام على جدولة هذه المادة في هذا الوقت حصراً (مثلاً: إجبار مادة الرياضة لتكون دائماً في الدرس الأخير)'),
                 contentPadding: EdgeInsets.zero,
               ),
               settingsAsync.when(
@@ -191,30 +180,27 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
                   );
                   return Wrap(
                     spacing: 8,
-                    children:
-                        PeriodOptions.choices(
-                          periodCount,
-                          _allowedPeriods,
-                        ).map((index) {
-                          final isSelected = _allowedPeriods.contains(index);
-                          return FilterChip(
-                            label: Text(
-                              index < periodCount
-                                  ? PeriodMapper.toArabicName(index)
-                                  : '${PeriodMapper.toArabicName(index)} (خارج حصص المدرسة)',
-                            ),
-                            selected: isSelected,
-                            onSelected: (selected) {
-                              setState(() {
-                                if (selected) {
-                                  _allowedPeriods.add(index);
-                                } else {
-                                  _allowedPeriods.remove(index);
-                                }
-                              });
-                            },
-                          );
-                        }).toList(),
+                    children: PeriodOptions.choices(
+                      periodCount,
+                      _allowedPeriods,
+                    ).map((index) {
+                      final isSelected = _allowedPeriods.contains(index);
+                      return FilterChip(
+                        label: Text(index < periodCount
+                            ? PeriodMapper.toArabicName(index)
+                            : '${PeriodMapper.toArabicName(index)} (خارج حصص المدرسة)'),
+                        selected: isSelected,
+                        onSelected: (selected) {
+                          setState(() {
+                            if (selected) {
+                              _allowedPeriods.add(index);
+                            } else {
+                              _allowedPeriods.remove(index);
+                            }
+                          });
+                        },
+                      );
+                    }).toList(),
                   );
                 },
                 loading: () => const CircularProgressIndicator(),
@@ -229,7 +215,10 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('إلغاء'),
         ),
-        ElevatedButton(onPressed: _save, child: const Text('حفظ')),
+        ElevatedButton(
+          onPressed: _save,
+          child: const Text('حفظ'),
+        ),
       ],
     );
   }

@@ -46,13 +46,8 @@ void main() {
         );
         final result = scenario.generator(seed: seed).generate();
 
-        expect(scenario.countsByDay(result), [
-          0,
-          2,
-          2,
-          1,
-          1,
-        ], reason: 'seed $seed');
+        expect(scenario.countsByDay(result), [0, 2, 2, 1, 1],
+            reason: 'seed $seed');
       }
     });
 
@@ -61,13 +56,8 @@ void main() {
         final scenario = _Scenario(lessonCount: 5, maxPerDay: 2);
         final result = scenario.generator(seed: seed).generate();
 
-        expect(scenario.countsByDay(result), [
-          1,
-          1,
-          1,
-          1,
-          1,
-        ], reason: 'seed $seed');
+        expect(scenario.countsByDay(result), [1, 1, 1, 1, 1],
+            reason: 'seed $seed');
       }
     });
 
@@ -77,11 +67,8 @@ void main() {
         final result = scenario.generator(seed: seed).generate();
         final counts = scenario.countsByDay(result);
 
-        expect(
-          counts.every((count) => count <= 1),
-          isTrue,
-          reason: 'seed $seed',
-        );
+        expect(counts.every((count) => count <= 1), isTrue,
+            reason: 'seed $seed');
         expect(counts.fold<int>(0, (sum, c) => sum + c), 3);
       }
     });
@@ -100,9 +87,7 @@ void main() {
       ]);
 
       expect(generator.calculateCost(state), greaterThanOrEqualTo(1000));
-      final diagnostic = generator
-          .diagnose(state)
-          .singleWhere(
+      final diagnostic = generator.diagnose(state).singleWhere(
             (diagnostic) =>
                 diagnostic.reason is SubjectDailyDistributionConflict,
           );
@@ -197,10 +182,10 @@ void main() {
           policy: SubjectConsecutiveness.nonConsecutive,
         );
 
-        final consecutiveResult = consecutive.generator(seed: seed).generate();
-        final nonConsecutiveResult = nonConsecutive
-            .generator(seed: seed)
-            .generate();
+        final consecutiveResult =
+            consecutive.generator(seed: seed).generate();
+        final nonConsecutiveResult =
+            nonConsecutive.generator(seed: seed).generate();
 
         for (final periods
             in consecutive.periodsByDay(consecutiveResult).values) {
@@ -278,10 +263,10 @@ void main() {
 
     test('same seed gives the same schedule', () {
       final scenario = _Scenario(lessonCount: 6, maxPerDay: 2);
-      String signature(List<LessonEntity> lessons) =>
-          (List.of(lessons)..sort((a, b) => a.id.compareTo(b.id)))
-              .map((l) => '${l.id}:${l.dayIndex}:${l.periodIndex}')
-              .join(',');
+      String signature(List<LessonEntity> lessons) => (List.of(lessons)
+            ..sort((a, b) => a.id.compareTo(b.id)))
+          .map((l) => '${l.id}:${l.dayIndex}:${l.periodIndex}')
+          .join(',');
 
       final first = scenario.generator(seed: 42).generate();
       final second = scenario.generator(seed: 42).generate();
@@ -302,15 +287,14 @@ void main() {
       final diagnostics = generator.diagnose(state);
 
       final result = scenario.autoFix().execute(
-        initialSchedule: state,
-        initialDiagnostics: diagnostics,
-      );
+            initialSchedule: state,
+            initialDiagnostics: diagnostics,
+          );
 
       expect(result.isResolved, isFalse);
       expect(
-        result.diagnostics.any(
-          (d) => d.isHard && d.reason is NonConsecutiveSubjectPeriodsConflict,
-        ),
+        result.diagnostics.any((d) =>
+            d.isHard && d.reason is NonConsecutiveSubjectPeriodsConflict),
         isTrue,
       );
     });
@@ -325,9 +309,9 @@ void main() {
       final generator = scenario.generator();
 
       final result = scenario.autoFix().execute(
-        initialSchedule: state,
-        initialDiagnostics: generator.diagnose(state),
-      );
+            initialSchedule: state,
+            initialDiagnostics: generator.diagnose(state),
+          );
 
       expect(result.isResolved, isTrue);
       expect(generator.calculateCost(result.schedule), 0);
@@ -486,9 +470,9 @@ class _Scenario {
   Map<int, List<int>> periodsByDay(List<LessonEntity> schedule) {
     final result = <int, List<int>>{};
     for (final lesson in subjectLessons(schedule)) {
-      result
-          .putIfAbsent(lesson.dayIndex!, () => <int>[])
-          .add(lesson.periodIndex!);
+      result.putIfAbsent(lesson.dayIndex!, () => <int>[]).add(
+            lesson.periodIndex!,
+          );
     }
     for (final periods in result.values) {
       periods.sort();

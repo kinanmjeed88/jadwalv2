@@ -31,14 +31,17 @@ void main() {
   });
 
   group('TimetableGenerator consecutiveness policy', () {
-    test('charges and diagnoses non-consecutive lessons only when required', () {
+    test('charges and diagnoses non-consecutive lessons only when required',
+        () {
       final teacher = _teacher(maxLessonsPerDay: 3);
       final classroom = _classroom();
       final constraint = _subjectConstraint();
       final consecutiveSubject = _subject(
         consecutiveness: SubjectConsecutiveness.consecutive,
       );
-      final anySubject = _subject(consecutiveness: SubjectConsecutiveness.any);
+      final anySubject = _subject(
+        consecutiveness: SubjectConsecutiveness.any,
+      );
 
       final consecutiveLessons = [
         _lesson(1, teacher, consecutiveSubject, classroom, 0, 0),
@@ -76,9 +79,7 @@ void main() {
 
       expect(anyGenerator.calculateCost(anyLessons), 0);
       expect(
-        anyGenerator
-            .diagnose(anyLessons)
-            .where(
+        anyGenerator.diagnose(anyLessons).where(
               (diagnostic) =>
                   diagnostic.reason is NonConsecutiveSubjectPeriodsConflict,
             ),
@@ -88,77 +89,76 @@ void main() {
   });
 
   group('SmartAutoFixUseCase', () {
-    test(
-      'resolves a targeted teacher clash without moving a pinned lesson',
-      () {
-        final teacher = _teacher(maxLessonsPerDay: 3);
-        final subject = _subject();
-        final classroom = _classroom();
-        final settings = _settings(daysPerWeek: 1, periodsPerDay: 2);
-        final constraint = _subjectConstraint();
-        final pinned = _lesson(
-          1,
-          teacher,
-          subject,
-          classroom,
-          0,
-          0,
-          isPinned: true,
-        );
-        final movable = _lesson(2, teacher, subject, classroom, 0, 0);
-        final initialSchedule = [pinned, movable];
-        final generator = _generator(
-          settings: settings,
-          subjects: [subject],
-          lessons: initialSchedule,
-          subjectConstraints: [constraint],
-        );
-        final diagnostics = generator.diagnose(initialSchedule);
+    test('resolves a targeted teacher clash without moving a pinned lesson',
+        () {
+      final teacher = _teacher(maxLessonsPerDay: 3);
+      final subject = _subject();
+      final classroom = _classroom();
+      final settings = _settings(daysPerWeek: 1, periodsPerDay: 2);
+      final constraint = _subjectConstraint();
+      final pinned = _lesson(
+        1,
+        teacher,
+        subject,
+        classroom,
+        0,
+        0,
+        isPinned: true,
+      );
+      final movable = _lesson(2, teacher, subject, classroom, 0, 0);
+      final initialSchedule = [pinned, movable];
+      final generator = _generator(
+        settings: settings,
+        subjects: [subject],
+        lessons: initialSchedule,
+        subjectConstraints: [constraint],
+      );
+      final diagnostics = generator.diagnose(initialSchedule);
 
-        expect(
-          diagnostics.any(
-            (diagnostic) =>
-                diagnostic.reason is TeacherTimeSlotConflict &&
-                diagnostic.isHard,
-          ),
-          isTrue,
-        );
+      expect(
+        diagnostics.any(
+          (diagnostic) =>
+              diagnostic.reason is TeacherTimeSlotConflict && diagnostic.isHard,
+        ),
+        isTrue,
+      );
 
-        final useCase = SmartAutoFixUseCase(
-          teachers: [teacher],
-          subjects: [subject],
-          classrooms: [classroom],
-          settings: settings,
-          subjectLessons: initialSchedule,
-          subjectConstraints: [constraint],
-        );
-        final progress = <String>[];
-        final result = useCase.execute(
-          initialSchedule: initialSchedule,
-          initialDiagnostics: diagnostics,
-          onProgress: (attempt, total) => progress.add('$attempt/$total'),
-        );
+      final useCase = SmartAutoFixUseCase(
+        teachers: [teacher],
+        subjects: [subject],
+        classrooms: [classroom],
+        settings: settings,
+        subjectLessons: initialSchedule,
+        subjectConstraints: [constraint],
+      );
+      final progress = <String>[];
+      final result = useCase.execute(
+        initialSchedule: initialSchedule,
+        initialDiagnostics: diagnostics,
+        onProgress: (attempt, total) => progress.add('$attempt/$total'),
+      );
 
-        expect(progress, isNotEmpty);
-        expect(progress.first, '1/3');
-        expect(result.isResolved, isTrue);
-        expect(
-          result.schedule.firstWhere((lesson) => lesson.id == 1).dayIndex,
-          0,
-        );
-        expect(
-          result.schedule.firstWhere((lesson) => lesson.id == 1).periodIndex,
-          0,
-        );
-        final moved = result.schedule.firstWhere((lesson) => lesson.id == 2);
-        expect(moved.isPinned, isFalse);
-        expect(moved.periodIndex, 1);
-        expect(
-          result.diagnostics.any((diagnostic) => diagnostic.isHard),
-          isFalse,
-        );
-      },
-    );
+      expect(progress, isNotEmpty);
+      expect(progress.first, '1/3');
+      expect(result.isResolved, isTrue);
+      expect(
+        result.schedule.firstWhere((lesson) => lesson.id == 1).dayIndex,
+        0,
+      );
+      expect(
+        result.schedule.firstWhere((lesson) => lesson.id == 1).periodIndex,
+        0,
+      );
+      final moved = result.schedule.firstWhere((lesson) => lesson.id == 2);
+      expect(moved.isPinned, isFalse);
+      expect(moved.periodIndex, 1);
+      expect(
+        result.diagnostics.any(
+          (diagnostic) => diagnostic.isHard,
+        ),
+        isFalse,
+      );
+    });
   });
 }
 

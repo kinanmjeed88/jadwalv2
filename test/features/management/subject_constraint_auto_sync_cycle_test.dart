@@ -67,12 +67,14 @@ void main() {
           ..name = 'B'
           ..grade = 'G2',
       ]);
-      await isar.subjects.putAll([_subject('Arabic', 6), _subject('Math', 4)]);
+      await isar.subjects.putAll([
+        _subject('Arabic', 6),
+        _subject('Math', 4),
+      ]);
     });
 
-    configDirectory = await Directory.systemTemp.createTemp(
-      'jadwal_auto_sync_config_',
-    );
+    configDirectory =
+        await Directory.systemTemp.createTemp('jadwal_auto_sync_config_');
     container = ProviderContainer(
       overrides: [
         isarDatabaseProvider.overrideWith((ref) async => isar),
@@ -91,9 +93,7 @@ void main() {
       ..add(container.listen(subjectsNotifierProvider, (_, __) {}));
     await container.read(subjectsNotifierProvider.future);
     await container.read(appConfigNotifierProvider.future);
-    await container
-        .read(appConfigNotifierProvider.notifier)
-        .replace(
+    await container.read(appConfigNotifierProvider.notifier).replace(
           AppConfig.initial().copyWith(
             isSetupCompleted: true,
             schoolStage: SchoolStage.primary,
@@ -133,8 +133,7 @@ void main() {
         .then((constraint) => constraint!);
   }
 
-  Future<AppConfig> config() =>
-      container.read(appConfigNotifierProvider.future);
+  Future<AppConfig> config() => container.read(appConfigNotifierProvider.future);
 
   String storage(String grade, String subject) =>
       SubjectConstraintKey(grade: grade, subjectName: subject).storageKey;
@@ -150,9 +149,7 @@ void main() {
     if (originalKey != null && originalKey.storageKey != newKey.storageKey) {
       await sync().recordManualDeletion(originalKey);
     }
-    await container
-        .read(subjectsNotifierProvider.notifier)
-        .saveSubjectConstraint(
+    await container.read(subjectsNotifierProvider.notifier).saveSubjectConstraint(
           constraintId: constraintId,
           grade: grade,
           subjectName: subjectName,
@@ -173,10 +170,8 @@ void main() {
 
   Future<void> setWeeklyLessons(String subjectName, int lessonsPerWeek) async {
     await isar.writeTxn(() async {
-      final subject = (await isar.subjects
-          .filter()
-          .nameEqualTo(subjectName)
-          .findFirst())!;
+      final subject =
+          (await isar.subjects.filter().nameEqualTo(subjectName).findFirst())!;
       subject.lessonsPerWeek = lessonsPerWeek;
       await isar.subjects.put(subject);
     });
@@ -208,9 +203,10 @@ void main() {
     expect((await config()).managedAutoConstraints, {
       storage('G2', 'Arabic'): 2,
     });
-    expect((await config()).dismissedAutoConstraints, {
-      storage('G1', 'Arabic'),
-    });
+    expect(
+      (await config()).dismissedAutoConstraints,
+      {storage('G1', 'Arabic')},
+    );
 
     // 3) الحذف: حذف القيد التلقائي (G2/Arabic) لا يُعاد إنشاؤه.
     await deleteLikePage(await storedConstraint('G2', 'Arabic'));
@@ -234,9 +230,10 @@ void main() {
     await sync().run();
     expect(await storedConstraints(), ['G1/Math=3', 'G2/Arabic=1']);
     expect((await config()).managedAutoConstraints, isEmpty);
-    expect((await config()).dismissedAutoConstraints, {
-      storage('G1', 'Arabic'),
-    });
+    expect(
+      (await config()).dismissedAutoConstraints,
+      {storage('G1', 'Arabic')},
+    );
 
     // 5) الاستعادة بالسياسة: ينخفض النصاب تحت 6 فيُنسى الحذف، ثم يعود فيُعاد
     // إنشاء القيد التلقائي، ويبقى القيد اليدوي كما هو.
@@ -248,72 +245,66 @@ void main() {
     await setWeeklyLessons('Arabic', 6);
     final restored = await sync().run();
     expect(restored!.createdKeys, [storage('G1', 'Arabic')]);
-    expect(await storedConstraints(), [
-      'G1/Arabic=2',
-      'G1/Math=3',
-      'G2/Arabic=1',
-    ]);
+    expect(
+      await storedConstraints(),
+      ['G1/Arabic=2', 'G1/Math=3', 'G2/Arabic=1'],
+    );
     expect((await config()).managedAutoConstraints, {
       storage('G1', 'Arabic'): 2,
     });
   });
 
-  test(
-    'moving a constraint onto a key that already has one leaves one record',
-    () async {
-      await sync().run();
-      await saveLikePage(
-        constraintId: null,
-        grade: 'G1',
-        subjectName: 'Math',
-        maxPeriods: 1,
-      );
-      expect(await storedConstraints(), [
-        'G1/Arabic=2',
-        'G1/Math=1',
-        'G2/Arabic=2',
-      ]);
+  test('moving a constraint onto a key that already has one leaves one record',
+      () async {
+    await sync().run();
+    await saveLikePage(
+      constraintId: null,
+      grade: 'G1',
+      subjectName: 'Math',
+      maxPeriods: 1,
+    );
+    expect(
+      await storedConstraints(),
+      ['G1/Arabic=2', 'G1/Math=1', 'G2/Arabic=2'],
+    );
 
-      // نقل قيد (G1/Math) اليدوي إلى (G1/Arabic) الموجود مسبقًا بحد 3.
-      final g1Math = await storedConstraint('G1', 'Math');
-      await saveLikePage(
-        constraintId: g1Math.id,
-        originalKey: SubjectConstraintKey.fromConstraint(g1Math),
-        grade: 'G1',
-        subjectName: 'Arabic',
-        maxPeriods: 3,
-      );
-      await sync().run();
+    // نقل قيد (G1/Math) اليدوي إلى (G1/Arabic) الموجود مسبقًا بحد 3.
+    final g1Math = await storedConstraint('G1', 'Math');
+    await saveLikePage(
+      constraintId: g1Math.id,
+      originalKey: SubjectConstraintKey.fromConstraint(g1Math),
+      grade: 'G1',
+      subjectName: 'Arabic',
+      maxPeriods: 3,
+    );
+    await sync().run();
 
-      expect(await storedConstraints(), ['G1/Arabic=3', 'G2/Arabic=2']);
-      expect((await config()).managedAutoConstraints, {
-        storage('G2', 'Arabic'): 2,
-      });
-      expect((await config()).dismissedAutoConstraints, isEmpty);
-      expect((await storedConstraint('G1', 'Arabic')).id, g1Math.id);
-    },
-  );
+    expect(await storedConstraints(), ['G1/Arabic=3', 'G2/Arabic=2']);
+    expect((await config()).managedAutoConstraints, {
+      storage('G2', 'Arabic'): 2,
+    });
+    expect((await config()).dismissedAutoConstraints, isEmpty);
+    expect((await storedConstraint('G1', 'Arabic')).id, g1Math.id);
+  });
 
-  test(
-    'editing only the value of an auto constraint makes it manual',
-    () async {
-      await sync().run();
-      final g1Arabic = await storedConstraint('G1', 'Arabic');
-      await saveLikePage(
-        constraintId: g1Arabic.id,
-        originalKey: SubjectConstraintKey.fromConstraint(g1Arabic),
-        grade: 'G1',
-        subjectName: 'Arabic',
-        maxPeriods: 3,
-      );
-      await setWeeklyLessons('Arabic', 4);
-      await sync().run();
+  test('editing only the value of an auto constraint makes it manual',
+      () async {
+    await sync().run();
+    final g1Arabic = await storedConstraint('G1', 'Arabic');
+    await saveLikePage(
+      constraintId: g1Arabic.id,
+      originalKey: SubjectConstraintKey.fromConstraint(g1Arabic),
+      grade: 'G1',
+      subjectName: 'Arabic',
+      maxPeriods: 3,
+    );
+    await setWeeklyLessons('Arabic', 4);
+    await sync().run();
 
-      // G2 التلقائي يُزال لخروجه من السياسة، وG1 المعدَّل يدويًا يبقى.
-      expect(await storedConstraints(), ['G1/Arabic=3']);
-      expect((await config()).managedAutoConstraints, isEmpty);
-    },
-  );
+    // G2 التلقائي يُزال لخروجه من السياسة، وG1 المعدَّل يدويًا يبقى.
+    expect(await storedConstraints(), ['G1/Arabic=3']);
+    expect((await config()).managedAutoConstraints, isEmpty);
+  });
 }
 
 Subject _subject(String name, int lessonsPerWeek) {

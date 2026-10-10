@@ -1,5 +1,4 @@
 import 'dart:math';
-
 import '../../../../core/entities/lesson_entity.dart';
 import '../../../../core/entities/teacher_entity.dart';
 import '../../../../core/entities/subject_entity.dart';
@@ -186,17 +185,15 @@ class TimetableGenerator {
     final cached = _groupCache[classroom.id]?[subject.id];
     if (cached != null) return cached;
 
-    final lessons =
-        _lessonsByGroup[classroom.id]?[subject.id] ??
+    final lessons = _lessonsByGroup[classroom.id]?[subject.id] ??
         fallbackLessons ??
         const <LessonEntity>[];
     final maxDays = settings.daysPerWeek;
-    final dailyPeriods = _dailyPeriodsForClassroom(
-      classroom.id,
-      maxDays,
-      settings.periodsPerDay,
-    );
-    final profiles = [for (final lesson in lessons) _profileFor(lesson)];
+    final dailyPeriods =
+        _dailyPeriodsForClassroom(classroom.id, maxDays, settings.periodsPerDay);
+    final profiles = [
+      for (final lesson in lessons) _profileFor(lesson),
+    ];
     final eligibleDays = SchedulingRules.eligibleDays(
       daysPerWeek: maxDays,
       periodsOnDay: (day) => day < dailyPeriods.length ? dailyPeriods[day] : 0,
@@ -210,10 +207,8 @@ class TimetableGenerator {
         eligibleDays: eligibleDays,
       ),
     );
-    _groupCache.putIfAbsent(
-      classroom.id,
-      () => <int, _SubjectGroup>{},
-    )[subject.id] = group;
+    _groupCache.putIfAbsent(classroom.id, () => <int, _SubjectGroup>{})[
+        subject.id] = group;
     return group;
   }
 
@@ -238,11 +233,7 @@ class TimetableGenerator {
       resolved = classroom.resolveDailyPeriods(settings);
     } else {
       final safeDays = maxDays < 1 ? 5 : maxDays;
-      resolved = List<int>.filled(
-        safeDays,
-        fallbackMaxPeriods,
-        growable: false,
-      );
+      resolved = List<int>.filled(safeDays, fallbackMaxPeriods, growable: false);
     }
     _dailyPeriodsCache[classroomId] = resolved;
     return resolved;
@@ -254,11 +245,8 @@ class TimetableGenerator {
     int maxDays,
     int fallbackMaxPeriods,
   ) {
-    final daily = _dailyPeriodsForClassroom(
-      classroomId,
-      maxDays,
-      fallbackMaxPeriods,
-    );
+    final daily =
+        _dailyPeriodsForClassroom(classroomId, maxDays, fallbackMaxPeriods);
     if (dayIndex < 0 || dayIndex >= daily.length) {
       return 0;
     }
@@ -276,9 +264,8 @@ class TimetableGenerator {
     );
     final errors = engine.validateAll();
     if (errors.isNotEmpty) {
-      final reasons = errors
-          .map((error) => GenericSolverFailure(error))
-          .toList();
+      final reasons =
+          errors.map((error) => GenericSolverFailure(error)).toList();
       throw TimetableGenerationException(reasons);
     }
   }
@@ -336,13 +323,9 @@ class TimetableGenerator {
 
     stopwatch.stop();
     final failedSchedule = bestFailedSchedule ?? _cloneState(existingLessons);
-    final diagnostics = _getConflictDiagnostics(
-      failedSchedule,
-      maxDays,
-      maxPeriods,
-    );
-    final failedCost =
-        bestFailedBreakdown?.violationCost ??
+    final diagnostics =
+        _getConflictDiagnostics(failedSchedule, maxDays, maxPeriods);
+    final failedCost = bestFailedBreakdown?.violationCost ??
         _calculateCost(failedSchedule, maxDays, maxPeriods);
     throw TimetableGenerationException(
       diagnostics.map((diagnostic) => diagnostic.reason).toList(),
@@ -452,15 +435,12 @@ class TimetableGenerator {
     final randomClassroomId =
         validClassroomIds[random.nextInt(validClassroomIds.length)];
     final classroomLessons = neighborClassrooms[randomClassroomId]!;
-    final unpinnedClassroomLessons = classroomLessons
-        .where((l) => !l.isPinned)
-        .toList();
+    final unpinnedClassroomLessons =
+        classroomLessons.where((l) => !l.isPinned).toList();
 
     // Pick a random unpinned lesson.
-    final targetLesson =
-        unpinnedClassroomLessons[random.nextInt(
-          unpinnedClassroomLessons.length,
-        )];
+    final targetLesson = unpinnedClassroomLessons[
+        random.nextInt(unpinnedClassroomLessons.length)];
 
     // Pick a random destination slot within this classroom's daily profile.
     final dailyPeriods = _dailyPeriodsForClassroom(
@@ -476,9 +456,8 @@ class TimetableGenerator {
     if (activeDays.isEmpty) return false;
 
     final newDay = activeDays[random.nextInt(activeDays.length)];
-    final periodsOnDay = newDay < dailyPeriods.length
-        ? dailyPeriods[newDay]
-        : maxPeriods;
+    final periodsOnDay =
+        newDay < dailyPeriods.length ? dailyPeriods[newDay] : maxPeriods;
     final newPeriod = random.nextInt(periodsOnDay);
 
     return _moveOrSwapWithinClassroom(
@@ -548,13 +527,11 @@ class TimetableGenerator {
     var currentEval = breakdown;
     var sinceImprovement = 0;
 
-    for (
-      var iteration = 0;
-      iteration < _polishMaxIterations &&
-          currentEval.preferenceCost > 0 &&
-          sinceImprovement < _polishPatience;
-      iteration++
-    ) {
+    for (var iteration = 0;
+        iteration < _polishMaxIterations &&
+            currentEval.preferenceCost > 0 &&
+            sinceImprovement < _polishPatience;
+        iteration++) {
       if (stopwatch.elapsedMilliseconds >= _timeBudgetMilliseconds) break;
 
       final candidate = _cloneState(current);
@@ -574,8 +551,8 @@ class TimetableGenerator {
       final candidateEval = _evaluate(candidate, maxDays, maxPeriods);
       if (candidateEval.isFeasible &&
           candidateEval.preferenceCost <= currentEval.preferenceCost) {
-        sinceImprovement =
-            candidateEval.preferenceCost < currentEval.preferenceCost
+        sinceImprovement = candidateEval.preferenceCost <
+                currentEval.preferenceCost
             ? 0
             : sinceImprovement + 1;
         current = candidate;
@@ -610,10 +587,7 @@ class TimetableGenerator {
       final subject = lesson.subject;
       if (day == null || period == null || subject == null) continue;
       groupDays
-          .putIfAbsent(
-            classroom.id,
-            () => <int, Map<int, List<LessonEntity>>>{},
-          )
+          .putIfAbsent(classroom.id, () => <int, Map<int, List<LessonEntity>>>{})
           .putIfAbsent(subject.id, () => <int, List<LessonEntity>>{})
           .putIfAbsent(day, () => <LessonEntity>[])
           .add(lesson);
@@ -650,19 +624,14 @@ class TimetableGenerator {
       });
     });
 
-    final useExtras =
-        extraMoves.isNotEmpty &&
+    final useExtras = extraMoves.isNotEmpty &&
         (lateEarlyLessons.isEmpty || random.nextBool());
     if (useExtras) {
       final move = extraMoves[random.nextInt(extraMoves.length)];
       final lesson = move.key;
       final classroomId = lesson.classroom!.id;
-      final periodsOnDay = _periodsForClassroomOnDay(
-        classroomId,
-        move.value,
-        maxDays,
-        maxPeriods,
-      );
+      final periodsOnDay =
+          _periodsForClassroomOnDay(classroomId, move.value, maxDays, maxPeriods);
       if (periodsOnDay <= 0) return false;
       return _moveOrSwapWithinClassroom(
         byClassroom[classroomId]!,
@@ -704,16 +673,13 @@ class TimetableGenerator {
     for (var classroomId in classroomLessons.keys) {
       final lessons = classroomLessons[classroomId]!;
       final pinned = lessons
-          .where(
-            (lesson) =>
-                lesson.isPinned &&
-                lesson.dayIndex != null &&
-                lesson.periodIndex != null,
-          )
+          .where((lesson) =>
+              lesson.isPinned &&
+              lesson.dayIndex != null &&
+              lesson.periodIndex != null)
           .toList();
-      final unpinned = lessons
-          .where((lesson) => !pinned.contains(lesson))
-          .toList();
+      final unpinned =
+          lessons.where((lesson) => !pinned.contains(lesson)).toList();
 
       currentSchedule.addAll(pinned);
 
@@ -725,14 +691,12 @@ class TimetableGenerator {
         maxDays,
         maxPeriods,
       );
-      final maxClassroomPeriods = dailyPeriods.isEmpty
-          ? maxPeriods
-          : dailyPeriods.reduce(max);
+      final maxClassroomPeriods =
+          dailyPeriods.isEmpty ? maxPeriods : dailyPeriods.reduce(max);
       final availableSlots = <int>[];
       for (var day = 0; day < maxDays; day++) {
-        final periodsOnDay = day < dailyPeriods.length
-            ? dailyPeriods[day]
-            : maxPeriods;
+        final periodsOnDay =
+            day < dailyPeriods.length ? dailyPeriods[day] : maxPeriods;
         for (var period = 0; period < periodsOnDay; period++) {
           final slot = day * 100 + period;
           if (!occupiedSlots.contains(slot)) {
@@ -748,8 +712,8 @@ class TimetableGenerator {
       );
 
       var assignedIndex = 0;
-      while (assignedIndex < orderedLessons.length &&
-          availableSlots.isNotEmpty) {
+      while (
+          assignedIndex < orderedLessons.length && availableSlots.isNotEmpty) {
         final lesson = orderedLessons[assignedIndex];
         final slot = _chooseInitialSlot(
           lesson,
@@ -777,16 +741,13 @@ class TimetableGenerator {
 
     // Lessons without a classroom are initialized with the same hard-first
     // ordering, while allowing different teachers to share a slot.
-    final orphanLessons = workingLessons
-        .where((lesson) => lesson.classroom == null)
-        .toList();
+    final orphanLessons =
+        workingLessons.where((lesson) => lesson.classroom == null).toList();
     final pinnedOrphans = orphanLessons
-        .where(
-          (lesson) =>
-              lesson.isPinned &&
-              lesson.dayIndex != null &&
-              lesson.periodIndex != null,
-        )
+        .where((lesson) =>
+            lesson.isPinned &&
+            lesson.dayIndex != null &&
+            lesson.periodIndex != null)
         .toList();
     final unpinnedOrphans = orphanLessons
         .where((lesson) => !pinnedOrphans.contains(lesson))
@@ -892,10 +853,8 @@ class TimetableGenerator {
     if (subject != null) {
       score += subject.lessonsPerWeek * 10;
       if (lesson.classroom != null) {
-        final maxAllowed = _getMaxAllowedSubjectPerDay(
-          subject.id,
-          lesson.classroom!.id,
-        );
+        final maxAllowed =
+            _getMaxAllowedSubjectPerDay(subject.id, lesson.classroom!.id);
         score += max(0, maxPeriods - maxAllowed) * 100;
         if (subject.consecutiveness != SubjectConsecutiveness.any) {
           score += 50;
@@ -921,24 +880,26 @@ class TimetableGenerator {
     // search can report the impossible state through its normal cost/diagnostic
     // path instead of looping forever or silently dropping the lesson.
     final hardFeasibleSlots = availableSlots
-        .where(
-          (slot) => _isHardFeasibleSlot(
-            lesson,
-            slot ~/ 100,
-            slot % 100,
-            assignedLessons,
-          ),
-        )
+        .where((slot) => _isHardFeasibleSlot(
+              lesson,
+              slot ~/ 100,
+              slot % 100,
+              assignedLessons,
+            ))
         .toList();
-    final candidateSlots = hardFeasibleSlots.isNotEmpty
-        ? hardFeasibleSlots
-        : availableSlots;
+    final candidateSlots =
+        hardFeasibleSlots.isNotEmpty ? hardFeasibleSlots : availableSlots;
 
     final scoredSlots = [
       for (var slot in candidateSlots)
         MapEntry(
           slot,
-          _initialSlotPenalty(lesson, slot ~/ 100, slot % 100, assignedLessons),
+          _initialSlotPenalty(
+            lesson,
+            slot ~/ 100,
+            slot % 100,
+            assignedLessons,
+          ),
         ),
     ];
 
@@ -959,12 +920,10 @@ class TimetableGenerator {
   ) {
     final teacher = lesson.teacher;
     if (teacher != null) {
-      if (assignedLessons.any(
-        (assigned) =>
-            assigned.teacher?.id == teacher.id &&
-            assigned.dayIndex == day &&
-            assigned.periodIndex == period,
-      )) {
+      if (assignedLessons.any((assigned) =>
+          assigned.teacher?.id == teacher.id &&
+          assigned.dayIndex == day &&
+          assigned.periodIndex == period)) {
         return false;
       }
       if (teacher.unavailableDays.contains(day)) return false;
@@ -1003,10 +962,8 @@ class TimetableGenerator {
 
     if (teacher != null) {
       final dailyLoad = assignedLessons
-          .where(
-            (assigned) =>
-                assigned.teacher?.id == teacher.id && assigned.dayIndex == day,
-          )
+          .where((assigned) =>
+              assigned.teacher?.id == teacher.id && assigned.dayIndex == day)
           .length;
       if (dailyLoad >= teacher.maxLessonsPerDay) {
         // Keep daily load ahead of preferences, while still allowing a fallback
@@ -1020,13 +977,11 @@ class TimetableGenerator {
       final classroom = lesson.classroom!;
       final group = _groupFor(classroom, subject);
       final sameSubjectPeriods = assignedLessons
-          .where(
-            (assigned) =>
-                assigned.classroom?.id == classroom.id &&
-                assigned.subject?.id == subject.id &&
-                assigned.dayIndex == day &&
-                assigned.periodIndex != null,
-          )
+          .where((assigned) =>
+              assigned.classroom?.id == classroom.id &&
+              assigned.subject?.id == subject.id &&
+              assigned.dayIndex == day &&
+              assigned.periodIndex != null)
           .map((assigned) => assigned.periodIndex!)
           .toList();
 
@@ -1040,10 +995,10 @@ class TimetableGenerator {
         group.policy,
         sameSubjectPeriods,
       );
-      final after = SchedulingRules.consecutivenessViolations(group.policy, [
-        ...sameSubjectPeriods,
-        period,
-      ]);
+      final after = SchedulingRules.consecutivenessViolations(
+        group.policy,
+        [...sameSubjectPeriods, period],
+      );
       if (after > before) {
         penalty += consecutivenessPenalty * (after - before);
       }
@@ -1115,10 +1070,7 @@ class TimetableGenerator {
       if (classroom == null || subject == null) continue;
       // Groups whose lessons are all unassigned still carry a distribution.
       final dayMap = result
-          .putIfAbsent(
-            classroom.id,
-            () => <int, Map<int, List<LessonEntity>>>{},
-          )
+          .putIfAbsent(classroom.id, () => <int, Map<int, List<LessonEntity>>>{})
           .putIfAbsent(subject.id, () => <int, List<LessonEntity>>{});
       final day = lesson.dayIndex;
       if (day == null || lesson.periodIndex == null) continue;
@@ -1134,11 +1086,9 @@ class TimetableGenerator {
     List<LessonEntity> state,
   ) {
     final groupLessons = state
-        .where(
-          (lesson) =>
-              lesson.classroom?.id == classroomId &&
-              lesson.subject?.id == subjectId,
-        )
+        .where((lesson) =>
+            lesson.classroom?.id == classroomId &&
+            lesson.subject?.id == subjectId)
         .toList();
     final sample = groupLessons.first;
     return _groupFor(sample.classroom!, sample.subject!, groupLessons);
@@ -1164,11 +1114,9 @@ class TimetableGenerator {
     final subject = sample?.subject ?? _subjectsById[subjectId];
     if (classroom == null || subject == null) return null;
     final fallback = state
-        .where(
-          (lesson) =>
-              lesson.classroom?.id == classroomId &&
-              lesson.subject?.id == subjectId,
-        )
+        .where((lesson) =>
+            lesson.classroom?.id == classroomId &&
+            lesson.subject?.id == subjectId)
         .toList();
     return _groupFor(classroom, subject, fallback);
   }
@@ -1177,10 +1125,7 @@ class TimetableGenerator {
   // كل شرط يرفع تكلفة المخالفات الإجبارية يجب أن يقابله تشخيص إجباري مماثل
   // (isHard: true). التفضيلات (الأحد/المبكر) لا تُفشل التوليد ولا تُشخَّص.
   List<ConflictDiagnostic> _getConflictDiagnostics(
-    List<LessonEntity> state,
-    int maxDays,
-    int maxPeriods,
-  ) {
+      List<LessonEntity> state, int maxDays, int maxPeriods) {
     final diagnostics = <ConflictDiagnostic>[];
 
     final classroomSlotOwners = <int, Map<int, int>>{};
@@ -1276,9 +1221,7 @@ class TimetableGenerator {
         }
 
         if (!SchedulingRules.isPeriodAllowed(
-          lesson.teacher!.allowedPeriods,
-          period,
-        )) {
+            lesson.teacher!.allowedPeriods, period)) {
           addDiagnostic(
             TeacherNotAllowedPeriodConflict(lesson.teacher!.name, period),
             lessonIds: [lesson.id],
@@ -1288,9 +1231,7 @@ class TimetableGenerator {
 
       if (lesson.subject != null && lesson.classroom != null) {
         if (!SchedulingRules.isPeriodAllowed(
-          lesson.subject!.allowedPeriods,
-          period,
-        )) {
+            lesson.subject!.allowedPeriods, period)) {
           addDiagnostic(
             SubjectNotAllowedPeriodConflict(lesson.subject!.name, period),
             lessonIds: [lesson.id],
@@ -1346,7 +1287,11 @@ class TimetableGenerator {
             } else if (group.policy == SubjectConsecutiveness.nonConsecutive &&
                 gap == 1) {
               addDiagnostic(
-                AdjacentSubjectPeriodsConflict(subjectName, classroomName, day),
+                AdjacentSubjectPeriodsConflict(
+                  subjectName,
+                  classroomName,
+                  day,
+                ),
                 lessonIds: [first.id, second.id],
               );
             }
@@ -1534,14 +1479,16 @@ class TimetableGenerator {
         for (final entry in dayMap.entries) entry.key: entry.value.length,
       };
       // Hard: daily maximum (user constraint, tightened by balance).
-      violations +=
-          group.distribution.excess(counts, group.userMax) * _hardPenalty;
+      violations += group.distribution.excess(counts, group.userMax) *
+          _hardPenalty;
       // Hard: balanced weekly distribution (base share on each eligible day).
       violations += group.distribution.shortfall(counts) * _hardPenalty;
       // Hard: consecutiveness policy.
       for (final periods in dayMap.values) {
-        violations +=
-            SchedulingRules.consecutivenessViolations(group.policy, periods) *
+        violations += SchedulingRules.consecutivenessViolations(
+              group.policy,
+              periods,
+            ) *
             _hardPenalty;
       }
       // Preference: extras start from Sunday.
@@ -1551,8 +1498,7 @@ class TimetableGenerator {
 
     subjectPeriods.forEach((classroomId, subjectMap) {
       subjectMap.forEach((subjectId, dayMap) {
-        final group =
-            _groupCache[classroomId]?[subjectId] ??
+        final group = _groupCache[classroomId]?[subjectId] ??
             _groupForIds(classroomId, subjectId) ??
             _groupFromState(classroomId, subjectId, state);
         evaluateGroup(group, dayMap);

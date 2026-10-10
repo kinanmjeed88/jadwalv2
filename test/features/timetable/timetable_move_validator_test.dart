@@ -72,18 +72,14 @@ void main() {
     }
 
     test('consecutive rejects a gap and accepts an adjacent period', () {
-      expect(
-        moveSecondTo(SubjectConsecutiveness.consecutive, 2),
-        contains('«متتالي»'),
-      );
+      expect(moveSecondTo(SubjectConsecutiveness.consecutive, 2),
+          contains('«متتالي»'));
       expect(moveSecondTo(SubjectConsecutiveness.consecutive, 1), isNull);
     });
 
     test('nonConsecutive rejects adjacency and accepts a gap', () {
-      expect(
-        moveSecondTo(SubjectConsecutiveness.nonConsecutive, 1),
-        contains('«غير متتالي»'),
-      );
+      expect(moveSecondTo(SubjectConsecutiveness.nonConsecutive, 1),
+          contains('«غير متتالي»'));
       expect(moveSecondTo(SubjectConsecutiveness.nonConsecutive, 2), isNull);
     });
 
@@ -94,10 +90,8 @@ void main() {
 
     test('a move that repairs a legacy gap is allowed', () {
       final teacher = _teacher(1);
-      final subject = _subject(
-        1,
-        consecutiveness: SubjectConsecutiveness.consecutive,
-      );
+      final subject =
+          _subject(1, consecutiveness: SubjectConsecutiveness.consecutive);
       final classroom = _classroom(1);
       final first = _lesson(1, teacher, subject, classroom, day: 0, period: 0);
       final second = _lesson(2, teacher, subject, classroom, day: 0, period: 2);
@@ -113,11 +107,8 @@ void main() {
   });
 
   group('validateGroupRules: weekly distribution', () {
-    List<Lesson> oneLessonPerDay(
-      Teacher teacher,
-      Subject subject,
-      Classroom classroom,
-    ) {
+    List<Lesson> oneLessonPerDay(Teacher teacher, Subject subject,
+        Classroom classroom) {
       return [
         for (var day = 0; day < 5; day++)
           _lesson(day + 1, teacher, subject, classroom, day: day, period: 0),
@@ -179,10 +170,8 @@ void main() {
   group('validateGroupRules: legacy violations cannot move to another day', () {
     test('consecutive: moving a gap from one day to another is rejected', () {
       final teacher = _teacher(1);
-      final subject = _subject(
-        1,
-        consecutiveness: SubjectConsecutiveness.consecutive,
-      );
+      final subject =
+          _subject(1, consecutiveness: SubjectConsecutiveness.consecutive);
       final classroom = _classroom(1);
       // اليوم 0: الحصتان 1 و3 (فراغ قديم). اليوم 1: الحصة 1.
       final lessons = [
@@ -213,10 +202,8 @@ void main() {
 
     test('consecutive: a move that only reduces a legacy day is allowed', () {
       final teacher = _teacher(1);
-      final subject = _subject(
-        1,
-        consecutiveness: SubjectConsecutiveness.consecutive,
-      );
+      final subject =
+          _subject(1, consecutiveness: SubjectConsecutiveness.consecutive);
       final classroom = _classroom(1);
       // اليوم 0: الحصص 1 و3 و5 (فراغان قديمان).
       final lessons = [
@@ -237,10 +224,8 @@ void main() {
 
     test('nonConsecutive: moving an adjacency to another day is rejected', () {
       final teacher = _teacher(1);
-      final subject = _subject(
-        1,
-        consecutiveness: SubjectConsecutiveness.nonConsecutive,
-      );
+      final subject =
+          _subject(1, consecutiveness: SubjectConsecutiveness.nonConsecutive);
       final classroom = _classroom(1);
       // اليوم 0: الحصتان 1 و2 متجاورتان (مخالفة قديمة). اليوم 1: الحصة 4.
       final lessons = [
@@ -324,10 +309,8 @@ void main() {
     test('swap: a violation carried to another day by a swap is rejected', () {
       final arabicTeacher = _teacher(1);
       final mathTeacher = _teacher(2);
-      final arabic = _subject(
-        1,
-        consecutiveness: SubjectConsecutiveness.consecutive,
-      );
+      final arabic =
+          _subject(1, consecutiveness: SubjectConsecutiveness.consecutive);
       final math = _subject(2, name: 'Math');
       final classroom = _classroom(1);
       final lessons = [
@@ -336,10 +319,10 @@ void main() {
         _lesson(3, arabicTeacher, arabic, classroom, day: 1, period: 0),
         _lesson(4, mathTeacher, math, classroom, day: 1, period: 3),
       ];
-      final validator = _validatorWithConstraints(lessons, {
-        'Arabic': 2,
-        'Math': 1,
-      });
+      final validator = _validatorWithConstraints(
+        lessons,
+        {'Arabic': 2, 'Math': 1},
+      );
 
       // تبديل العربي (اليوم 0، الحصة 3) مع الرياضيات (اليوم 1، الحصة 4).
       expect(
@@ -359,10 +342,8 @@ void main() {
     test('placement and group checks never mutate lessons or the index', () {
       final arabicTeacher = _teacher(1);
       final mathTeacher = _teacher(2);
-      final arabic = _subject(
-        1,
-        consecutiveness: SubjectConsecutiveness.consecutive,
-      );
+      final arabic =
+          _subject(1, consecutiveness: SubjectConsecutiveness.consecutive);
       final math = _subject(2, name: 'Math');
       final classroom = _classroom(1);
       final lessons = [
@@ -371,10 +352,10 @@ void main() {
         _lesson(3, arabicTeacher, arabic, classroom, day: 1, period: 0),
         _lesson(4, mathTeacher, math, classroom, day: 1, period: 3),
       ];
-      final validator = _validatorWithConstraints(lessons, {
-        'Arabic': 2,
-        'Math': 1,
-      });
+      final validator = _validatorWithConstraints(
+        lessons,
+        {'Arabic': 2, 'Math': 1},
+      );
       final before = _snapshot(validator.index);
 
       // رفض على مستوى الحصة: الصف مشغول.
@@ -409,10 +390,7 @@ void main() {
 
       expect(_snapshot(validator.index), before);
       expect(
-        [
-          for (final lesson in lessons)
-            '${lesson.dayIndex}:${lesson.periodIndex}',
-        ],
+        [for (final lesson in lessons) '${lesson.dayIndex}:${lesson.periodIndex}'],
         ['0:0', '0:2', '1:0', '1:3'],
       );
     });
