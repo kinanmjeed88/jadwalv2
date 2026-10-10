@@ -182,8 +182,7 @@ void main() {
           policy: SubjectConsecutiveness.nonConsecutive,
         );
 
-        final consecutiveResult =
-            consecutive.generator(seed: seed).generate();
+        final consecutiveResult = consecutive.generator(seed: seed).generate();
         final nonConsecutiveResult =
             nonConsecutive.generator(seed: seed).generate();
 
@@ -263,10 +262,10 @@ void main() {
 
     test('same seed gives the same schedule', () {
       final scenario = _Scenario(lessonCount: 6, maxPerDay: 2);
-      String signature(List<LessonEntity> lessons) => (List.of(lessons)
-            ..sort((a, b) => a.id.compareTo(b.id)))
-          .map((l) => '${l.id}:${l.dayIndex}:${l.periodIndex}')
-          .join(',');
+      String signature(List<LessonEntity> lessons) =>
+          (List.of(lessons)..sort((a, b) => a.id.compareTo(b.id)))
+              .map((l) => '${l.id}:${l.dayIndex}:${l.periodIndex}')
+              .join(',');
 
       final first = scenario.generator(seed: 42).generate();
       final second = scenario.generator(seed: 42).generate();

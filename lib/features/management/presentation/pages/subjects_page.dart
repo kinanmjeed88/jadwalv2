@@ -120,8 +120,8 @@ class _SubjectDialogState extends ConsumerState<_SubjectDialog> {
           loading: AppConfig.initial,
           error: (_, __) => AppConfig.initial(),
         );
-    final classrooms =
-        ref.watch(classroomsNotifierProvider).valueOrNull ?? const <Classroom>[];
+    final classrooms = ref.watch(classroomsNotifierProvider).valueOrNull ??
+        const <Classroom>[];
 
     return AlertDialog(
       title: Text(widget.existingSubject == null ? 'إضافة مادة' : 'تعديل مادة'),

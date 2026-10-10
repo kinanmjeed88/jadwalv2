@@ -133,7 +133,8 @@ void main() {
         .then((constraint) => constraint!);
   }
 
-  Future<AppConfig> config() => container.read(appConfigNotifierProvider.future);
+  Future<AppConfig> config() =>
+      container.read(appConfigNotifierProvider.future);
 
   String storage(String grade, String subject) =>
       SubjectConstraintKey(grade: grade, subjectName: subject).storageKey;
@@ -149,7 +150,9 @@ void main() {
     if (originalKey != null && originalKey.storageKey != newKey.storageKey) {
       await sync().recordManualDeletion(originalKey);
     }
-    await container.read(subjectsNotifierProvider.notifier).saveSubjectConstraint(
+    await container
+        .read(subjectsNotifierProvider.notifier)
+        .saveSubjectConstraint(
           constraintId: constraintId,
           grade: grade,
           subjectName: subjectName,

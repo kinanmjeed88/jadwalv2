@@ -10,8 +10,7 @@ import 'package:jadwal_v2/features/timetable/domain/usecases/pre_validation_engi
 
 /// الفحص المسبق يرفض فقط الاستحالات المثبتة رياضيًا.
 void main() {
-  test('subject allowed periods smaller than the weekly load are rejected',
-      () {
+  test('subject allowed periods smaller than the weekly load are rejected', () {
     final errors = _validate(
       lessonCount: 6,
       maxPerDay: 2,
@@ -84,8 +83,8 @@ void main() {
       teacherUnavailableDays: const [0],
     );
 
-    expect(errors.any((e) => e.contains('"Arabic"') && e.contains('(4)')),
-        isTrue);
+    expect(
+        errors.any((e) => e.contains('"Arabic"') && e.contains('(4)')), isTrue);
   });
 
   test('balanced minimum per day must fit on every eligible day', () {

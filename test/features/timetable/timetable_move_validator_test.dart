@@ -107,8 +107,8 @@ void main() {
   });
 
   group('validateGroupRules: weekly distribution', () {
-    List<Lesson> oneLessonPerDay(Teacher teacher, Subject subject,
-        Classroom classroom) {
+    List<Lesson> oneLessonPerDay(
+        Teacher teacher, Subject subject, Classroom classroom) {
       return [
         for (var day = 0; day < 5; day++)
           _lesson(day + 1, teacher, subject, classroom, day: day, period: 0),
@@ -390,7 +390,10 @@ void main() {
 
       expect(_snapshot(validator.index), before);
       expect(
-        [for (final lesson in lessons) '${lesson.dayIndex}:${lesson.periodIndex}'],
+        [
+          for (final lesson in lessons)
+            '${lesson.dayIndex}:${lesson.periodIndex}'
+        ],
         ['0:0', '0:2', '1:0', '1:3'],
       );
     });

@@ -110,7 +110,8 @@ class SubjectWeeklyDistribution {
     final base = safeCount ~/ days.length;
     final extras = safeCount % days.length;
     final target = <int, int>{
-      for (var i = 0; i < days.length; i++) days[i]: base + (i < extras ? 1 : 0),
+      for (var i = 0; i < days.length; i++)
+        days[i]: base + (i < extras ? 1 : 0),
     };
     return SubjectWeeklyDistribution._(
       lessonCount: safeCount,
@@ -144,7 +145,8 @@ class SubjectWeeklyDistribution {
   bool isEligible(int day) => _eligibleSet.contains(day);
 
   /// الحد الأدنى الإجباري في [day].
-  int minFor(int day) => isBalanced && _eligibleSet.contains(day) ? minPerDay : 0;
+  int minFor(int day) =>
+      isBalanced && _eligibleSet.contains(day) ? minPerDay : 0;
 
   /// الهدف المفضّل في [day].
   int targetFor(int day) => targetByDay[day] ?? 0;
