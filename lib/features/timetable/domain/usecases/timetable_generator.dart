@@ -1170,7 +1170,7 @@ class TimetableGenerator {
             period >= allowedPeriodsOnDay) {
           addDiagnostic(
             GenericSolverFailure(
-              'الفصل \"${lesson.classroom!.name}\": الحصة ${period + 1} في اليوم ${day + 1} خارج التوزيع اليومي المعتمد للصف.',
+              'الفصل "${lesson.classroom!.name}": الحصة ${period + 1} في اليوم ${day + 1} خارج التوزيع اليومي المعتمد للصف.',
             ),
             lessonIds: [lesson.id],
           );
