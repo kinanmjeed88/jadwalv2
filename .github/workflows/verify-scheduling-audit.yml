@@ -30,29 +30,46 @@ jobs:
         with:
           channel: stable
           cache: true
-      - name: Format changed Dart files
+      - name: Install dependencies (formatter needs the package language version)
+        run: flutter pub get
+      - name: Format changed Dart files (short style, language 3.3)
         shell: bash
         run: |
           set -euo pipefail
-          mapfile -t files < <(git diff --name-only --diff-filter=AMR "$BASE_SHA" HEAD -- '*.dart' | grep -v '\.g\.dart$' || true)
           echo "::notice title=Formatter::$(dart --version 2>&1)"
-          if [ "${#files[@]}" -eq 0 ]; then
-            echo "::notice title=dart format::No changed Dart files"
-            exit 0
+          fmt=(dart format --language-version=3.3)
+          safe=()
+          legacy=()
+          while IFS=$'\t' read -r status file; do
+            case "$file" in *.g.dart|'') continue ;; esac
+            if [ "$status" = "A" ]; then
+              safe+=("$file")
+            elif git show "$BASE_SHA:$file" | "${fmt[@]}" --output=none --set-exit-if-changed >/dev/null 2>&1; then
+              safe+=("$file")
+            else
+              base_lines=$(git show "$BASE_SHA:$file" | "${fmt[@]}" --output=show 2>/dev/null | diff <(git show "$BASE_SHA:$file") - | grep -c '^[<>]' || true)
+              legacy+=("$file(base:$base_lines)")
+            fi
+          done < <(git diff --name-status --diff-filter=AM "$BASE_SHA" HEAD -- '*.dart')
+          echo "::notice title=Base already unformatted on main (not auto-formatted)::${legacy[*]:-none}"
+          if [ "${#safe[@]}" -gt 0 ]; then
+            "${fmt[@]}" "${safe[@]}"
           fi
-          dart format "${files[@]}"
           if git diff --quiet; then
-            echo "::notice title=dart format::Already formatted (${#files[@]} files)"
+            echo "::notice title=dart format::already formatted (${#safe[@]} files)"
           else
-            changed=$(git diff --name-only | tr '\n' ' ')
-            echo "::warning title=dart format applied::$changed"
+            echo "::warning title=dart format applied::$(git diff --stat | tail -1) :: $(git diff --name-only | tr '\n' ' ')"
             git config user.name 'github-actions[bot]'
             git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git commit -am 'style: dart format changed files'
-            git push origin "HEAD:${GITHUB_REF_NAME}"
+            git commit -qam 'style: dart format changed files (short style, language 3.3)'
+            git push -q origin "HEAD:${GITHUB_REF_NAME}"
             echo "::notice title=dart format commit::$(git rev-parse HEAD)"
           fi
-          dart format --output=none --set-exit-if-changed "${files[@]}"
+          for entry in "${legacy[@]}"; do
+            file="${entry%%(*}"
+            changed=$("${fmt[@]}" --output=show "$file" 2>/dev/null | diff "$file" - | grep -c '^[<>]' || true)
+            echo "::notice title=Unformatted lines in $file::head:$changed ${entry#$file}"
+          done
       - name: git diff --check
         shell: bash
         run: |
@@ -117,16 +134,6 @@ jobs:
       - name: Toolchain
         shell: bash
         run: echo "::notice title=${{ matrix.target }} toolchain::$(flutter --version 2>&1 | head -1) / $(dart --version 2>&1)"
-      - name: dart format check (target toolchain)
-        shell: bash
-        working-directory: ${{ runner.temp }}/target
-        run: |
-          mapfile -t files < <(git diff --cached --name-only --diff-filter=AMR -- '*.dart' | grep -v '\.g\.dart$' || true)
-          if out=$(dart format --output=none --set-exit-if-changed "${files[@]}" 2>&1); then
-            echo "::notice title=${{ matrix.target }} dart format::clean (${#files[@]} files)"
-          else
-            echo "::warning title=${{ matrix.target }} dart format::$(echo "$out" | grep -i 'formatted' | tr '\n' ' ')"
-          fi
       - name: Enable Windows Desktop
         run: flutter config --enable-windows-desktop
       - name: Isolate Windows-only dependency resolution
@@ -137,6 +144,16 @@ jobs:
       - name: Install Dependencies
         working-directory: ${{ runner.temp }}/target
         run: flutter pub get
+      - name: dart format check (target toolchain)
+        shell: bash
+        working-directory: ${{ runner.temp }}/target
+        run: |
+          mapfile -t files < <(git diff --cached --name-only --diff-filter=AMR -- '*.dart' | grep -v '\.g\.dart$' || true)
+          if out=$(dart format --output=none --set-exit-if-changed "${files[@]}" 2>&1); then
+            echo "::notice title=${{ matrix.target }} dart format::clean (${#files[@]} files)"
+          else
+            echo "::warning title=${{ matrix.target }} dart format::$(echo "$out" | grep -i 'formatted' | tr '\n' ' ')"
+          fi
       - name: Analyze
         shell: pwsh
         working-directory: ${{ runner.temp }}/target
