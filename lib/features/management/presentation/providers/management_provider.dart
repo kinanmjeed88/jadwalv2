@@ -140,7 +140,23 @@ class SubjectsNotifier extends _$SubjectsNotifier {
         ..grade = grade
         ..subjectName = subjectName
         ..maxPeriodsPerDay = maxPeriodsPerDay;
-      await isar.subjectConstraints.put(constraint);
+      final savedId = await isar.subjectConstraints.put(constraint);
+
+      // نقل قيد إلى (صف، مادة) لها قيد مسبقًا يجعل القيد المنقول هو قيدها
+      // الوحيد؛ وإلا بقي سجلّان للمفتاح نفسه فيأخذ المحرك أحدهما والسحب الآخر.
+      final sameKey = await isar.subjectConstraints
+          .filter()
+          .gradeEqualTo(grade)
+          .and()
+          .subjectNameEqualTo(subjectName)
+          .findAll();
+      final duplicateIds = [
+        for (final other in sameKey)
+          if (other.id != savedId) other.id,
+      ];
+      if (duplicateIds.isNotEmpty) {
+        await isar.subjectConstraints.deleteAll(duplicateIds);
+      }
 
       final subject =
           await isar.subjects.filter().nameEqualTo(subjectName).findFirst();

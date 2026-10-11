@@ -57,6 +57,10 @@ class ConflictMessageMapper {
       return 'مادة "${reason.subjectName}": غير مسموح بتدريسها في الحصة ${reason.period + 1}.';
     } else if (reason is NonConsecutiveSubjectPeriodsConflict) {
       return 'مادة "${reason.subjectName}" (الفصل "${reason.classroomName}"): الحصص غير متتالية في اليوم ${reason.day + 1}.';
+    } else if (reason is AdjacentSubjectPeriodsConflict) {
+      return 'مادة "${reason.subjectName}" (الفصل "${reason.classroomName}"): حصتان متجاورتان في اليوم ${reason.day + 1} والمادة مضبوطة على «غير متتالي».';
+    } else if (reason is SubjectDailyDistributionConflict) {
+      return 'مادة "${reason.subjectName}" (الفصل "${reason.classroomName}"): اليوم ${reason.day + 1} فيه ${reason.currentCount} حصة والمطلوب ${reason.minRequired} على الأقل لتوزيع حصص المادة على أيام الأسبوع.';
     }
     return 'سبب غير معروف للصراع.';
   }
