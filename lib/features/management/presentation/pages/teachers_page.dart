@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/models/app_config.dart';
 import '../../../../core/models/classroom.dart';
 import '../../../../core/models/subject.dart';
 import '../../../../core/models/teacher.dart';
 import '../../../../core/models/weekly_load_policy.dart';
+import '../../../../core/providers/app_config_provider.dart';
+import '../../../../core/utils/period_options.dart';
 import '../../../timetable/presentation/providers/timetable_provider.dart';
 import '../providers/management_provider.dart';
 
@@ -136,10 +139,26 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
           loading: () => 5,
           error: (_, __) => 5,
         );
+    final periodsPerDay = ref.watch(settingsNotifierProvider).when(
+          data: (settings) => settings.periodsPerDay,
+          loading: () => 7,
+          error: (_, __) => 7,
+        );
+    final config = ref.watch(appConfigNotifierProvider).when(
+          data: (c) => c,
+          loading: AppConfig.initial,
+          error: (_, __) => AppConfig.initial(),
+        );
     final workingDays = Weekday.workingDays(daysPerWeek);
-    const maxPeriods = 10;
     final subjectsAsync = ref.watch(subjectsNotifierProvider);
     final classroomsAsync = ref.watch(classroomsNotifierProvider);
+    final maxPeriods = PeriodOptions.resolveSchoolPeriodCount(
+      periodsPerDay: periodsPerDay,
+      daysPerWeek: daysPerWeek,
+      config: config,
+      classrooms: classroomsAsync.valueOrNull ?? const <Classroom>[],
+    );
+    final periodChoices = PeriodOptions.choices(maxPeriods, allowedPeriods);
 
     return AlertDialog(
       title: Text(_isEditing ? 'تعديل معلم' : 'إضافة معلم'),
@@ -183,6 +202,10 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
               const SizedBox(height: 16),
               const Text('أيام التفرغ:',
                   style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'الأيام المختارة لا يُجدول فيها أي درس لهذا المعلم.',
+                style: TextStyle(fontSize: 12, color: Colors.black54),
+              ),
               Wrap(
                 spacing: 8.0,
                 children: workingDays.map((day) {
@@ -209,9 +232,11 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
                 scrollDirection: Axis.horizontal,
                 child: Wrap(
                   spacing: 8.0,
-                  children: List.generate(maxPeriods, (index) {
+                  children: periodChoices.map((index) {
                     return FilterChip(
-                      label: Text('الدرس ${index + 1}'),
+                      label: Text(index < maxPeriods
+                          ? 'الدرس ${index + 1}'
+                          : 'الدرس ${index + 1} (خارج حصص المدرسة)'),
                       selected: allowedPeriods.contains(index),
                       onSelected: (bool selected) {
                         setState(() {
@@ -223,7 +248,7 @@ class _TeacherDialogState extends ConsumerState<_TeacherDialog> {
                         });
                       },
                     );
-                  }),
+                  }).toList(),
                 ),
               ),
               if (!_isEditing) ...[

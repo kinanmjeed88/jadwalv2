@@ -12,9 +12,9 @@ extension SubjectConsecutivenessExtension on SubjectConsecutiveness {
   String get label {
     switch (this) {
       case SubjectConsecutiveness.consecutive:
-        return 'متتالي';
+        return 'متتالي (حصص اليوم الواحد متصلة)';
       case SubjectConsecutiveness.nonConsecutive:
-        return 'غير متتالي (لا يشترط التتابع)';
+        return 'غير متتالي (يُمنع تجاور حصص المادة)';
       case SubjectConsecutiveness.any:
         return 'بدون قيد';
     }
